@@ -13,6 +13,7 @@ HOST = os.getenv("IBKR_HOST", "127.0.0.1")
 PAPER_PORT = int(os.getenv("IBKR_PAPER_PORT", "4002"))
 CLIENT_ID = int(os.getenv("IBKR_BRIDGE_CLIENT_ID", "17"))
 ACCESS_TOKEN = os.getenv("BRIDGE_ACCESS_TOKEN", "")
+PAPER_ONLY = os.getenv("PAPER_TRADING_ONLY", "true").lower() == "true"
 ib = IB()
 staged_orders: dict[str, "PaperOrder"] = {}
 
@@ -41,10 +42,18 @@ async def require_access_token(x_thetaforge_bridge_token: str | None = Header(de
 
 
 async def ensure_connected() -> None:
+    if not PAPER_ONLY or PAPER_PORT not in {4002, 7497}:
+        raise HTTPException(status_code=503, detail="Bridge is locked to IBKR paper-trading ports only")
     if not ib.isConnected():
         try:
             await ib.connectAsync(HOST, PAPER_PORT, clientId=CLIENT_ID, timeout=8)
+            accounts = ib.managedAccounts()
+            if not any(account.upper().startswith("DU") for account in accounts):
+                ib.disconnect()
+                raise HTTPException(status_code=503, detail="Connected IBKR session is not a paper account")
         except Exception as error:
+            if isinstance(error, HTTPException):
+                raise
             raise HTTPException(status_code=503, detail=f"Paper TWS/IB Gateway is unavailable: {error}") from error
 
 

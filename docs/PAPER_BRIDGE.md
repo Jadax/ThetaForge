@@ -20,6 +20,12 @@ uvicorn bridge.main:app --env-file .env --host 0.0.0.0 --port 8002
 
 Keep the Bridge in paper mode. It has no live-order route.
 
+If you use **IB Gateway**, leave `IBKR_PAPER_PORT=4002`. If you use the full
+**Trader Workstation**, set `IBKR_PAPER_PORT=7497` instead. In TWS, open
+`File/Edit → Global Configuration → API → Settings`, enable socket clients,
+keep localhost-only access enabled, and clear read-only mode only when you are
+ready to submit paper orders.
+
 ## Verify locally
 
 Open `http://127.0.0.1:8002/`. A JSON service message is the expected result;
