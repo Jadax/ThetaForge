@@ -1,26 +1,33 @@
 """
 Advisor API Routes.
 The main API that takes account info and returns specific trade recommendations.
+Wired to the AI Brain for unified signal analysis.
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 
 from agents.trade_engine.recommender import TradeRecommender
+from agents.trade_engine.ai_brain import AIBrain, TimeHorizon
+from agents.trade_engine.watchlist import FavoritesStore
 from agents.trade_engine.models import (
     AccountInfo, RiskTolerance, StrategyType
 )
 from agents.data_ingestion.free_data import FreeDataProvider
-from agents.technical.indicators import TechnicalAnalyzer
+from agents.technical.indicators import TechnicalEngine as TechAnalyzer
 from agents.flow_analysis.gex_engine import GEXEngine
 
 router = APIRouter(prefix="/api/advisor", tags=["advisor"])
 
 provider = FreeDataProvider()
 recommender = TradeRecommender()
-tech_analyzer = TechnicalAnalyzer()
+tech_analyzer = TechAnalyzer()
 gex_engine = GEXEngine()
+brain = AIBrain()
+watchlist_store = FavoritesStore()
 
+
+# === Request/Response Models ===
 
 class AdvisoryRequest(BaseModel):
     capital: float = Field(..., description="Total account equity")
@@ -31,13 +38,253 @@ class AdvisoryRequest(BaseModel):
     current_positions: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class BrainAnalysisRequest(BaseModel):
+    symbol: str
+    stock_price: float = 0
+    horizon: str = Field("1m", description="1w/1m/3m/6m")
+
+
+class WatchlistAddRequest(BaseModel):
+    symbol: str
+    notes: str = ""
+    tags: List[str] = Field(default_factory=list)
+    custom_delta: float = 0.3
+    custom_dte: int = 45
+    custom_strategies: List[str] = Field(default_factory=list)
+
+
+class WatchlistUpdateRequest(BaseModel):
+    notes: Optional[str] = None
+    tags: Optional[List[str]] = None
+    custom_delta: Optional[float] = None
+    custom_dte: Optional[int] = None
+    custom_strategies: Optional[List[str]] = None
+
+
+# === AI Brain Endpoints ===
+
+@router.post("/brain/analyze")
+async def brain_analyze(request: BrainAnalysisRequest):
+    """
+    AI Brain analysis for a single symbol.
+    Returns unified signals, regime, strategy recommendations,
+    and time-horizon specific trade ideas.
+    """
+    symbol = request.symbol.upper()
+
+    # Fetch market data
+    stock_price = request.stock_price
+    option_chain = []
+    historical = []
+    current_iv = 0.20
+    hv_20 = 0.18
+    iv_52w_high = 0.40
+    iv_52w_low = 0.12
+    vix = 20.0
+    gex_data = None
+    flow_data = None
+    pcr_data = None
+
+    try:
+        info = provider.get_stock_info(symbol)
+        if info:
+            stock_price = stock_price or info.get("regularMarketPrice", 0)
+    except Exception:
+        pass
+
+    try:
+        chain = provider.get_option_chain(symbol)
+        if chain:
+            option_chain = chain if isinstance(chain, list) else []
+    except Exception:
+        pass
+
+    try:
+        hist = provider.get_historical(symbol, period="1y")
+        if hist is not None and len(hist) > 0:
+            historical = hist["Close"].tolist() if hasattr(hist, "tolist") else list(hist["Close"])
+            if "High" in hist.columns:
+                high_prices = hist["High"].tolist()
+            else:
+                high_prices = historical
+            if "Low" in hist.columns:
+                low_prices = hist["Low"].tolist()
+            else:
+                low_prices = historical
+
+            # Calculate HV
+            import math
+            if len(historical) >= 20:
+                returns = [
+                    math.log(historical[i] / historical[i - 1])
+                    for i in range(1, min(21, len(historical)))
+                ]
+                hv_20 = (sum((r - sum(returns) / len(returns)) ** 2 for r in returns) / len(returns)) ** 0.5 * math.sqrt(252)
+        else:
+            high_prices = [stock_price * 1.01]
+            low_prices = [stock_price * 0.99]
+    except Exception:
+        historical = [stock_price]
+        high_prices = [stock_price * 1.01]
+        low_prices = [stock_price * 0.99]
+
+    try:
+        vix_data = provider.get_vix()
+        if vix_data:
+            vix = vix_data.get("regularMarketPrice", 20)
+    except Exception:
+        pass
+
+    # GEX
+    try:
+        if option_chain and stock_price:
+            gex_data = gex_engine.calculate_gex(option_chain, stock_price)
+    except Exception:
+        pass
+
+    # Run Brain
+    output = brain.analyze(
+        symbol=symbol,
+        stock_price=stock_price,
+        option_chain=option_chain,
+        historical_prices=historical,
+        high_prices=high_prices,
+        low_prices=low_prices,
+        current_iv=current_iv,
+        hv_20=hv_20,
+        iv_52w_high=iv_52w_high,
+        iv_52w_low=iv_52w_low,
+        vix=vix,
+        gex_data=gex_data,
+        flow_data=flow_data,
+        pcr_data=pcr_data,
+    )
+
+    return {
+        "symbol": output.symbol,
+        "stock_price": output.stock_price,
+        "overall_signal": output.overall_signal.value,
+        "overall_score": output.overall_score,
+        "confidence": output.confidence,
+        "regime": output.regime,
+        "best_strategy": output.best_strategy,
+        "best_strategy_reasoning": output.best_strategy_reasoning,
+        "cpr_signal": output.cpr_signal,
+        "iv_signal": output.iv_signal,
+        "sentiment_signal": output.sentiment_signal,
+        "sideways_signal": output.sideways_signal,
+        "recommendations_1w": output.recommendations_1w,
+        "recommendations_1m": output.recommendations_1m,
+        "recommendations_3m": output.recommendations_3m,
+        "recommendations_6m": output.recommendations_6m,
+        "all_signals": output.all_signals,
+    }
+
+
+@router.post("/brain/analyze-watchlist")
+async def brain_analyze_watchlist(request: AdvisoryRequest):
+    """
+    AI Brain analysis for the full watchlist.
+    Returns a ranked list of symbols with their Brain scores.
+    """
+    symbols = request.watchlist
+    if not symbols:
+        # Load from watchlist store
+        items = watchlist_store.list_symbols()
+        symbols = [item.symbol for item in items]
+
+    results = []
+    for symbol in symbols:
+        try:
+            info = provider.get_stock_info(symbol)
+            stock_price = info.get("regularMarketPrice", 0) if info else 0
+        except Exception:
+            stock_price = 0
+
+        if stock_price <= 0:
+            continue
+
+        brain_req = BrainAnalysisRequest(symbol=symbol, stock_price=stock_price)
+        result = await brain_analyze(brain_req)
+        results.append(result)
+
+    # Rank by overall_score descending
+    results.sort(key=lambda x: x["overall_score"], reverse=True)
+
+    return {
+        "total_analyzed": len(results),
+        "rankings": results,
+    }
+
+
+# === Watchlist Endpoints ===
+
+@router.get("/watchlist")
+async def get_watchlist():
+    """Get all symbols in the watchlist."""
+    items = watchlist_store.list_symbols()
+    return {
+        "count": len(items),
+        "items": [
+            {
+                "symbol": item.symbol,
+                "added_at": item.added_at,
+                "notes": item.notes,
+                "tags": item.tags,
+                "custom_delta": item.custom_delta,
+                "custom_dte": item.custom_dte,
+                "custom_strategies": item.custom_strategies,
+            }
+            for item in items
+        ],
+    }
+
+
+@router.post("/watchlist/add")
+async def add_to_watchlist(request: WatchlistAddRequest):
+    """Add a symbol to the watchlist."""
+    item = watchlist_store.add_symbol(
+        symbol=request.symbol,
+        notes=request.notes,
+        tags=request.tags,
+        custom_delta=request.custom_delta,
+        custom_dte=request.custom_dte,
+        custom_strategies=request.custom_strategies,
+    )
+    return {"status": "added", "symbol": item.symbol}
+
+
+@router.delete("/watchlist/{symbol}")
+async def remove_from_watchlist(symbol: str):
+    """Remove a symbol from the watchlist."""
+    removed = watchlist_store.remove_symbol(symbol)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"{symbol} not in watchlist")
+    return {"status": "removed", "symbol": symbol.upper()}
+
+
+@router.patch("/watchlist/{symbol}")
+async def update_watchlist_item(symbol: str, request: WatchlistUpdateRequest):
+    """Update a watchlist item's preferences."""
+    item = watchlist_store.update_symbol(
+        symbol=symbol,
+        notes=request.notes,
+        tags=request.tags,
+        custom_delta=request.custom_delta,
+        custom_dte=request.custom_dte,
+        custom_strategies=request.custom_strategies,
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail=f"{symbol} not in watchlist")
+    return {"status": "updated", "symbol": item.symbol}
+
+
+# === Legacy Endpoints ===
+
 @router.post("/recommend")
 async def get_recommendations(request: AdvisoryRequest):
     """
-    MAIN ENDPOINT: Capital In → Specific Trade Recommendations Out.
-    
-    Takes your account info and returns ranked trade recommendations
-    with exact entry/exit rules, position sizing, and risk management.
+    MAIN ENDPOINT: Capital In -> Specific Trade Recommendations Out.
     """
     try:
         risk = RiskTolerance(request.risk_tolerance)
@@ -53,7 +300,6 @@ async def get_recommendations(request: AdvisoryRequest):
         max_positions=request.max_positions,
     )
 
-    # Fetch data for watchlist
     market_data = {}
     option_chains = {}
     technical_data = {}
@@ -61,42 +307,31 @@ async def get_recommendations(request: AdvisoryRequest):
 
     for symbol in request.watchlist:
         try:
-            # Get stock price
             info = provider.get_stock_info(symbol)
             if info:
                 market_data[f"{symbol}_price"] = info.get("regularMarketPrice", 0)
 
-            # Get option chain
             chain = provider.get_option_chain(symbol)
             if chain:
                 option_chains[symbol] = chain
 
-            # Get technicals
             hist = provider.get_historical(symbol, period="6mo")
             if hist is not None and len(hist) > 0:
-                technical_data[symbol] = tech_analyzer.analyze(hist)
+                technical_data[symbol] = tech_analyzer.calculate_all_indicators(hist)
 
-            # GEX data
             if chain and market_data.get(f"{symbol}_price"):
                 gex = gex_engine.calculate_gex(chain, market_data[f"{symbol}_price"])
                 market_data[f"{symbol}_gex"] = gex
 
-        except Exception as e:
+        except Exception:
             continue
 
-    # Get VIX for context
     vix_data = provider.get_vix()
     if vix_data:
         market_data["vix"] = vix_data.get("regularMarketPrice", 20)
 
-    volatility_data = {
-        "iv": 0.20,
-        "hv_20": 0.18,
-        "iv_rank": 50,
-        "dte": 30,
-    }
+    volatility_data = {"iv": 0.20, "hv_20": 0.18, "iv_rank": 50, "dte": 30}
 
-    # Generate recommendations
     output = recommender.generate_recommendations(
         account=account,
         market_data=market_data,
@@ -161,10 +396,7 @@ async def get_recommendations(request: AdvisoryRequest):
 
 @router.post("/compare")
 async def compare_opportunities(request: AdvisoryRequest):
-    """
-    Compare ROI across all available options chains.
-    This is the OptionsellerROI killer feature.
-    """
+    """Compare ROI across all available options chains."""
     from agents.trade_engine.roi_calculator import ROICalculator
     roi_calc = ROICalculator()
 
@@ -180,13 +412,11 @@ async def compare_opportunities(request: AdvisoryRequest):
             if not chain:
                 continue
 
-            # CSP opportunities
             csp_results = roi_calc.scan_all_strikes_csp(chain, stock_price, 30)
             for r in csp_results:
                 r["symbol"] = symbol
                 r["strategy"] = "csp"
 
-            # CC opportunities
             cc_results = roi_calc.scan_all_strikes_cc(chain, stock_price, 30)
             for r in cc_results:
                 r["symbol"] = symbol
@@ -198,7 +428,6 @@ async def compare_opportunities(request: AdvisoryRequest):
         except Exception:
             continue
 
-    # Rank by annualized return
     ranked = roi_calc.rank_opportunities(all_opportunities, "annualized_return_pct")
 
     return {
@@ -243,125 +472,28 @@ async def get_analytics(symbol: str):
 
 @router.get("/strategies")
 async def list_strategies():
-    """List all available strategies with descriptions and win rates."""
+    """List all available strategies."""
     return {
         "strategies": [
-            {
-                "name": "Cash-Secured Put",
-                "type": "csp",
-                "description": "Sell OTM put, collect premium, buy stock if assigned",
-                "win_rate": "70-85%",
-                "best_iv": "High IV rank (>50)",
-                "max_loss": "Strike × 100 - Premium",
-                "capital": "Strike × 100",
-            },
-            {
-                "name": "Covered Call",
-                "type": "cc",
-                "description": "Own stock, sell OTM call for income",
-                "win_rate": "75-90%",
-                "best_iv": "Any IV environment",
-                "max_loss": "Stock cost - Premium",
-                "capital": "100 shares per contract",
-            },
-            {
-                "name": "Bull Put Credit Spread",
-                "type": "bull_put",
-                "description": "Sell OTM put spread, collect credit",
-                "win_rate": "65-80%",
-                "best_iv": "High IV rank (>50)",
-                "max_loss": "Width - Credit",
-                "capital": "Width × 100 - Credit",
-            },
-            {
-                "name": "Bear Call Credit Spread",
-                "type": "bear_call",
-                "description": "Sell OTM call spread, collect credit",
-                "win_rate": "65-80%",
-                "best_iv": "High IV rank (>50)",
-                "max_loss": "Width - Credit",
-                "capital": "Width × 100 - Credit",
-            },
-            {
-                "name": "Iron Condor",
-                "type": "iron_condor",
-                "description": "Sell OTM put and call spreads, collect credit",
-                "win_rate": "65-80%",
-                "best_iv": "High IV rank (>50)",
-                "max_loss": "Wing width - Credit",
-                "capital": "Wing width × 100 - Credit",
-            },
-            {
-                "name": "Call Debit Spread",
-                "type": "call_debit",
-                "description": "Buy lower strike call, sell higher strike call",
-                "win_rate": "45-55%",
-                "best_iv": "Low IV rank (<50)",
-                "max_loss": "Debit paid",
-                "capital": "Debit × 100",
-            },
-            {
-                "name": "Put Debit Spread",
-                "type": "put_debit",
-                "description": "Buy higher strike put, sell lower strike put",
-                "win_rate": "45-55%",
-                "best_iv": "Low IV rank (<50)",
-                "max_loss": "Debit paid",
-                "capital": "Debit × 100",
-            },
-            {
-                "name": "Calendar Spread",
-                "type": "calendar",
-                "description": "Sell near-term, buy same-strike far-term",
-                "win_rate": "55-65%",
-                "best_iv": "Low IV, steep term structure",
-                "max_loss": "Debit paid",
-                "capital": "Debit × 100",
-            },
-            {
-                "name": "Butterfly Spread",
-                "type": "butterfly",
-                "description": "Buy 1 ITM, sell 2 ATM, buy 1 OTM",
-                "win_rate": "60-75%",
-                "best_iv": "Low IV, pin expected",
-                "max_loss": "Debit paid",
-                "capital": "Debit × 100",
-            },
-            {
-                "name": "Long Call",
-                "type": "long_call",
-                "description": "Buy call for directional bet",
-                "win_rate": "35-45%",
-                "best_iv": "Low IV (<25th percentile)",
-                "max_loss": "Premium paid",
-                "capital": "Premium × 100",
-            },
-            {
-                "name": "Long Put",
-                "type": "long_put",
-                "description": "Buy put for directional bet",
-                "win_rate": "35-45%",
-                "best_iv": "Low IV (<25th percentile)",
-                "max_loss": "Premium paid",
-                "capital": "Premium × 100",
-            },
-            {
-                "name": "Straddle",
-                "type": "straddle",
-                "description": "Buy call + put same strike/expiry",
-                "win_rate": "55-65%",
-                "best_iv": "Low IV, big move expected",
-                "max_loss": "Total premium",
-                "capital": "Total premium × 100",
-            },
-            {
-                "name": "Wheel",
-                "type": "wheel",
-                "description": "CSP → Assigned → Covered Call → Called away → repeat",
-                "win_rate": "70-85%",
-                "best_iv": "High IV rank",
-                "max_loss": "Strike - Premium",
-                "capital": "Strike × 100",
-            },
+            {"name": "Cash-Secured Put", "type": "csp", "win_rate": "70-85%", "best_iv": "High (>50)"},
+            {"name": "Covered Call", "type": "cc", "win_rate": "75-90%", "best_iv": "Any"},
+            {"name": "Bull Put Credit Spread", "type": "bull_put", "win_rate": "65-80%", "best_iv": "High (>50)"},
+            {"name": "Bear Call Credit Spread", "type": "bear_call", "win_rate": "65-80%", "best_iv": "High (>50)"},
+            {"name": "Iron Condor", "type": "iron_condor", "win_rate": "65-80%", "best_iv": "High (>50)"},
+            {"name": "Iron Butterfly", "type": "iron_butterfly", "win_rate": "60-75%", "best_iv": "High (>60)"},
+            {"name": "Wheel", "type": "wheel", "win_rate": "70-85%", "best_iv": "High (>50)"},
+            {"name": "LEAPS", "type": "leaps", "win_rate": "40-55%", "best_iv": "Low (<30)"},
+            {"name": "PMCC", "type": "pmcc", "win_rate": "55-70%", "best_iv": "Low IV"},
+            {"name": "Call Debit Spread", "type": "call_debit", "win_rate": "45-55%", "best_iv": "Low (<30)"},
+            {"name": "Put Debit Spread", "type": "put_debit", "win_rate": "45-55%", "best_iv": "Low (<30)"},
+            {"name": "Calendar Spread", "type": "calendar", "win_rate": "55-65%", "best_iv": "Low + steep term structure"},
+            {"name": "Butterfly", "type": "butterfly", "win_rate": "60-75%", "best_iv": "Low + pin expected"},
+            {"name": "Long Call", "type": "long_call", "win_rate": "35-45%", "best_iv": "Low (<25th pct)"},
+            {"name": "Long Put", "type": "long_put", "win_rate": "35-45%", "best_iv": "Low (<25th pct)"},
+            {"name": "Straddle", "type": "straddle", "win_rate": "55-65%", "best_iv": "Low + big move expected"},
+            {"name": "Strangle", "type": "strangle", "win_rate": "55-65%", "best_iv": "High (>50)"},
+            {"name": "0DTE Gamma Blast", "type": "0dte_gamma", "win_rate": "30-40%", "best_iv": "High + catalyst"},
+            {"name": "Earnings Straddle", "type": "earnings_straddle", "win_rate": "55-65%", "best_iv": "Pre-earnings IV expansion"},
+            {"name": "Vertical Spread", "type": "vertical_spread", "win_rate": "65-80%", "best_iv": "Any"},
         ]
     }
