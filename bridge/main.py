@@ -21,8 +21,23 @@ app = FastAPI(title="ThetaForge Local IBKR Bridge", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://jadax.github.io"],
-    allow_methods=["GET", "POST"], allow_headers=["Content-Type"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-ThetaForge-Bridge-Token"],
+    allow_private_network=True,
 )
+
+
+@app.middleware("http")
+async def allow_private_network_dashboard(request, call_next):
+    """Permit the authenticated GitHub dashboard to call this localhost API.
+
+    Chromium browsers send a Private Network Access preflight when an HTTPS page
+    reaches a loopback HTTP service. This header is required for that local-only
+    connection and does not expose the Bridge to the public internet.
+    """
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
 
 
 class PaperOrder(BaseModel):
