@@ -1,0 +1,124 @@
+# ThetaForge Architecture
+
+```mermaid
+graph TB
+    subgraph "User Interface Layer"
+        UI[React Dashboard]
+        DISC[Discord/Telegram Alerts]
+        SLACK[Slack Bot]
+    end
+
+    subgraph "Orchestrator Layer (FastAPI + Celery)"
+        API[REST API]
+        CELERY[Celery Workers]
+        BEAT[Celery Beat Scheduler]
+    end
+
+    subgraph "Agent Layer"
+        A1[1. Data Ingestion<br/>ib_insync]
+        A2[2. Scanner<br/>Go Microservice]
+        A3[3. Volatility Engine<br/>IV Rank/Percentile]
+        A4[4. Strategy Filter<br/>Rule-Based]
+        A5[5. Flow Analysis<br/>Unusual Activity]
+        A6[6. Sentiment NLP<br/>10-Pass ROT]
+        A7[7. LLM Reasoning<br/>Circuit Breaker]
+        A8[8. Risk Management<br/>Kelly + Limits]
+        A9[9. Execution<br/>Order Manager]
+        A10[10. Performance<br/>Kinfo-Style]
+        A11[11. Backtester]
+        A12[12. Alerts/Notifier]
+    end
+
+    subgraph "Strategy Layer"
+        S1[Wheel Strategy]
+        S2[Vertical Spreads]
+        S3[0DTE Gamma Blast]
+        S4[Iron Condors]
+        S5[Credit Spreads]
+        S6[Covered Calls]
+        S7[Earnings Straddles]
+    end
+
+    subgraph "Data Layer"
+        PG[(TimescaleDB<br/>Tick/OHLC Data)]
+        PGR[(PostgreSQL<br/>Trades/Accounts)]
+        REDIS[(Redis<br/>Cache/Streams)]
+    end
+
+    subgraph "External Integrations"
+        IBKR[IBKR TWS/Gateway]
+        YF[Yahoo Finance]
+        AV[Alpha Vantage]
+        POLY[Polygon.io]
+        REDDIT[Reddit API]
+        TWITTER[Twitter/X API]
+    end
+
+    UI --> API
+    DISC --> A12
+    SLACK --> A12
+    
+    API --> CELERY
+    BEAT --> CELERY
+    
+    CELERY --> A1
+    CELERY --> A2
+    CELERY --> A4
+    
+    A1 --> IBKR
+    A1 --> PG
+    A2 --> REDIS
+    A3 --> PG
+    A5 --> REDIS
+    A6 --> REDDIT
+    A6 --> TWITTER
+    
+    A1 --> A2
+    A2 --> A3
+    A3 --> A4
+    A4 --> A5
+    A5 --> A6
+    A6 --> A7
+    A7 --> A8
+    A8 --> A9
+    A9 --> IBKR
+    A9 --> A10
+    A10 --> A12
+    
+    S1 --> A4
+    S2 --> A4
+    S3 --> A4
+    S4 --> A4
+    S5 --> A4
+    S6 --> A4
+    S7 --> A4
+```
+
+## Data Flow
+
+1. **Data Ingestion** streams real-time market data from IBKR via `ib_insync`
+2. **Scanner** (Go) concurrently scans 7000+ securities, publishing candidates to Redis
+3. **Volatility Engine** calculates IV Rank, IV Percentile, and Greeks for each candidate
+4. **Strategy Filter** applies strategy-specific rules and thresholds
+5. **Flow Analysis** detects unusual options activity
+6. **Sentiment NLP** analyzes Reddit/Twitter/news for market sentiment
+7. **LLM Reasoning** synthesizes all inputs with circuit breaker protection
+8. **Risk Management** validates against Kelly Criterion and portfolio limits
+9. **Execution** places orders with stop-losses via IBKR
+10. **Performance Tracker** records trades and calculates Sharpe/Win Rate/Drawdown
+11. **Alerts** notify via Discord/Telegram/Slack
+
+## Risk Circuit Breakers
+
+| Circuit Breaker | Threshold | Action |
+|----------------|-----------|--------|
+| Daily Loss | -15% | Halt all trading |
+| Max Drawdown | -50% | Permanent halt |
+| LLM Failures | 3 consecutive | Shutdown LLM path |
+| Net Delta | >20% | Reject new positions |
+| Net Vega | >5% | Reject new positions |
+| Position Risk | >2% per trade | Reject trade |
+
+## Strategy Isolation
+
+Each strategy runs on a **separate IBKR sub-account** to prevent cross-contamination, following ThetaGang's recommendation.
