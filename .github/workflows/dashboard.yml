@@ -20,6 +20,7 @@ jobs:
         working-directory: dashboard
         env:
           GITHUB_PAGES: "true"
+      - run: touch dashboard/out/.nojekyll
       - name: Publish static site to gh-pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

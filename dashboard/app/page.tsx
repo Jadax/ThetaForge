@@ -16,10 +16,11 @@ type Analysis = {
 };
 
 const signalLabel = (signal: string) => signal.replaceAll("_", " ");
+const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
-  const [apiBase, setApiBase] = useState("http://localhost:8000");
+  const [apiBase, setApiBase] = useState(DEFAULT_ADVISOR_API);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [status, setStatus] = useState("Advisor not connected");
   const [loading, setLoading] = useState(false);
@@ -27,7 +28,7 @@ export default function Home() {
 
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
-    if (saved) setApiBase(saved);
+    setApiBase(saved === "http://localhost:8000" || !saved ? DEFAULT_ADVISOR_API : saved);
   }, []);
 
   async function analyze(event: FormEvent) {
