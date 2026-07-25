@@ -134,3 +134,19 @@ Toggle between paper and live trading. Requires PIN authentication.
 ## WebSocket (Planned)
 
 Real-time updates for positions, P&L, and alerts will be available via WebSocket at `/ws`.
+
+## Alerts and signal performance
+
+The advisor API can persist alert rules and maintain an auditable record of
+Brain predictions. These features are informational only and do not place
+orders.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/advisor/alerts` | List alert rules, optionally with `?symbol=AAPL` |
+| `POST /api/advisor/alerts` | Create an alert rule (`symbol`, `alert_type`, `threshold`) |
+| `POST /api/advisor/alerts/check` | Evaluate saved rules against supplied market data |
+| `DELETE /api/advisor/alerts/{rule_id}` | Delete an alert rule |
+| `GET /api/advisor/alerts/history` | Retrieve triggered alert history |
+| `GET /api/advisor/signals/performance` | Review recorded signal accuracy and derived weights |
+| `POST /api/advisor/signals/outcomes` | Record a current price for due prediction outcomes |

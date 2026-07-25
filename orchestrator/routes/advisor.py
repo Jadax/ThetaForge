@@ -6,6 +6,9 @@ Wired to the AI Brain for unified signal analysis.
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
+import asyncio
+import math
+import statistics
 
 from agents.trade_engine.recommender import TradeRecommender
 from agents.trade_engine.ai_brain import AIBrain, TimeHorizon
@@ -16,6 +19,8 @@ from agents.trade_engine.models import (
 from agents.data_ingestion.free_data import FreeDataProvider
 from agents.technical.indicators import TechnicalEngine as TechAnalyzer
 from agents.flow_analysis.gex_engine import GEXEngine
+from agents.trade_engine.alerts import AlertEngine, AlertPriority, AlertType
+from agents.trade_engine.signal_tracker import SignalTracker
 
 router = APIRouter(prefix="/api/advisor", tags=["advisor"])
 
@@ -25,6 +30,92 @@ tech_analyzer = TechAnalyzer()
 gex_engine = GEXEngine()
 brain = AIBrain()
 watchlist_store = FavoritesStore()
+
+
+async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, Any]:
+    """Fetch and normalize the inputs consumed by ``AIBrain``.
+
+    The data provider is asynchronous. Keeping that boundary here prevents
+    coroutine objects and missing legacy method names from being treated as
+    market data by the API routes.
+    """
+    price_task = None if supplied_price > 0 else provider.get_stock_price(symbol)
+    option_chain_task = provider.get_option_chain(symbol)
+    history_task = provider.get_historical_prices(symbol, period="1y")
+    vix_task = provider.get_vix()
+    pcr_task = provider.get_put_call_ratio()
+
+    results = await asyncio.gather(
+        *(task for task in (price_task, option_chain_task, history_task, vix_task, pcr_task) if task is not None),
+        return_exceptions=True,
+    )
+    result_iter = iter(results)
+    fetched_price = supplied_price if supplied_price > 0 else next(result_iter, None)
+    option_chain = next(result_iter, [])
+    historical_frame = next(result_iter, None)
+    vix = next(result_iter, None)
+    pcr = next(result_iter, None)
+
+    stock_price = float(fetched_price) if isinstance(fetched_price, (int, float)) else 0.0
+    option_chain = option_chain if isinstance(option_chain, list) else []
+    historical: List[float] = []
+    high_prices: List[float] = []
+    low_prices: List[float] = []
+    if historical_frame is not None and not isinstance(historical_frame, Exception) and not historical_frame.empty:
+        try:
+            historical = [float(value) for value in historical_frame["Close"].tolist() if float(value) > 0]
+            high_prices = [float(value) for value in historical_frame["High"].tolist() if float(value) > 0]
+            low_prices = [float(value) for value in historical_frame["Low"].tolist() if float(value) > 0]
+        except (KeyError, TypeError, ValueError):
+            historical, high_prices, low_prices = [], [], []
+
+    if not stock_price and historical:
+        stock_price = historical[-1]
+    if stock_price <= 0:
+        raise HTTPException(status_code=502, detail=f"Unable to retrieve a valid price for {symbol}")
+
+    if len(historical) >= 21:
+        returns = [math.log(historical[i] / historical[i - 1]) for i in range(1, len(historical))]
+        hv_20 = statistics.stdev(returns[-20:]) * math.sqrt(252) if len(returns) >= 2 else 0.18
+    else:
+        hv_20 = 0.18
+
+    implied_vols = [
+        float(option.get("implied_volatility", 0))
+        for option in option_chain
+        if isinstance(option.get("implied_volatility", 0), (int, float)) and option.get("implied_volatility", 0) > 0
+    ]
+    current_iv = statistics.median(implied_vols) if implied_vols else max(hv_20, 0.20)
+    flow_data = None
+    if option_chain:
+        unusual = brain.flow_detector.scan_chain(option_chain, stock_price, current_iv) if brain.flow_detector else []
+        sweeps = brain.flow_detector.detect_sweep_orders(option_chain, stock_price) if brain.flow_detector else []
+        dark_pool = brain.flow_detector.detect_dark_pool_prints(option_chain, stock_price) if brain.flow_detector else []
+        flow_data = brain.flow_detector.aggregate_signals(unusual, sweeps, dark_pool) if brain.flow_detector else None
+
+    gex_data = None
+    if option_chain:
+        gex = gex_engine.calculate_chain_gex(option_chain, stock_price)
+        if "error" not in gex:
+            gex_data = {"regime": gex.get("gex_regime", "NEUTRAL").lower(), **gex}
+
+    return {
+        "stock_price": stock_price,
+        "option_chain": option_chain,
+        "historical_prices": historical,
+        "high_prices": high_prices or historical,
+        "low_prices": low_prices or historical,
+        "current_iv": current_iv,
+        "hv_20": hv_20,
+        # This provider has no historical IV series. Equal bounds correctly
+        # yield an explicitly neutral IV rank rather than inventing one.
+        "iv_52w_high": current_iv,
+        "iv_52w_low": current_iv,
+        "vix": float(vix) if isinstance(vix, (int, float)) and vix > 0 else 20.0,
+        "gex_data": gex_data,
+        "flow_data": flow_data,
+        "pcr_data": {"current": float(pcr), "historical": []} if isinstance(pcr, (int, float)) and pcr > 0 else None,
+    }
 
 
 # === Request/Response Models ===
@@ -61,6 +152,24 @@ class WatchlistUpdateRequest(BaseModel):
     custom_strategies: Optional[List[str]] = None
 
 
+class AlertRuleRequest(BaseModel):
+    symbol: str
+    alert_type: AlertType
+    threshold: float
+    message: str = ""
+    priority: AlertPriority = AlertPriority.MEDIUM
+    one_time: bool = True
+
+
+class AlertCheckRequest(BaseModel):
+    market_data: Dict[str, Dict[str, Any]]
+
+
+class SignalOutcomeRequest(BaseModel):
+    symbol: str
+    current_price: float = Field(gt=0)
+
+
 # === AI Brain Endpoints ===
 
 @router.post("/brain/analyze")
@@ -72,93 +181,29 @@ async def brain_analyze(request: BrainAnalysisRequest):
     """
     symbol = request.symbol.upper()
 
-    # Fetch market data
-    stock_price = request.stock_price
-    option_chain = []
-    historical = []
-    current_iv = 0.20
-    hv_20 = 0.18
-    iv_52w_high = 0.40
-    iv_52w_low = 0.12
-    vix = 20.0
-    gex_data = None
-    flow_data = None
-    pcr_data = None
-
-    try:
-        info = provider.get_stock_info(symbol)
-        if info:
-            stock_price = stock_price or info.get("regularMarketPrice", 0)
-    except Exception:
-        pass
-
-    try:
-        chain = provider.get_option_chain(symbol)
-        if chain:
-            option_chain = chain if isinstance(chain, list) else []
-    except Exception:
-        pass
-
-    try:
-        hist = provider.get_historical(symbol, period="1y")
-        if hist is not None and len(hist) > 0:
-            historical = hist["Close"].tolist() if hasattr(hist, "tolist") else list(hist["Close"])
-            if "High" in hist.columns:
-                high_prices = hist["High"].tolist()
-            else:
-                high_prices = historical
-            if "Low" in hist.columns:
-                low_prices = hist["Low"].tolist()
-            else:
-                low_prices = historical
-
-            # Calculate HV
-            import math
-            if len(historical) >= 20:
-                returns = [
-                    math.log(historical[i] / historical[i - 1])
-                    for i in range(1, min(21, len(historical)))
-                ]
-                hv_20 = (sum((r - sum(returns) / len(returns)) ** 2 for r in returns) / len(returns)) ** 0.5 * math.sqrt(252)
-        else:
-            high_prices = [stock_price * 1.01]
-            low_prices = [stock_price * 0.99]
-    except Exception:
-        historical = [stock_price]
-        high_prices = [stock_price * 1.01]
-        low_prices = [stock_price * 0.99]
-
-    try:
-        vix_data = provider.get_vix()
-        if vix_data:
-            vix = vix_data.get("regularMarketPrice", 20)
-    except Exception:
-        pass
-
-    # GEX
-    try:
-        if option_chain and stock_price:
-            gex_data = gex_engine.calculate_gex(option_chain, stock_price)
-    except Exception:
-        pass
+    snapshot = await _market_snapshot(symbol, request.stock_price)
 
     # Run Brain
     output = brain.analyze(
         symbol=symbol,
-        stock_price=stock_price,
-        option_chain=option_chain,
-        historical_prices=historical,
-        high_prices=high_prices,
-        low_prices=low_prices,
-        current_iv=current_iv,
-        hv_20=hv_20,
-        iv_52w_high=iv_52w_high,
-        iv_52w_low=iv_52w_low,
-        vix=vix,
-        gex_data=gex_data,
-        flow_data=flow_data,
-        pcr_data=pcr_data,
+        **snapshot,
     )
+
+    # Store a point-in-time prediction for later, explicit outcome evaluation.
+    # The tracker is deliberately independent of the recommendation score: sparse
+    # or unvalidated history must never alter a live decision automatically.
+    tracker = SignalTracker()
+    tracker.record_prediction(
+        symbol=output.symbol,
+        stock_price=output.stock_price,
+        overall_signal=output.overall_signal.value,
+        overall_score=output.overall_score,
+        confidence=output.confidence,
+        regime=output.regime,
+        best_strategy=output.best_strategy,
+        signals=output.all_signals,
+    )
+    performance_summary = tracker.get_performance_summary()
 
     return {
         "symbol": output.symbol,
@@ -178,7 +223,65 @@ async def brain_analyze(request: BrainAnalysisRequest):
         "recommendations_3m": output.recommendations_3m,
         "recommendations_6m": output.recommendations_6m,
         "all_signals": output.all_signals,
+        "portfolio_warnings": output.portfolio_warnings,
+        "signal_accuracy": performance_summary["by_source"],
+        "dynamic_weights": performance_summary["dynamic_weights"],
     }
+
+
+# === Alert and signal-performance endpoints ===
+
+@router.get("/alerts")
+async def list_alerts(symbol: Optional[str] = None):
+    """List saved alert rules, optionally filtered to one symbol."""
+    return {"rules": AlertEngine().list_rules(symbol)}
+
+
+@router.post("/alerts")
+async def create_alert(request: AlertRuleRequest):
+    """Create a price, volatility, signal, or portfolio-risk alert rule."""
+    rule = AlertEngine().add_rule(
+        symbol=request.symbol,
+        alert_type=request.alert_type,
+        threshold=request.threshold,
+        message=request.message,
+        priority=request.priority,
+        one_time=request.one_time,
+    )
+    return {"status": "created", "rule": rule.__dict__}
+
+
+@router.delete("/alerts/{rule_id}")
+async def delete_alert(rule_id: str):
+    """Delete a saved alert rule."""
+    if not AlertEngine().remove_rule(rule_id):
+        raise HTTPException(status_code=404, detail=f"Alert rule {rule_id} not found")
+    return {"status": "deleted", "rule_id": rule_id}
+
+
+@router.post("/alerts/check")
+async def check_alerts(request: AlertCheckRequest):
+    """Evaluate saved alert rules against caller-supplied market data."""
+    return {"events": AlertEngine().check(request.market_data)}
+
+
+@router.get("/alerts/history")
+async def alert_history(symbol: Optional[str] = None, limit: int = 50):
+    """Return the newest triggered alerts first by storage order."""
+    return {"events": AlertEngine().get_history(symbol, max(1, min(limit, 200))) }
+
+
+@router.get("/signals/performance")
+async def signal_performance():
+    """Return recorded prediction accuracy; it is informational, not execution advice."""
+    return SignalTracker().get_performance_summary()
+
+
+@router.post("/signals/outcomes")
+async def record_signal_outcome(request: SignalOutcomeRequest):
+    """Evaluate due predictions for a symbol using a supplied current price."""
+    updated = SignalTracker().record_outcome(request.symbol, request.current_price)
+    return {"symbol": request.symbol.upper(), "outcomes_recorded": updated}
 
 
 @router.post("/brain/analyze-watchlist")
@@ -196,17 +299,9 @@ async def brain_analyze_watchlist(request: AdvisoryRequest):
     results = []
     for symbol in symbols:
         try:
-            info = provider.get_stock_info(symbol)
-            stock_price = info.get("regularMarketPrice", 0) if info else 0
-        except Exception:
-            stock_price = 0
-
-        if stock_price <= 0:
+            results.append(await brain_analyze(BrainAnalysisRequest(symbol=symbol)))
+        except HTTPException:
             continue
-
-        brain_req = BrainAnalysisRequest(symbol=symbol, stock_price=stock_price)
-        result = await brain_analyze(brain_req)
-        results.append(result)
 
     # Rank by overall_score descending
     results.sort(key=lambda x: x["overall_score"], reverse=True)
@@ -302,14 +397,13 @@ async def get_dashboard(request: DashboardRequest):
     if not symbols:
         symbols = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA"]
 
-    # VIX
-    vix = 20.0
+    # VIX is fetched by the Brain snapshot; this request only uses it for the
+    # dashboard-level regime label.
     try:
-        vix_data = provider.get_vix()
-        if vix_data:
-            vix = vix_data.get("regularMarketPrice", 20)
+        vix_value = await provider.get_vix()
+        vix = float(vix_value) if vix_value else 20.0
     except Exception:
-        pass
+        vix = 20.0
 
     regime = "neutral"
     if vix > 30:
@@ -323,20 +417,8 @@ async def get_dashboard(request: DashboardRequest):
     rankings = []
     for symbol in symbols:
         try:
-            info = provider.get_stock_info(symbol)
-            stock_price = info.get("regularMarketPrice", 0) if info else 0
-        except Exception:
-            stock_price = 0
-        if stock_price <= 0:
-            continue
-
-        try:
-            brain_req = BrainAnalysisRequest(
-                symbol=symbol, stock_price=stock_price, horizon="1m"
-            )
-            result = await brain_analyze(brain_req)
-            rankings.append(result)
-        except Exception:
+            rankings.append(await brain_analyze(BrainAnalysisRequest(symbol=symbol, horizon="1m")))
+        except HTTPException:
             continue
 
     rankings.sort(key=lambda x: x["overall_score"], reverse=True)
@@ -406,28 +488,18 @@ async def get_recommendations(request: AdvisoryRequest):
 
     for symbol in request.watchlist:
         try:
-            info = provider.get_stock_info(symbol)
-            if info:
-                market_data[f"{symbol}_price"] = info.get("regularMarketPrice", 0)
-
-            chain = provider.get_option_chain(symbol)
-            if chain:
-                option_chains[symbol] = chain
-
-            hist = provider.get_historical(symbol, period="6mo")
-            if hist is not None and len(hist) > 0:
-                technical_data[symbol] = tech_analyzer.calculate_all_indicators(hist)
-
-            if chain and market_data.get(f"{symbol}_price"):
-                gex = gex_engine.calculate_gex(chain, market_data[f"{symbol}_price"])
-                market_data[f"{symbol}_gex"] = gex
-
-        except Exception:
+            snapshot = await _market_snapshot(symbol)
+            market_data[f"{symbol}_price"] = snapshot["stock_price"]
+            option_chains[symbol] = snapshot["option_chain"]
+            if snapshot["gex_data"]:
+                market_data[f"{symbol}_gex"] = snapshot["gex_data"]
+        except HTTPException:
             continue
 
-    vix_data = provider.get_vix()
-    if vix_data:
-        market_data["vix"] = vix_data.get("regularMarketPrice", 20)
+    try:
+        market_data["vix"] = float(await provider.get_vix() or 20)
+    except Exception:
+        market_data["vix"] = 20
 
     volatility_data = {"iv": 0.20, "hv_20": 0.18, "iv_rank": 50, "dte": 30}
 
@@ -502,12 +574,9 @@ async def compare_opportunities(request: AdvisoryRequest):
     all_opportunities = []
     for symbol in request.watchlist:
         try:
-            info = provider.get_stock_info(symbol)
-            stock_price = info.get("regularMarketPrice", 0) if info else 0
-            if stock_price <= 0:
-                continue
-
-            chain = provider.get_option_chain(symbol)
+            snapshot = await _market_snapshot(symbol)
+            stock_price = snapshot["stock_price"]
+            chain = snapshot["option_chain"]
             if not chain:
                 continue
 
@@ -524,7 +593,7 @@ async def compare_opportunities(request: AdvisoryRequest):
             all_opportunities.extend(csp_results[:5])
             all_opportunities.extend(cc_results[:5])
 
-        except Exception:
+        except HTTPException:
             continue
 
     ranked = roi_calc.rank_opportunities(all_opportunities, "annualized_return_pct")
@@ -542,19 +611,9 @@ async def get_analytics(symbol: str):
     from agents.trade_engine.analytics import OptionsAnalytics
     analytics = OptionsAnalytics()
 
-    stock_price = 0
-    chain = []
-
-    try:
-        info = provider.get_stock_info(symbol)
-        stock_price = info.get("regularMarketPrice", 0) if info else 0
-    except Exception:
-        pass
-
-    try:
-        chain = provider.get_option_chain(symbol) or []
-    except Exception:
-        pass
+    snapshot = await _market_snapshot(symbol)
+    stock_price = snapshot["stock_price"]
+    chain = snapshot["option_chain"]
 
     max_pain = analytics.max_pain(chain) if chain else {}
     exp_move = analytics.expected_move(stock_price, 0.20, 30) if stock_price else {}

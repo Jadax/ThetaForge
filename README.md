@@ -145,7 +145,7 @@ Each layer progressively filters to higher-conviction setups. Raw flow signals a
 
 1. Download IBKR TWS or Gateway
 2. Enable API: File > Global Configuration > API > Settings
-3. Set port 4001 (Paper) or 4002 (Live)
+3. For IB Gateway, use port 4002 (Paper) or 4001 (Live)
 4. Enable "Accept inbound connections"
 5. Copy `.env.example` to `.env` and configure
 

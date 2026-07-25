@@ -78,6 +78,11 @@ class BrainOutput:
     all_signals: List[Dict] = field(default_factory=list)
     # Portfolio warnings
     portfolio_warnings: List[str] = field(default_factory=list)
+    # Self-learning feedback
+    signal_accuracy: Dict = field(default_factory=dict)
+    dynamic_weights: Dict = field(default_factory=dict)
+    # Backtest context
+    backtest_summary: Dict = field(default_factory=dict)
 
 
 class AIBrain:
@@ -209,8 +214,9 @@ class AIBrain:
         signals = []
 
         # 1. CPR Signal
-        if self.tv and len(highs) >= 2 and len(lows) >= 2:
-            cpr = self.tv.calculate_cpr(highs[-1], lows[-1], closes[-1])
+        if self.tv and len(closes) >= 2 and len(highs) >= 2 and len(lows) >= 2:
+            # CPR levels for today's decision come from the prior completed bar.
+            cpr = self.tv.calculate_cpr(highs[-2], lows[-2], closes[-2])
             cpr_signal = self.tv.cpr_option_signal(stock_price, cpr)
             signals.append(SignalResult(
                 source="cpr",
@@ -337,18 +343,24 @@ class AIBrain:
 
         # 7. GEX Regime
         if gex_data:
-            gex_regime = gex_data.get("regime", "neutral")
-            if gex_regime == "high_positive":
+            gex_regime = str(gex_data.get("regime", gex_data.get("gex_regime", "neutral"))).lower()
+            if gex_regime in ("high_positive", "high_positive_gex"):
                 signals.append(SignalResult(
                     source="gex", signal="stabilizing",
                     strength=0.2, confidence=60,
                     reasoning="High positive GEX → dealers stabilize markets → sell premium",
                 ))
-            elif gex_regime == "high_negative":
+            elif gex_regime in ("high_negative", "high_negative_gex"):
                 signals.append(SignalResult(
                     source="gex", signal="destabilizing",
                     strength=-0.3, confidence=70,
                     reasoning="High negative GEX → dealers amplify moves → be cautious selling",
+                ))
+            else:
+                signals.append(SignalResult(
+                    source="gex", signal="neutral",
+                    strength=0.0, confidence=30,
+                    reasoning="GEX is near neutral; no dealer-positioning edge",
                 ))
         else:
             gex_data = {"regime": "neutral"}

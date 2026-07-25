@@ -6,6 +6,7 @@ and unusual activity detector.
 import math
 import sys
 import os
+from datetime import datetime, timedelta, timezone
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agents.trade_engine.models import (
@@ -18,6 +19,10 @@ from agents.trade_engine.analytics import OptionsAnalytics
 from agents.trade_engine.strategy_scorer import StrategyScorer
 from agents.trade_engine.recommender import TradeRecommender
 from agents.flow_analysis.unusual_activity import UnusualActivityDetector
+from agents.trade_engine import alerts as alerts_module
+from agents.trade_engine import signal_tracker as tracker_module
+from agents.trade_engine.alerts import AlertEngine, AlertType
+from agents.trade_engine.signal_tracker import SignalTracker
 
 
 # ============================================================
@@ -416,6 +421,40 @@ def test_enum_values():
     assert Direction.BULLISH.value == "bullish"
     assert GEXRegime.HIGH_POSITIVE.value == "high_positive"
     assert RiskTolerance.MODERATE.value == "moderate"
+
+
+def test_alert_engine_triggers_one_time_rule(tmp_path, monkeypatch):
+    monkeypatch.setattr(alerts_module, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(alerts_module, "ALERTS_FILE", str(tmp_path / "alerts.json"))
+    monkeypatch.setattr(alerts_module, "ALERT_HISTORY_FILE", str(tmp_path / "history.json"))
+    engine = AlertEngine()
+    rule = engine.add_rule("aapl", AlertType.PRICE_ABOVE, 200)
+
+    events = engine.check({"AAPL": {"price": 201}})
+    assert len(events) == 1
+    assert events[0]["rule_id"] == rule.rule_id
+    assert engine.check({"AAPL": {"price": 202}}) == []
+
+
+def test_signal_tracker_records_due_outcome(tmp_path, monkeypatch):
+    monkeypatch.setattr(tracker_module, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(tracker_module, "SIGNAL_LOG_FILE", str(tmp_path / "signals.json"))
+    monkeypatch.setattr(tracker_module, "SIGNAL_ACCURACY_FILE", str(tmp_path / "accuracy.json"))
+    tracker = SignalTracker()
+    tracker.record_prediction(
+        symbol="AAPL", stock_price=100, overall_signal="buy", overall_score=20,
+        confidence=75, regime="neutral", best_strategy="cash_secured_put",
+        signals=[{"source": "technical"}], days_to_outcome=5,
+    )
+    log = tracker._read_log()
+    log[0]["timestamp"] = (datetime.now(timezone.utc) - timedelta(days=6)).isoformat()
+    tracker._write_log(log)
+
+    assert tracker.record_outcome("AAPL", 105) == 1
+    summary = tracker.get_performance_summary()
+    assert summary["overall_accuracy_pct"] == 100.0
+    accuracy = tracker.get_accuracy_by_source(min_samples=1)
+    assert accuracy["technical"]["correct_predictions"] == 1
 
 
 if __name__ == "__main__":
