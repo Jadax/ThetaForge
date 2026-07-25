@@ -1,4 +1,4 @@
-name: Dashboard
+name: Deploy dashboard
 
 on:
   push:
@@ -6,7 +6,11 @@ on:
     paths: ["dashboard/**", ".github/workflows/dashboard.yml"]
 
 jobs:
-  build:
+  deploy:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,5 +18,12 @@ jobs:
         with: { node-version: 22, cache: npm, cache-dependency-path: dashboard/package-lock.json }
       - run: npm ci --ignore-scripts
         working-directory: dashboard
-      - run: npm run build
+      - run: npm run pages:build
         working-directory: dashboard
+        env:
+          GITHUB_PAGES: "true"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: dashboard/out }
+      - id: deployment
+        uses: actions/deploy-pages@v4
