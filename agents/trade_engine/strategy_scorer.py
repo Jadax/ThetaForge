@@ -108,7 +108,13 @@ class StrategyScorer:
         candidates: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """Rank strategy candidates by composite score."""
-        return sorted(candidates, key=lambda x: x.get("composite_score", 0), reverse=True)
+        return sorted(
+            candidates,
+            key=lambda candidate: candidate.get("score", {}).get(
+                "composite_score", candidate.get("composite_score", 0)
+            ),
+            reverse=True,
+        )
 
     def _score_edge(
         self,

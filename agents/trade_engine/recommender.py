@@ -199,6 +199,11 @@ class TradeRecommender:
         # For each expiry, try all strategies
         for expiry, opts in expiries.items():
             dte = opts[0].get("dte", 30) if opts else 30
+            # Avoid stale leaps and near-expiry contracts for the standard
+            # defined-risk playbook. Their actual DTE comes from the provider,
+            # never a placeholder.
+            if dte < 14 or dte > 60:
+                continue
             calls = [o for o in opts if o.get("option_type", "").upper() == "CALL"]
             puts = [o for o in opts if o.get("option_type", "").upper() == "PUT"]
 
@@ -320,6 +325,7 @@ class TradeRecommender:
             "score": score,
             "nvrp": nvrp,
             "option_data": put,
+            "legs": [{**put, "action": "SELL"}],
         }
 
     def _score_cc(
@@ -365,6 +371,7 @@ class TradeRecommender:
             "score": score,
             "nvrp": nvrp,
             "option_data": call,
+            "legs": [{**call, "action": "SELL"}],
         }
 
     def _score_bull_put(
@@ -418,7 +425,7 @@ class TradeRecommender:
             "roi": roi,
             "score": score,
             "nvrp": nvrp,
-            "legs": [short_put, long_put],
+            "legs": [{**short_put, "action": "SELL"}, {**long_put, "action": "BUY"}],
         }
 
     def _score_bear_call(
@@ -472,7 +479,7 @@ class TradeRecommender:
             "roi": roi,
             "score": score,
             "nvrp": nvrp,
-            "legs": [short_call, long_call],
+            "legs": [{**short_call, "action": "SELL"}, {**long_call, "action": "BUY"}],
         }
 
     def _score_iron_condor(
@@ -560,7 +567,10 @@ class TradeRecommender:
             "roi": roi,
             "score": score,
             "nvrp": nvrp,
-            "legs": [put_long, put_short, call_short, call_long],
+            "legs": [
+                {**put_long, "action": "BUY"}, {**put_short, "action": "SELL"},
+                {**call_short, "action": "SELL"}, {**call_long, "action": "BUY"},
+            ],
         }
 
     def _score_call_debit(
@@ -617,7 +627,7 @@ class TradeRecommender:
             "risk_reward": rr,
             "score": score,
             "nvrp": nvrp,
-            "legs": [long_call, short_call],
+            "legs": [{**long_call, "action": "BUY"}, {**short_call, "action": "SELL"}],
         }
 
     def _score_put_debit(
@@ -674,7 +684,7 @@ class TradeRecommender:
             "risk_reward": rr,
             "score": score,
             "nvrp": nvrp,
-            "legs": [long_put, short_put],
+            "legs": [{**long_put, "action": "BUY"}, {**short_put, "action": "SELL"}],
         }
 
     def _detect_market_regime(self, market_data: Dict, volatility_data: Dict) -> MarketRegime:

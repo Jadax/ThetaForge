@@ -6,8 +6,9 @@ Adapted from IBKRTools and general market data aggregation patterns.
 """
 import asyncio
 import logging
+import math
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 import yfinance as yf
 import pandas as pd
@@ -167,15 +168,31 @@ class FreeDataProvider:
         return Stock(symbol, "SMART", "USD")
 
     def _parse_yf_option(self, row, expiry: str, opt_type: str) -> Dict[str, Any]:
+        # Yahoo frequently represents unavailable option fields as NaN. A
+        # single missing volume/OI value must not discard the entire chain;
+        # downstream liquidity rules will reject an individual incomplete leg.
+        def finite_number(value: Any, default: float = 0.0) -> float:
+            try:
+                parsed = float(value)
+                return parsed if math.isfinite(parsed) else default
+            except (TypeError, ValueError):
+                return default
+
+        try:
+            dte = max((datetime.strptime(expiry, "%Y-%m-%d").date() - date.today()).days, 0)
+        except (TypeError, ValueError):
+            dte = 0
+
         return {
             "symbol": row.get("contractSymbol", ""),
-            "strike": float(row["strike"]),
+            "strike": finite_number(row.get("strike")),
             "expiry": expiry,
+            "dte": dte,
             "option_type": opt_type,
-            "bid": float(row.get("bid", 0)),
-            "ask": float(row.get("ask", 0)),
-            "last": float(row.get("lastPrice", 0)),
-            "volume": int(row.get("volume", 0) or 0),
-            "open_interest": int(row.get("openInterest", 0) or 0),
-            "implied_volatility": float(row.get("impliedVolatility", 0) or 0),
+            "bid": finite_number(row.get("bid")),
+            "ask": finite_number(row.get("ask")),
+            "last": finite_number(row.get("lastPrice")),
+            "volume": int(finite_number(row.get("volume"))),
+            "open_interest": int(finite_number(row.get("openInterest"))),
+            "implied_volatility": finite_number(row.get("impliedVolatility")),
         }
