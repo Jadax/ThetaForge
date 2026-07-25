@@ -51,9 +51,15 @@ export default function Home() {
     const headers: HeadersInit = bridgeToken ? { "X-ThetaForge-Bridge-Token": bridgeToken } : {};
     try {
       const connection = await fetch(`${base}/connect`, { method: "POST", headers });
-      if (!connection.ok) throw new Error(`Bridge returned ${connection.status}`);
+      if (!connection.ok) {
+        const body = await connection.json().catch(() => ({}));
+        throw new Error(body.detail || `Bridge returned ${connection.status}`);
+      }
       const positionResponse = await fetch(`${base}/positions`, { headers });
-      if (!positionResponse.ok) throw new Error(`Positions returned ${positionResponse.status}`);
+      if (!positionResponse.ok) {
+        const body = await positionResponse.json().catch(() => ({}));
+        throw new Error(body.detail || `Positions returned ${positionResponse.status}`);
+      }
       setPositions(await positionResponse.json());
       setBridgeStatus("Paper Bridge connected");
     } catch (bridgeError) {
