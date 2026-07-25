@@ -161,7 +161,10 @@ export default function Home() {
       setStatus("Advisor connected");
     } catch (requestError) {
       setScanError(requestError instanceof Error ? requestError.message : "Unable to scan the opportunity universe");
-      setStatus("Advisor unavailable");
+      // A scan can fail because a public market-data source is slow while the
+      // hosted Advisor itself remains healthy. Do not mislabel that as a
+      // service outage; the detailed scan message is shown in the panel.
+      setStatus("Advisor connected · scan needs retry");
     } finally {
       setScanLoading(false);
     }

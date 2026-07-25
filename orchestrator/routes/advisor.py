@@ -347,13 +347,25 @@ async def _screen_liquid_universe() -> List[Dict[str, Any]]:
         if history is None or history.empty or len(history) < 22:
             return None
         try:
+            # Public feeds can append an in-progress session row with no
+            # price yet; exclude only that incomplete row, not the symbol.
+            history = history.dropna(subset=["Close"])
+            if len(history) < 22:
+                return None
             closes = [float(value) for value in history["Close"].tolist()]
-            volumes = [float(value) for value in history["Volume"].tolist()]
+            if not all(math.isfinite(value) for value in closes):
+                return None
+            volumes = []
+            for value in history["Volume"].tolist():
+                parsed = float(value)
+                volumes.append(parsed if math.isfinite(parsed) else 0.0)
             last = closes[-1]
             change_5d = (last / closes[-6] - 1) * 100
             change_20d = (last / closes[-21] - 1) * 100
             average_volume = statistics.fmean(volumes[-21:-1])
             volume_ratio = volumes[-1] / average_volume if average_volume else 0
+            if not all(math.isfinite(value) for value in (last, change_5d, change_20d, volume_ratio)):
+                return None
             # Movement plus unusual participation surfaces candidates for the
             # deeper, options-specific Brain analysis. Direction is decided
             # there, not by this preliminary ranking.
