@@ -17,6 +17,30 @@ type Analysis = {
 
 type BridgePosition = { symbol: string; position: number; average_cost: number };
 
+type TradeRecommendation = {
+  id: string;
+  symbol: string;
+  strategy: string;
+  underlying_price: number;
+  legs: Array<{ action: string; strike: number; expiry: string; type: string }>;
+  quantity: number;
+  capital_required: number;
+  max_loss: number;
+  probability_of_profit: number;
+  composite_score: number;
+  confidence_score: number;
+  reasoning: string;
+  risk_warning: string;
+  entry_rules: Record<string, string>;
+  exit_rules: Record<string, string>;
+};
+
+type RecommendationResponse = {
+  recommendations: TradeRecommendation[];
+  warnings: string[];
+  market_context: { regime: string; vix: number };
+};
+
 const signalLabel = (signal: string) => signal.replaceAll("_", " ");
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
 const VERSION = "v0.4.2";
@@ -34,6 +58,10 @@ export default function Home() {
   const [positions, setPositions] = useState<BridgePosition[]>([]);
   const [bridgeLoading, setBridgeLoading] = useState(false);
   const [maxOptionsCapital, setMaxOptionsCapital] = useState("");
+  const [scanSymbols, setScanSymbols] = useState("SPY, QQQ, IWM, AAPL, MSFT, NVDA, AMD, TSLA");
+  const [topTrades, setTopTrades] = useState<RecommendationResponse | null>(null);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanError, setScanError] = useState("");
 
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
@@ -99,6 +127,47 @@ export default function Home() {
     }
   }
 
+  async function scanTopTrades(event: FormEvent) {
+    event.preventDefault();
+    const capital = Number(maxOptionsCapital);
+    const watchlist = scanSymbols.split(",").map((item) => item.trim().toUpperCase()).filter(Boolean);
+    if (!capital || capital <= 0) {
+      setScanError("Set your weekly options allocation before scanning for trade candidates.");
+      return;
+    }
+    if (!watchlist.length) {
+      setScanError("Add at least one symbol to scan.");
+      return;
+    }
+
+    setScanLoading(true);
+    setScanError("");
+    const base = apiBase.replace(/\/$/, "");
+    try {
+      const response = await fetch(`${base}/api/advisor/recommend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          capital,
+          buying_power: capital,
+          risk_tolerance: "moderate",
+          watchlist,
+          max_positions: 3,
+          current_positions: positions,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Recommendation service returned ${response.status}`);
+      }
+      setTopTrades(await response.json());
+    } catch (requestError) {
+      setScanError(requestError instanceof Error ? requestError.message : "Unable to scan the opportunity list");
+    } finally {
+      setScanLoading(false);
+    }
+  }
+
   return (
     <main>
       <nav>
@@ -134,6 +203,27 @@ export default function Home() {
         </section>
       </>}
 
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">PAPER-ONLY OPPORTUNITY SCAN</p><h2>Top trade candidates now</h2><p>The Advisor ranks defined-risk candidates against your weekly allocation. Nothing is sent to IBKR from this view.</p></div>
+          {topTrades && <div className="market-chip"><small>MARKET</small><b>{signalLabel(topTrades.market_context.regime)}</b><span>VIX {topTrades.market_context.vix.toFixed(1)}</span></div>}
+        </div>
+        <form className="scan-form" onSubmit={scanTopTrades}>
+          <label>Symbols to scan<input value={scanSymbols} onChange={(event) => setScanSymbols(event.target.value)} aria-label="Symbols to scan" /></label>
+          <button disabled={scanLoading}>{scanLoading ? "Scanning market…" : "Find top paper trades"}</button>
+        </form>
+        <p className="scan-note">Uses your weekly options allocation below as the scan budget. Review every candidate before staging a paper order.</p>
+        {scanError && <p className="error">{scanError}</p>}
+        {topTrades && (topTrades.recommendations.length ? <div className="trade-list">{topTrades.recommendations.map((trade, index) => <article className="trade-card" key={trade.id}>
+          <div className="trade-rank">#{index + 1}</div>
+          <div className="trade-title"><p className="eyebrow">{trade.symbol} · ${trade.underlying_price.toFixed(2)}</p><h3>{signalLabel(trade.strategy)}</h3><p>{trade.reasoning}</p></div>
+          <div className="trade-metrics"><span><small>COMPOSITE</small><b>{trade.composite_score.toFixed(0)}</b></span><span><small>POP</small><b>{trade.probability_of_profit.toFixed(0)}%</b></span><span><small>AT RISK</small><b>${trade.max_loss.toFixed(0)}</b></span><span><small>CAPITAL</small><b>${trade.capital_required.toFixed(0)}</b></span></div>
+          <div className="trade-legs">{trade.legs.map((leg, legIndex) => <span key={`${trade.id}-${legIndex}`} className={leg.action === "SELL" ? "sell" : "buy"}>{leg.action} {leg.type} {leg.strike} · {leg.expiry}</span>)}</div>
+          <p className="trade-risk">{trade.risk_warning}</p>
+        </article>)}</div> : <div className="no-trades"><b>No defined-risk candidates passed the Advisor’s filters.</b><span>This is a valid outcome—avoid forcing a trade. Expand the scan universe or try again when market data changes.</span></div>)}
+        {topTrades?.warnings.length ? <p className="scan-warning">{topTrades.warnings.join(" · ")}</p> : null}
+      </section>
+
       <section className="bridge-panel">
         <div><p className="eyebrow">LOCAL IBKR PAPER BRIDGE</p><h3>{bridgeStatus}</h3><p>Connect the dashboard to the Bridge running beside your paper TWS or IB Gateway session.</p></div>
         <div className="bridge-controls">
@@ -144,7 +234,7 @@ export default function Home() {
         {positions.length > 0 && <div className="positions">{positions.map((position) => <span key={position.symbol}><b>{position.symbol}</b> {position.position} @ ${position.average_cost.toFixed(2)}</span>)}</div>}
       </section>
       <section className="capital-limit">
-        <div><p className="eyebrow">WEEKLY OPTIONS ALLOCATION</p><h3>Maximum options capital</h3><p>Your hard budget for options positions. The Advisor may use less, never more. Update this whenever your weekly allocation changes.</p></div>
+        <div><p className="eyebrow">WEEKLY OPTIONS ALLOCATION</p><h3>Maximum options capital</h3><p>Your hard budget for the opportunity scan. The Advisor may use less, never more. Update this whenever your weekly allocation changes.</p></div>
         <label>USD<input className="capital-input" type="number" min="0" step="100" value={maxOptionsCapital} onChange={(event) => saveCapitalLimit(event.target.value)} placeholder="Set your weekly limit" aria-label="Maximum options capital in US dollars" /></label>
       </section>
       <section className="safety"><b>Execution boundary</b><span>The Bridge is paper-only. Start the local Bridge and TWS/IB Gateway first; the dashboard can connect and control it but cannot start native applications.</span></section>

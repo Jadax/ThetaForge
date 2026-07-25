@@ -541,6 +541,8 @@ async def get_recommendations(request: AdvisoryRequest):
                     for leg in r.legs
                 ],
                 "quantity": r.quantity,
+                "capital_required": r.capital_required,
+                "capital_at_risk": r.capital_at_risk,
                 "net_credit": r.net_credit,
                 "net_debit": r.net_debit,
                 "max_profit": r.max_profit,
