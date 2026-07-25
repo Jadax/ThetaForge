@@ -15,7 +15,7 @@ Set a long, random `BRIDGE_ACCESS_TOKEN` in the local `.env`, log into IBKR
 **Paper Trading**, then run:
 
 ```powershell
-uvicorn bridge.main:app --host 0.0.0.0 --port 8002
+uvicorn bridge.main:app --env-file .env --host 0.0.0.0 --port 8002
 ```
 
 Keep the Bridge in paper mode. It has no live-order route.
