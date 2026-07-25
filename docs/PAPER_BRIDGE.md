@@ -1,0 +1,34 @@
+# Remote Paper Bridge
+
+The IBKR Bridge is deliberately **not** a Railway service. It must run on the
+computer where TWS or IB Gateway is running, because it connects to that local
+IBKR session.
+
+For personal access from other computers, use a private network such as
+Tailscale. Install it on the trading computer and each computer you use, then
+access the Bridge through the trading computer's private Tailscale address. Do
+not expose port 8002 directly to the public internet.
+
+## Start the Bridge
+
+Set a long, random `BRIDGE_ACCESS_TOKEN` in the local `.env`, log into IBKR
+**Paper Trading**, then run:
+
+```powershell
+uvicorn bridge.main:app --host 0.0.0.0 --port 8002
+```
+
+Keep the Bridge in paper mode. It has no live-order route.
+
+## Verify locally
+
+Open `http://127.0.0.1:8002/`. A JSON service message is the expected result;
+the dashboard is the user interface. `http://127.0.0.1:8002/health` reports
+whether it is connected to TWS/IB Gateway.
+
+## Security
+
+- Keep TWS/IB Gateway and the Bridge on a private network.
+- Set `BRIDGE_ACCESS_TOKEN` before allowing remote access.
+- Never forward port 8002 on your router.
+- Every order is staged and requires explicit `confirm_paper_order=true`.

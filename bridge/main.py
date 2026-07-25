@@ -3,7 +3,7 @@ import os
 from typing import Literal
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from ib_insync import IB, LimitOrder, Option
@@ -12,6 +12,7 @@ from ib_insync import IB, LimitOrder, Option
 HOST = os.getenv("IBKR_HOST", "127.0.0.1")
 PAPER_PORT = int(os.getenv("IBKR_PAPER_PORT", "4002"))
 CLIENT_ID = int(os.getenv("IBKR_BRIDGE_CLIENT_ID", "17"))
+ACCESS_TOKEN = os.getenv("BRIDGE_ACCESS_TOKEN", "")
 ib = IB()
 staged_orders: dict[str, "PaperOrder"] = {}
 
@@ -33,6 +34,12 @@ class PaperOrder(BaseModel):
     limit_price: float = Field(gt=0)
 
 
+async def require_access_token(x_thetaforge_bridge_token: str | None = Header(default=None)) -> None:
+    """Require a token whenever one is configured for remote/private-network use."""
+    if ACCESS_TOKEN and x_thetaforge_bridge_token != ACCESS_TOKEN:
+        raise HTTPException(status_code=401, detail="Invalid or missing Bridge access token")
+
+
 async def ensure_connected() -> None:
     if not ib.isConnected():
         try:
@@ -46,27 +53,37 @@ async def health():
     return {"mode": "paper_only", "connected": ib.isConnected(), "host": HOST, "port": PAPER_PORT}
 
 
+@app.get("/")
+async def root():
+    return {
+        "service": "ThetaForge Local IBKR Bridge",
+        "mode": "paper_only",
+        "status_url": "/health",
+        "message": "API service only. Use the ThetaForge dashboard for the trading interface.",
+    }
+
+
 @app.post("/connect")
-async def connect():
+async def connect(_: None = Depends(require_access_token)):
     await ensure_connected()
     return {"mode": "paper_only", "connected": True}
 
 
 @app.get("/positions")
-async def positions():
+async def positions(_: None = Depends(require_access_token)):
     await ensure_connected()
     return [{"symbol": item.contract.symbol, "position": item.position, "average_cost": item.avgCost} for item in ib.positions()]
 
 
 @app.post("/orders/stage")
-async def stage_order(order: PaperOrder):
+async def stage_order(order: PaperOrder, _: None = Depends(require_access_token)):
     order_id = str(uuid4())
     staged_orders[order_id] = order
     return {"order_id": order_id, "mode": "paper_only", "order": order, "requires_confirmation": True}
 
 
 @app.post("/orders/{order_id}/submit")
-async def submit_paper_order(order_id: str, confirm_paper_order: bool = False):
+async def submit_paper_order(order_id: str, confirm_paper_order: bool = False, _: None = Depends(require_access_token)):
     if not confirm_paper_order:
         raise HTTPException(status_code=400, detail="Set confirm_paper_order=true to submit this PAPER order")
     order = staged_orders.pop(order_id, None)

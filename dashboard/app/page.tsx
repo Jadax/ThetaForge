@@ -17,6 +17,7 @@ type Analysis = {
 
 const signalLabel = (signal: string) => signal.replaceAll("_", " ");
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
+const VERSION = "v0.3.0";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -57,7 +58,7 @@ export default function Home() {
   return (
     <main>
       <nav>
-        <div className="brand"><span>θ</span> ThetaForge <small>PERSONAL TERMINAL</small></div>
+        <div className="brand"><span>θ</span> ThetaForge <small>PERSONAL TERMINAL · {VERSION}</small></div>
         <div className={`bridge ${status.includes("connected") ? "online" : ""}`}><i /> {status}</div>
       </nav>
 
@@ -90,6 +91,7 @@ export default function Home() {
       </>}
 
       <section className="safety"><b>Execution boundary</b><span>This dashboard informs decisions. Paper-trade ideas in IBKR first; do not enable automated live execution.</span><button type="button" onClick={() => alert("Coming next: a local-only IBKR Bridge will read your paper account and stage orders for your approval.")}>IBKR Bridge plan</button></section>
+      <footer>Created with love by <b>Tushant Sharma</b> · <span>Astraiva</span> · {VERSION}</footer>
     </main>
   );
 }
