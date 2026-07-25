@@ -21,7 +21,7 @@ export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
   const [apiBase, setApiBase] = useState("http://localhost:8000");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [status, setStatus] = useState("Bridge not connected");
+  const [status, setStatus] = useState("Advisor not connected");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -44,10 +44,10 @@ export default function Home() {
       });
       if (!response.ok) throw new Error(`Analysis service returned ${response.status}`);
       setAnalysis(await response.json());
-      setStatus("Local Brain connected");
+      setStatus("Advisor connected");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to reach the local Brain");
-      setStatus("Bridge not connected");
+      setStatus("Advisor not connected");
     } finally {
       setLoading(false);
     }
@@ -69,11 +69,11 @@ export default function Home() {
           <button disabled={loading}>{loading ? "Reading market…" : "Run Brain analysis"}</button>
         </form>
         <details>
-          <summary>Local Brain address</summary>
+          <summary>Advisor API address</summary>
           <input className="api" value={apiBase} onChange={(event) => setApiBase(event.target.value)} aria-label="Local Brain address" />
-          <p>Run the ThetaForge API on this computer, then use its local address here. Your IBKR session is never sent through this dashboard.</p>
+          <p>Use your Railway service URL here for live analysis. Your IBKR paper-trading Bridge remains local to your trading computer.</p>
         </details>
-        {error && <p className="error">{error}. Start the local Brain service, then try again.</p>}
+        {error && <p className="error">{error}. Check the Railway Advisor URL, then try again.</p>}
       </section>
 
       {!analysis ? <section className="empty"><b>Ready when you are.</b><span>Enter a symbol to combine volatility, technical, flow, PCR, and dealer-positioning context.</span></section> : <>

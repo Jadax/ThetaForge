@@ -19,5 +19,5 @@ COPY . .
 # Expose orchestrator port
 EXPOSE 8000
 
-# Default command (overridden by docker-compose)
-CMD ["uvicorn", "orchestrator.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Railway supplies PORT at runtime; Docker Compose continues to use 8000 by default.
+CMD ["sh", "-c", "uvicorn orchestrator.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
