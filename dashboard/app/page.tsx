@@ -33,12 +33,14 @@ export default function Home() {
   const [bridgeStatus, setBridgeStatus] = useState("Bridge not connected");
   const [positions, setPositions] = useState<BridgePosition[]>([]);
   const [bridgeLoading, setBridgeLoading] = useState(false);
+  const [maxOptionsCapital, setMaxOptionsCapital] = useState("");
 
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
     setApiBase(saved === "http://localhost:8000" || !saved ? DEFAULT_ADVISOR_API : saved);
     setBridgeBase(window.localStorage.getItem("thetaforge-bridge-base") || "http://127.0.0.1:8002");
     setBridgeToken(window.sessionStorage.getItem("thetaforge-bridge-token") || "");
+    setMaxOptionsCapital(window.localStorage.getItem("thetaforge-max-options-capital") || "");
   }, []);
 
   async function connectBridge() {
@@ -60,6 +62,12 @@ export default function Home() {
     } finally {
       setBridgeLoading(false);
     }
+  }
+
+  function saveCapitalLimit(value: string) {
+    setMaxOptionsCapital(value);
+    if (value) window.localStorage.setItem("thetaforge-max-options-capital", value);
+    else window.localStorage.removeItem("thetaforge-max-options-capital");
   }
 
   async function analyze(event: FormEvent) {
@@ -128,6 +136,10 @@ export default function Home() {
           <button type="button" onClick={connectBridge} disabled={bridgeLoading}>{bridgeLoading ? "Connecting…" : "Connect paper Bridge"}</button>
         </div>
         {positions.length > 0 && <div className="positions">{positions.map((position) => <span key={position.symbol}><b>{position.symbol}</b> {position.position} @ ${position.average_cost.toFixed(2)}</span>)}</div>}
+      </section>
+      <section className="capital-limit">
+        <div><p className="eyebrow">WEEKLY OPTIONS ALLOCATION</p><h3>Maximum options capital</h3><p>Your hard budget for options positions. The Advisor may use less, never more. Update this whenever your weekly allocation changes.</p></div>
+        <label>USD<input className="capital-input" type="number" min="0" step="100" value={maxOptionsCapital} onChange={(event) => saveCapitalLimit(event.target.value)} placeholder="Set your weekly limit" aria-label="Maximum options capital in US dollars" /></label>
       </section>
       <section className="safety"><b>Execution boundary</b><span>The Bridge is paper-only. Start the local Bridge and TWS/IB Gateway first; the dashboard can connect and control it but cannot start native applications.</span></section>
       <footer>Made with {"\u2665"} by <b>Tushant Sharma</b> · <span>Astraiva</span> · {VERSION}</footer>
