@@ -1,5 +1,6 @@
 """Personal, localhost-only bridge between ThetaForge and IBKR paper trading."""
 import os
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Literal
 from uuid import uuid4
@@ -8,6 +9,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from ib_insync import IB, LimitOrder, Option
+import ib_insync.connection as ib_connection
 
 
 HOST = os.getenv("IBKR_HOST", "127.0.0.1")
@@ -26,6 +28,12 @@ staged_orders: dict[str, "PaperOrder"] = {}
 async def lifespan(_: FastAPI):
     """Create and dispose the IB client on uvicorn's active event loop."""
     global ib
+    # ib_insync 0.9.x asks the event-loop policy for a loop when opening its
+    # socket. With Python 3.12 on Windows that policy can return a different
+    # Proactor loop from the one running FastAPI, producing an
+    # "_OverlappedFuture ... attached to a different loop" error. Always use
+    # the loop currently executing this request/application instead.
+    ib_connection.getLoop = asyncio.get_running_loop
     ib = IB()
     try:
         yield
