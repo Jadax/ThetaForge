@@ -1,5 +1,6 @@
 """Personal, localhost-only bridge between ThetaForge and IBKR paper trading."""
 import os
+from contextlib import asynccontextmanager
 from typing import Literal
 from uuid import uuid4
 
@@ -14,10 +15,27 @@ PAPER_PORT = int(os.getenv("IBKR_PAPER_PORT", "4002"))
 CLIENT_ID = int(os.getenv("IBKR_BRIDGE_CLIENT_ID", "17"))
 ACCESS_TOKEN = os.getenv("BRIDGE_ACCESS_TOKEN", "")
 PAPER_ONLY = os.getenv("PAPER_TRADING_ONLY", "true").lower() == "true"
-ib = IB()
+# Do not construct IB() at import time. On Windows uvicorn creates its running
+# asyncio loop after importing this module; an IB instance created too early can
+# retain a Future from that old loop ("attached to a different loop").
+ib: IB | None = None
 staged_orders: dict[str, "PaperOrder"] = {}
 
-app = FastAPI(title="ThetaForge Local IBKR Bridge", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Create and dispose the IB client on uvicorn's active event loop."""
+    global ib
+    ib = IB()
+    try:
+        yield
+    finally:
+        if ib and ib.isConnected():
+            ib.disconnect()
+        ib = None
+
+
+app = FastAPI(title="ThetaForge Local IBKR Bridge", version="0.1.1", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://jadax.github.io"],
@@ -59,12 +77,15 @@ async def require_access_token(x_thetaforge_bridge_token: str | None = Header(de
 async def ensure_connected() -> None:
     if not PAPER_ONLY or PAPER_PORT not in {4002, 7497}:
         raise HTTPException(status_code=503, detail="Bridge is locked to IBKR paper-trading ports only")
-    if not ib.isConnected():
+    client = ib
+    if client is None:
+        raise HTTPException(status_code=503, detail="Bridge is still starting; retry in a moment")
+    if not client.isConnected():
         try:
-            await ib.connectAsync(HOST, PAPER_PORT, clientId=CLIENT_ID, timeout=8)
-            accounts = ib.managedAccounts()
+            await client.connectAsync(HOST, PAPER_PORT, clientId=CLIENT_ID, timeout=8)
+            accounts = client.managedAccounts()
             if not any(account.upper().startswith("DU") for account in accounts):
-                ib.disconnect()
+                client.disconnect()
                 raise HTTPException(status_code=503, detail="Connected IBKR session is not a paper account")
         except Exception as error:
             if isinstance(error, HTTPException):
@@ -74,7 +95,7 @@ async def ensure_connected() -> None:
 
 @app.get("/health")
 async def health():
-    return {"mode": "paper_only", "connected": ib.isConnected(), "host": HOST, "port": PAPER_PORT}
+    return {"mode": "paper_only", "connected": bool(ib and ib.isConnected()), "host": HOST, "port": PAPER_PORT}
 
 
 @app.get("/")
@@ -96,6 +117,7 @@ async def connect(_: None = Depends(require_access_token)):
 @app.get("/positions")
 async def positions(_: None = Depends(require_access_token)):
     await ensure_connected()
+    assert ib is not None
     return [{"symbol": item.contract.symbol, "position": item.position, "average_cost": item.avgCost} for item in ib.positions()]
 
 
@@ -114,6 +136,7 @@ async def submit_paper_order(order_id: str, confirm_paper_order: bool = False, _
     if not order:
         raise HTTPException(status_code=404, detail="Staged order not found")
     await ensure_connected()
+    assert ib is not None
     contract = Option(order.symbol.upper(), order.expiry, order.strike, order.right, "SMART")
     qualified = ib.qualifyContracts(contract)
     if not qualified:
