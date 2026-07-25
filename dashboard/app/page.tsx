@@ -152,7 +152,6 @@ export default function Home() {
           buying_power: capital,
           risk_tolerance: "moderate",
           watchlist,
-          max_positions: 3,
           current_positions: positions,
         }),
       });
@@ -214,7 +213,7 @@ export default function Home() {
         </form>
         <p className="scan-note">Uses your weekly options allocation below as the scan budget. Review every candidate before staging a paper order.</p>
         {scanError && <p className="error">{scanError}</p>}
-        {topTrades && (topTrades.recommendations.length ? <div className="trade-list">{topTrades.recommendations.map((trade, index) => <article className="trade-card" key={trade.id}>
+        {topTrades && (topTrades.recommendations.length ? <div className="trade-list">{topTrades.recommendations.slice(0, 3).map((trade, index) => <article className="trade-card" key={trade.id}>
           <div className="trade-rank">#{index + 1}</div>
           <div className="trade-title"><p className="eyebrow">{trade.symbol} · ${trade.underlying_price.toFixed(2)}</p><h3>{signalLabel(trade.strategy)}</h3><p>{trade.reasoning}</p></div>
           <div className="trade-metrics"><span><small>COMPOSITE</small><b>{trade.composite_score.toFixed(0)}</b></span><span><small>POP</small><b>{trade.probability_of_profit.toFixed(0)}%</b></span><span><small>AT RISK</small><b>${trade.max_loss.toFixed(0)}</b></span><span><small>CAPITAL</small><b>${trade.capital_required.toFixed(0)}</b></span></div>
