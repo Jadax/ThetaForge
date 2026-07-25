@@ -31,6 +31,19 @@ gex_engine = GEXEngine()
 brain = AIBrain()
 watchlist_store = FavoritesStore()
 
+# This is deliberately a broad, liquid options universe rather than every US
+# listing. Free sources do not provide a reliable real-time option chain for
+# every stock; scanning illiquid names creates misleading recommendations. The
+# first pass covers the most actively traded ETFs and large-cap underlyings,
+# then the Brain performs a full option-chain analysis on the strongest names.
+LIQUID_OPTIONS_UNIVERSE = [
+    "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "XLV", "XLI", "XLY", "XLP", "XLB", "XLC", "XLU",
+    "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "AMD", "NFLX", "CRM", "ORCL", "ADBE", "INTC", "QCOM", "CSCO",
+    "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "COIN", "HOOD",
+    "LLY", "UNH", "JNJ", "MRK", "ABBV", "PFE", "AMGN", "TMO", "ISRG",
+    "XOM", "CVX", "OXY", "SLB", "CAT", "DE", "GE", "BA", "LMT", "NKE", "COST", "WMT", "HD", "MCD", "SBUX", "DIS", "UBER", "PLTR", "SMCI",
+]
+
 
 async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, Any]:
     """Fetch and normalize the inputs consumed by ``AIBrain``.
@@ -133,6 +146,12 @@ class BrainAnalysisRequest(BaseModel):
     symbol: str
     stock_price: float = 0
     horizon: str = Field("1m", description="1w/1m/3m/6m")
+
+
+class OpportunityScanRequest(BaseModel):
+    """Budget and existing exposure for the automatic liquid-universe scan."""
+    capital: float = Field(gt=0, description="Weekly options allocation")
+    current_positions: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class WatchlistAddRequest(BaseModel):
@@ -310,6 +329,70 @@ async def brain_analyze_watchlist(request: AdvisoryRequest):
         "total_analyzed": len(results),
         "rankings": results,
     }
+
+
+async def _screen_liquid_universe() -> List[Dict[str, Any]]:
+    """Rank the liquid universe before requesting expensive option chains.
+
+    The first pass only uses three months of price/volume history. It is run
+    concurrently with a bounded fan-out, then the full recommendation engine
+    gets a small, evidence-based shortlist instead of hammering public option
+    endpoints for every listing.
+    """
+    semaphore = asyncio.Semaphore(8)
+
+    async def score_symbol(symbol: str) -> Optional[Dict[str, Any]]:
+        async with semaphore:
+            history = await provider.get_historical_prices(symbol, period="3mo")
+        if history is None or history.empty or len(history) < 22:
+            return None
+        try:
+            closes = [float(value) for value in history["Close"].tolist()]
+            volumes = [float(value) for value in history["Volume"].tolist()]
+            last = closes[-1]
+            change_5d = (last / closes[-6] - 1) * 100
+            change_20d = (last / closes[-21] - 1) * 100
+            average_volume = statistics.fmean(volumes[-21:-1])
+            volume_ratio = volumes[-1] / average_volume if average_volume else 0
+            # Movement plus unusual participation surfaces candidates for the
+            # deeper, options-specific Brain analysis. Direction is decided
+            # there, not by this preliminary ranking.
+            score = abs(change_20d) * 1.5 + abs(change_5d) + min(volume_ratio, 3) * 4
+            return {
+                "symbol": symbol,
+                "screen_score": round(score, 2),
+                "change_5d": round(change_5d, 2),
+                "change_20d": round(change_20d, 2),
+                "volume_ratio": round(volume_ratio, 2),
+            }
+        except (KeyError, TypeError, ValueError, ZeroDivisionError):
+            return None
+
+    screened = await asyncio.gather(*(score_symbol(symbol) for symbol in LIQUID_OPTIONS_UNIVERSE))
+    ranked = [item for item in screened if item]
+    ranked.sort(key=lambda item: item["screen_score"], reverse=True)
+    return ranked
+
+
+@router.post("/opportunities")
+async def automatic_opportunities(request: OpportunityScanRequest):
+    """Find the best current paper-trade candidates without user-picked symbols."""
+    screened = await _screen_liquid_universe()
+    shortlist = [item["symbol"] for item in screened[:10]]
+    if not shortlist:
+        raise HTTPException(status_code=502, detail="Market sources did not return enough data for the automatic scan")
+
+    recommendations = await get_recommendations(AdvisoryRequest(
+        capital=request.capital,
+        buying_power=request.capital,
+        risk_tolerance="moderate",
+        watchlist=shortlist,
+        current_positions=request.current_positions,
+    ))
+    recommendations["universe_size"] = len(LIQUID_OPTIONS_UNIVERSE)
+    recommendations["screened_symbols"] = screened[:10]
+    recommendations["shortlisted_symbols"] = shortlist
+    return recommendations
 
 
 # === Watchlist Endpoints ===

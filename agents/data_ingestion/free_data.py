@@ -40,9 +40,11 @@ class FreeDataProvider:
                 logger.warning(f"IBKR price fetch failed for {symbol}: {e}")
 
         try:
-            ticker = yf.Ticker(symbol)
-            info = ticker.fast_info
-            return float(info.last_price)
+            def fetch_price() -> float:
+                ticker = yf.Ticker(symbol)
+                return float(ticker.fast_info.last_price)
+
+            return await asyncio.to_thread(fetch_price)
         except Exception as e:
             logger.warning(f"yfinance price fetch failed for {symbol}: {e}")
         return None
@@ -53,16 +55,18 @@ class FreeDataProvider:
             return await self.ibkr.get_option_chain(symbol)
 
         try:
-            ticker = yf.Ticker(symbol)
-            expirations = ticker.options
-            chain_data = []
-            for exp in expirations[:8]:
-                chain = ticker.option_chain(exp)
-                for _, row in chain.calls.iterrows():
-                    chain_data.append(self._parse_yf_option(row, exp, "CALL"))
-                for _, row in chain.puts.iterrows():
-                    chain_data.append(self._parse_yf_option(row, exp, "PUT"))
-            return chain_data
+            def fetch_chain() -> List[Dict[str, Any]]:
+                ticker = yf.Ticker(symbol)
+                chain_data = []
+                for exp in ticker.options[:8]:
+                    chain = ticker.option_chain(exp)
+                    for _, row in chain.calls.iterrows():
+                        chain_data.append(self._parse_yf_option(row, exp, "CALL"))
+                    for _, row in chain.puts.iterrows():
+                        chain_data.append(self._parse_yf_option(row, exp, "PUT"))
+                return chain_data
+
+            return await asyncio.to_thread(fetch_chain)
         except Exception as e:
             logger.error(f"Option chain fetch failed for {symbol}: {e}")
         return []
@@ -89,8 +93,9 @@ class FreeDataProvider:
     ) -> pd.DataFrame:
         """Get historical OHLCV data via yfinance."""
         try:
-            ticker = yf.Ticker(symbol)
-            return ticker.history(period=period, interval=interval)
+            return await asyncio.to_thread(
+                lambda: yf.Ticker(symbol).history(period=period, interval=interval)
+            )
         except Exception as e:
             logger.error(f"Historical data failed for {symbol}: {e}")
         return pd.DataFrame()

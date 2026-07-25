@@ -39,6 +39,8 @@ type RecommendationResponse = {
   recommendations: TradeRecommendation[];
   warnings: string[];
   market_context: { regime: string; vix: number };
+  universe_size?: number;
+  shortlisted_symbols?: string[];
 };
 
 const signalLabel = (signal: string) => signal.replaceAll("_", " ");
@@ -58,7 +60,6 @@ export default function Home() {
   const [positions, setPositions] = useState<BridgePosition[]>([]);
   const [bridgeLoading, setBridgeLoading] = useState(false);
   const [maxOptionsCapital, setMaxOptionsCapital] = useState("");
-  const [scanSymbols, setScanSymbols] = useState("SPY, QQQ, IWM, AAPL, MSFT, NVDA, AMD, TSLA");
   const [topTrades, setTopTrades] = useState<RecommendationResponse | null>(null);
   const [scanLoading, setScanLoading] = useState(false);
   const [scanError, setScanError] = useState("");
@@ -68,7 +69,9 @@ export default function Home() {
     setApiBase(saved === "http://localhost:8000" || !saved ? DEFAULT_ADVISOR_API : saved);
     setBridgeBase(window.localStorage.getItem("thetaforge-bridge-base") || "http://127.0.0.1:8002");
     setBridgeToken(window.sessionStorage.getItem("thetaforge-bridge-token") || "");
-    setMaxOptionsCapital(window.localStorage.getItem("thetaforge-max-options-capital") || "");
+    const savedCapital = window.localStorage.getItem("thetaforge-max-options-capital") || "";
+    setMaxOptionsCapital(savedCapital);
+    if (Number(savedCapital) > 0) void fetchAutomaticOpportunities(Number(savedCapital));
   }, []);
 
   async function connectBridge() {
@@ -127,44 +130,36 @@ export default function Home() {
     }
   }
 
-  async function scanTopTrades(event: FormEvent) {
-    event.preventDefault();
-    const capital = Number(maxOptionsCapital);
-    const watchlist = scanSymbols.split(",").map((item) => item.trim().toUpperCase()).filter(Boolean);
-    if (!capital || capital <= 0) {
-      setScanError("Set your weekly options allocation before scanning for trade candidates.");
-      return;
-    }
-    if (!watchlist.length) {
-      setScanError("Add at least one symbol to scan.");
-      return;
-    }
-
+  async function fetchAutomaticOpportunities(capital: number) {
     setScanLoading(true);
     setScanError("");
     const base = apiBase.replace(/\/$/, "");
     try {
-      const response = await fetch(`${base}/api/advisor/recommend`, {
+      const response = await fetch(`${base}/api/advisor/opportunities`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          capital,
-          buying_power: capital,
-          risk_tolerance: "moderate",
-          watchlist,
-          current_positions: positions,
-        }),
+        body: JSON.stringify({ capital, current_positions: positions }),
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        throw new Error(body.detail || `Recommendation service returned ${response.status}`);
+        throw new Error(body.detail || `Opportunity service returned ${response.status}`);
       }
       setTopTrades(await response.json());
     } catch (requestError) {
-      setScanError(requestError instanceof Error ? requestError.message : "Unable to scan the opportunity list");
+      setScanError(requestError instanceof Error ? requestError.message : "Unable to scan the opportunity universe");
     } finally {
       setScanLoading(false);
     }
+  }
+
+  async function scanTopTrades(event: FormEvent) {
+    event.preventDefault();
+    const capital = Number(maxOptionsCapital);
+    if (!capital || capital <= 0) {
+      setScanError("Set your weekly options allocation before scanning for trade candidates.");
+      return;
+    }
+    await fetchAutomaticOpportunities(capital);
   }
 
   return (
@@ -204,14 +199,11 @@ export default function Home() {
 
       <section className="opportunity-panel">
         <div className="opportunity-heading">
-          <div><p className="eyebrow">PAPER-ONLY OPPORTUNITY SCAN</p><h2>Top trade candidates now</h2><p>The Advisor ranks defined-risk candidates against your weekly allocation. Nothing is sent to IBKR from this view.</p></div>
+          <div><p className="eyebrow">AUTOMATIC PAPER-ONLY OPPORTUNITY SCAN</p><h2>Top trade candidates now</h2><p>The Advisor screens its liquid options universe, then fully analyzes the strongest names. Nothing is sent to IBKR from this view.</p></div>
           {topTrades && <div className="market-chip"><small>MARKET</small><b>{signalLabel(topTrades.market_context.regime)}</b><span>VIX {topTrades.market_context.vix.toFixed(1)}</span></div>}
         </div>
-        <form className="scan-form" onSubmit={scanTopTrades}>
-          <label>Symbols to scan<input value={scanSymbols} onChange={(event) => setScanSymbols(event.target.value)} aria-label="Symbols to scan" /></label>
-          <button disabled={scanLoading}>{scanLoading ? "Scanning market…" : "Find top paper trades"}</button>
-        </form>
-        <p className="scan-note">Uses your weekly options allocation below as the scan budget. Review every candidate before staging a paper order.</p>
+        <form className="scan-form" onSubmit={scanTopTrades}><button disabled={scanLoading}>{scanLoading ? "Scanning the market…" : "Refresh Advisor scan"}</button></form>
+        <p className="scan-note">Uses your weekly options allocation as the scan budget. Review every candidate before staging a paper order.</p>
         {scanError && <p className="error">{scanError}</p>}
         {topTrades && (topTrades.recommendations.length ? <div className="trade-list">{topTrades.recommendations.slice(0, 3).map((trade, index) => <article className="trade-card" key={trade.id}>
           <div className="trade-rank">#{index + 1}</div>
@@ -220,6 +212,7 @@ export default function Home() {
           <div className="trade-legs">{trade.legs.map((leg, legIndex) => <span key={`${trade.id}-${legIndex}`} className={leg.action === "SELL" ? "sell" : "buy"}>{leg.action} {leg.type} {leg.strike} · {leg.expiry}</span>)}</div>
           <p className="trade-risk">{trade.risk_warning}</p>
         </article>)}</div> : <div className="no-trades"><b>No defined-risk candidates passed the Advisor’s filters.</b><span>This is a valid outcome—avoid forcing a trade. Expand the scan universe or try again when market data changes.</span></div>)}
+        {topTrades?.shortlisted_symbols?.length ? <p className="scan-warning">Analyzed {topTrades.universe_size} liquid option underlyings; full options analysis ran on {topTrades.shortlisted_symbols.join(", ")}.</p> : null}
         {topTrades?.warnings.length ? <p className="scan-warning">{topTrades.warnings.join(" · ")}</p> : null}
       </section>
 
