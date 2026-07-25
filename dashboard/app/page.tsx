@@ -66,13 +66,25 @@ export default function Home() {
 
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
-    setApiBase(saved === "http://localhost:8000" || !saved ? DEFAULT_ADVISOR_API : saved);
+    const advisorBase = saved === "http://localhost:8000" || !saved ? DEFAULT_ADVISOR_API : saved;
+    setApiBase(advisorBase);
     setBridgeBase(window.localStorage.getItem("thetaforge-bridge-base") || "http://127.0.0.1:8002");
     setBridgeToken(window.sessionStorage.getItem("thetaforge-bridge-token") || "");
     const savedCapital = window.localStorage.getItem("thetaforge-max-options-capital") || "";
     setMaxOptionsCapital(savedCapital);
+    void checkAdvisor(advisorBase);
     if (Number(savedCapital) > 0) void fetchAutomaticOpportunities(Number(savedCapital));
   }, []);
+
+  async function checkAdvisor(base: string) {
+    try {
+      const response = await fetch(`${base.replace(/\/$/, "")}/health/`);
+      if (!response.ok) throw new Error("health check failed");
+      setStatus("Advisor connected");
+    } catch {
+      setStatus("Advisor unavailable");
+    }
+  }
 
   async function connectBridge() {
     setBridgeLoading(true);
@@ -133,6 +145,7 @@ export default function Home() {
   async function fetchAutomaticOpportunities(capital: number) {
     setScanLoading(true);
     setScanError("");
+    setStatus("Advisor scanning market");
     const base = apiBase.replace(/\/$/, "");
     try {
       const response = await fetch(`${base}/api/advisor/opportunities`, {
@@ -145,8 +158,10 @@ export default function Home() {
         throw new Error(body.detail || `Opportunity service returned ${response.status}`);
       }
       setTopTrades(await response.json());
+      setStatus("Advisor connected");
     } catch (requestError) {
       setScanError(requestError instanceof Error ? requestError.message : "Unable to scan the opportunity universe");
+      setStatus("Advisor unavailable");
     } finally {
       setScanLoading(false);
     }
