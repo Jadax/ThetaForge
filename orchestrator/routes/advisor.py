@@ -74,11 +74,31 @@ async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, 
     historical: List[float] = []
     high_prices: List[float] = []
     low_prices: List[float] = []
+    technical_data: Dict[str, Any] = {}
+    hv_history: List[float] = []
     if historical_frame is not None and not isinstance(historical_frame, Exception) and not historical_frame.empty:
         try:
-            historical = [float(value) for value in historical_frame["Close"].tolist() if float(value) > 0]
-            high_prices = [float(value) for value in historical_frame["High"].tolist() if float(value) > 0]
-            low_prices = [float(value) for value in historical_frame["Low"].tolist() if float(value) > 0]
+            clean_history = historical_frame.dropna(subset=["Close", "High", "Low"])
+            historical = [float(value) for value in clean_history["Close"].tolist() if float(value) > 0]
+            high_prices = [float(value) for value in clean_history["High"].tolist() if float(value) > 0]
+            low_prices = [float(value) for value in clean_history["Low"].tolist() if float(value) > 0]
+            if "Volume" in clean_history.columns:
+                try:
+                    raw_technical = tech_analyzer.calculate_all_indicators(clean_history)
+                    if "error" not in raw_technical:
+                        trend = str(raw_technical.get("trend", "NEUTRAL")).lower()
+                        technical_data = {
+                            **raw_technical,
+                            "trend": "bullish" if "bullish" in trend else "bearish" if "bearish" in trend else "neutral",
+                            "macd_signal": "bullish" if raw_technical.get("macd", {}).get("bullish") else "bearish",
+                        }
+                except (KeyError, TypeError, ValueError):
+                    technical_data = {}
+            for index in range(21, len(historical) + 1):
+                window = historical[index - 21:index]
+                log_returns = [math.log(window[i] / window[i - 1]) for i in range(1, len(window))]
+                if len(log_returns) >= 2:
+                    hv_history.append(statistics.stdev(log_returns) * math.sqrt(252))
         except (KeyError, TypeError, ValueError):
             historical, high_prices, low_prices = [], [], []
 
@@ -99,6 +119,8 @@ async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, 
         if isinstance(option.get("implied_volatility", 0), (int, float)) and option.get("implied_volatility", 0) > 0
     ]
     current_iv = statistics.median(implied_vols) if implied_vols else max(hv_20, 0.20)
+    iv_52w_high = max(hv_history + [current_iv]) if hv_history else current_iv
+    iv_52w_low = min(hv_history + [current_iv]) if hv_history else current_iv
     flow_data = None
     if option_chain:
         unusual = brain.flow_detector.scan_chain(option_chain, stock_price, current_iv) if brain.flow_detector else []
@@ -120,10 +142,12 @@ async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, 
         "low_prices": low_prices or historical,
         "current_iv": current_iv,
         "hv_20": hv_20,
-        # This provider has no historical IV series. Equal bounds correctly
-        # yield an explicitly neutral IV rank rather than inventing one.
-        "iv_52w_high": current_iv,
-        "iv_52w_low": current_iv,
+        # Historical IV is not available from the free provider. Historical
+        # realized volatility provides a clearly labelled IV-rank proxy rather
+        # than a permanently fabricated neutral value.
+        "iv_52w_high": iv_52w_high,
+        "iv_52w_low": iv_52w_low,
+        "technical_data": technical_data,
         "vix": float(vix) if isinstance(vix, (int, float)) and vix > 0 else 20.0,
         "gex_data": gex_data,
         "flow_data": flow_data,
@@ -203,9 +227,10 @@ async def brain_analyze(request: BrainAnalysisRequest):
     snapshot = await _market_snapshot(symbol, request.stock_price)
 
     # Run Brain
+    brain_snapshot = {key: value for key, value in snapshot.items() if key != "technical_data"}
     output = brain.analyze(
         symbol=symbol,
-        **snapshot,
+        **brain_snapshot,
     )
 
     # Store a point-in-time prediction for later, explicit outcome evaluation.
@@ -579,13 +604,21 @@ async def get_recommendations(request: AdvisoryRequest):
     market_data = {}
     option_chains = {}
     technical_data = {}
-    volatility_data = {}
+    volatility_data: Dict[str, Dict[str, float]] = {}
 
     for symbol in request.watchlist:
         try:
             snapshot = await _market_snapshot(symbol)
             market_data[f"{symbol}_price"] = snapshot["stock_price"]
             option_chains[symbol] = snapshot["option_chain"]
+            technical_data[symbol] = snapshot.get("technical_data", {})
+            volatility_data[symbol] = {
+                "iv": snapshot["current_iv"],
+                "hv_20": snapshot["hv_20"],
+                "iv_rank": max(0, min(100, (snapshot["current_iv"] - snapshot["iv_52w_low"]) /
+                                  max(snapshot["iv_52w_high"] - snapshot["iv_52w_low"], 0.0001) * 100)),
+                "dte": 30,
+            }
             if snapshot["gex_data"]:
                 market_data[f"{symbol}_gex"] = snapshot["gex_data"]
         except HTTPException:
@@ -595,8 +628,6 @@ async def get_recommendations(request: AdvisoryRequest):
         market_data["vix"] = float(await provider.get_vix() or 20)
     except Exception:
         market_data["vix"] = 20
-
-    volatility_data = {"iv": 0.20, "hv_20": 0.18, "iv_rank": 50, "dte": 30}
 
     output = recommender.generate_recommendations(
         account=account,

@@ -555,10 +555,12 @@ class AIBrain:
                 "reasoning": f"VIX {vix:.0f} > 30 → high fear → sell CSPs at support for premium + potential assignment",
             }
 
-        # Default: wheel strategy (most robust)
+        # Absence of edge is a valid decision. A default wheel recommendation
+        # can imply permission to sell puts on an underlying the user may not
+        # want to own, so it must never be the automatic fallback.
         return {
-            "strategy": "wheel",
-            "reasoning": "No strong edge detected → wheel strategy provides income regardless of direction",
+            "strategy": "no_trade",
+            "reasoning": "No strategy has a sufficiently differentiated edge in the current regime",
         }
 
     def _horizon_recommendations(

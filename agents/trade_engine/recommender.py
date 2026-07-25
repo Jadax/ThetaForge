@@ -100,6 +100,12 @@ class TradeRecommender:
             if stock_price <= 0:
                 continue
 
+            symbol_volatility = volatility_data.get(symbol, volatility_data)
+            shares_owned = sum(
+                max(float(position.get("position", 0)), 0)
+                for position in account.current_positions
+                if position.get("symbol", "").upper() == symbol.upper()
+            )
             candidates = self._scan_symbol(
                 symbol=symbol,
                 stock_price=stock_price,
@@ -108,9 +114,10 @@ class TradeRecommender:
                 market_data=market_data,
                 technical_data=technical_data.get(symbol, {}),
                 flow_data=flow_data.get(symbol, {}),
-                volatility_data=volatility_data,
+                volatility_data=symbol_volatility,
                 risk_per_trade=risk_per_trade,
                 max_capital=max_capital_per_trade,
+                shares_owned=shares_owned,
             )
             all_candidates.extend(candidates)
 
@@ -170,6 +177,7 @@ class TradeRecommender:
         volatility_data: Dict,
         risk_per_trade: float,
         max_capital: float,
+        shares_owned: float = 0,
     ) -> List[Dict]:
         """Scan a single symbol for strategy opportunities."""
         candidates = []
@@ -220,14 +228,15 @@ class TradeRecommender:
                 if cand:
                     candidates.append(cand)
 
-            # Strategy 2: Covered Calls
-            for call in calls:
-                cand = self._score_cc(
-                    symbol, stock_price, call, dte, regime, technical_data,
-                    flow_data, nvrp, risk_per_trade, max_capital
-                )
-                if cand:
-                    candidates.append(cand)
+            # Strategy 2: Covered Calls are only valid against existing shares.
+            if shares_owned >= 100:
+                for call in calls:
+                    cand = self._score_cc(
+                        symbol, stock_price, call, dte, regime, technical_data,
+                        flow_data, nvrp, risk_per_trade, max_capital
+                    )
+                    if cand:
+                        candidates.append(cand)
 
             # Strategy 3: Bull Put Credit Spreads
             for i, put in enumerate(puts):
