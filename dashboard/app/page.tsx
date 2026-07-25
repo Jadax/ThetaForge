@@ -15,9 +15,11 @@ type Analysis = {
   recommendations_1m: Array<{ strategy: string; suitability: number; typical_dte: string; typical_delta: string }>;
 };
 
+type BridgePosition = { symbol: string; position: number; average_cost: number };
+
 const signalLabel = (signal: string) => signal.replaceAll("_", " ");
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
-const VERSION = "v0.3.0";
+const VERSION = "v0.4.0";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -26,11 +28,39 @@ export default function Home() {
   const [status, setStatus] = useState("Advisor not connected");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [bridgeBase, setBridgeBase] = useState("http://127.0.0.1:8002");
+  const [bridgeToken, setBridgeToken] = useState("");
+  const [bridgeStatus, setBridgeStatus] = useState("Bridge not connected");
+  const [positions, setPositions] = useState<BridgePosition[]>([]);
+  const [bridgeLoading, setBridgeLoading] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
     setApiBase(saved === "http://localhost:8000" || !saved ? DEFAULT_ADVISOR_API : saved);
+    setBridgeBase(window.localStorage.getItem("thetaforge-bridge-base") || "http://127.0.0.1:8002");
+    setBridgeToken(window.sessionStorage.getItem("thetaforge-bridge-token") || "");
   }, []);
+
+  async function connectBridge() {
+    setBridgeLoading(true);
+    const base = bridgeBase.replace(/\/$/, "");
+    window.localStorage.setItem("thetaforge-bridge-base", base);
+    window.sessionStorage.setItem("thetaforge-bridge-token", bridgeToken);
+    const headers: HeadersInit = bridgeToken ? { "X-ThetaForge-Bridge-Token": bridgeToken } : {};
+    try {
+      const connection = await fetch(`${base}/connect`, { method: "POST", headers });
+      if (!connection.ok) throw new Error(`Bridge returned ${connection.status}`);
+      const positionResponse = await fetch(`${base}/positions`, { headers });
+      if (!positionResponse.ok) throw new Error(`Positions returned ${positionResponse.status}`);
+      setPositions(await positionResponse.json());
+      setBridgeStatus("Paper Bridge connected");
+    } catch (bridgeError) {
+      setBridgeStatus(bridgeError instanceof Error ? bridgeError.message : "Bridge unavailable");
+      setPositions([]);
+    } finally {
+      setBridgeLoading(false);
+    }
+  }
 
   async function analyze(event: FormEvent) {
     event.preventDefault();
@@ -90,8 +120,17 @@ export default function Home() {
         </section>
       </>}
 
-      <section className="safety"><b>Execution boundary</b><span>This dashboard informs decisions. Paper-trade ideas in IBKR first; do not enable automated live execution.</span><button type="button" onClick={() => alert("Coming next: a local-only IBKR Bridge will read your paper account and stage orders for your approval.")}>IBKR Bridge plan</button></section>
-      <footer>Created with love by <b>Tushant Sharma</b> · <span>Astraiva</span> · {VERSION}</footer>
+      <section className="bridge-panel">
+        <div><p className="eyebrow">LOCAL IBKR PAPER BRIDGE</p><h3>{bridgeStatus}</h3><p>Connect the dashboard to the Bridge running beside your paper TWS or IB Gateway session.</p></div>
+        <div className="bridge-controls">
+          <label>Bridge address<input className="api" value={bridgeBase} onChange={(event) => setBridgeBase(event.target.value)} aria-label="IBKR Bridge address" /></label>
+          <label>Bridge token<input className="api" type="password" value={bridgeToken} onChange={(event) => setBridgeToken(event.target.value)} aria-label="IBKR Bridge token" placeholder="Current session only" /></label>
+          <button type="button" onClick={connectBridge} disabled={bridgeLoading}>{bridgeLoading ? "Connecting…" : "Connect paper Bridge"}</button>
+        </div>
+        {positions.length > 0 && <div className="positions">{positions.map((position) => <span key={position.symbol}><b>{position.symbol}</b> {position.position} @ ${position.average_cost.toFixed(2)}</span>)}</div>}
+      </section>
+      <section className="safety"><b>Execution boundary</b><span>The Bridge is paper-only. Start the local Bridge and TWS/IB Gateway first; the dashboard can connect and control it but cannot start native applications.</span></section>
+      <footer>Created with love {"\u2665"} by <b>Tushant Sharma</b> · <span>Astraiva</span> · {VERSION}</footer>
     </main>
   );
 }
