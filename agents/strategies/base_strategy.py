@@ -40,6 +40,8 @@ class TradeSignal:
         spread_width: Optional[float] = None,
         dte_target: Optional[int] = None,
         iv_rank_at_entry: Optional[float] = None,
+        entry_rules: Optional[Dict[str, Any]] = None,
+        exit_rules: Optional[Dict[str, Any]] = None,
     ):
         self.strategy_name = strategy_name
         self.symbol = symbol
@@ -61,6 +63,8 @@ class TradeSignal:
         self.spread_width = spread_width
         self.dte_target = dte_target
         self.iv_rank_at_entry = iv_rank_at_entry
+        self.entry_rules = entry_rules or {}
+        self.exit_rules = exit_rules or {}
 
     def __repr__(self):
         return (

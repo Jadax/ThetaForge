@@ -279,6 +279,105 @@ async def update_watchlist_item(symbol: str, request: WatchlistUpdateRequest):
     return {"status": "updated", "symbol": item.symbol}
 
 
+# === Dashboard Endpoint ===
+
+class DashboardRequest(BaseModel):
+    capital: float = Field(100000, description="Total account equity")
+    buying_power: float = Field(50000, description="Available buying power")
+    current_positions: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+@router.post("/dashboard")
+async def get_dashboard(request: DashboardRequest):
+    """
+    One-call full portfolio dashboard.
+    Returns: VIX, regime, watchlist rankings, top opportunities,
+    portfolio risk summary, and time-horizon breakdowns.
+    """
+    import math
+
+    # Load watchlist
+    items = watchlist_store.list_symbols()
+    symbols = [item.symbol for item in items]
+    if not symbols:
+        symbols = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA"]
+
+    # VIX
+    vix = 20.0
+    try:
+        vix_data = provider.get_vix()
+        if vix_data:
+            vix = vix_data.get("regularMarketPrice", 20)
+    except Exception:
+        pass
+
+    regime = "neutral"
+    if vix > 30:
+        regime = "high_vol"
+    elif vix > 22:
+        regime = "bearish"
+    elif vix < 15:
+        regime = "bullish"
+
+    # Analyze all symbols
+    rankings = []
+    for symbol in symbols:
+        try:
+            info = provider.get_stock_info(symbol)
+            stock_price = info.get("regularMarketPrice", 0) if info else 0
+        except Exception:
+            stock_price = 0
+        if stock_price <= 0:
+            continue
+
+        try:
+            brain_req = BrainAnalysisRequest(
+                symbol=symbol, stock_price=stock_price, horizon="1m"
+            )
+            result = await brain_analyze(brain_req)
+            rankings.append(result)
+        except Exception:
+            continue
+
+    rankings.sort(key=lambda x: x["overall_score"], reverse=True)
+
+    # Portfolio risk
+    net_delta = sum(p.get("delta", 0) for p in request.current_positions)
+    net_vega = sum(p.get("vega", 0) for p in request.current_positions)
+    capital_deployed = sum(
+        p.get("margin", 0) for p in request.current_positions
+    )
+    capital_pct = (capital_deployed / request.capital * 100) if request.capital > 0 else 0
+
+    # Top picks per horizon
+    top_1w = [r for r in rankings if any(
+        rec.get("suitability", 0) >= 70 for rec in r.get("recommendations_1w", [])
+    )][:3]
+    top_1m = [r for r in rankings if any(
+        rec.get("suitability", 0) >= 70 for rec in r.get("recommendations_1m", [])
+    )][:3]
+
+    return {
+        "vix": round(vix, 2),
+        "regime": regime,
+        "account": {
+            "equity": request.capital,
+            "buying_power": request.buying_power,
+            "capital_deployed": round(capital_deployed, 2),
+            "capital_deployed_pct": round(capital_pct, 1),
+            "num_positions": len(request.current_positions),
+        },
+        "portfolio_risk": {
+            "net_delta": round(net_delta, 4),
+            "net_vega": round(net_vega, 4),
+            "within_limits": abs(net_delta) < 0.20 and abs(net_vega) < 0.05,
+        },
+        "watchlist_rankings": rankings,
+        "top_picks_1w": [{"symbol": r["symbol"], "signal": r["overall_signal"], "score": r["overall_score"]} for r in top_1w],
+        "top_picks_1m": [{"symbol": r["symbol"], "signal": r["overall_signal"], "score": r["overall_score"]} for r in top_1m],
+    }
+
+
 # === Legacy Endpoints ===
 
 @router.post("/recommend")

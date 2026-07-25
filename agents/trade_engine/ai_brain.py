@@ -76,6 +76,8 @@ class BrainOutput:
     sideways_signal: Dict = field(default_factory=dict)
     # All signals for transparency
     all_signals: List[Dict] = field(default_factory=list)
+    # Portfolio warnings
+    portfolio_warnings: List[str] = field(default_factory=list)
 
 
 class AIBrain:
@@ -189,12 +191,12 @@ class AIBrain:
         flow_data: Dict = None,
         pcr_data: Dict = None,
         days_to_earnings: int = None,
+        portfolio_context: Dict = None,
     ) -> BrainOutput:
         """
         MAIN ENTRY POINT: Analyze a symbol and produce comprehensive recommendation.
         
-        This is the AI Brain at work - it runs ALL signal engines,
-        weights them by regime, and produces a unified output.
+        portfolio_context: {"existing_positions": [...], "symbols_held": [...], "net_delta": float, "net_vega": float}
         """
         closes = historical_prices or [stock_price]
         highs = high_prices or [stock_price * 1.01]
@@ -393,9 +395,13 @@ class AIBrain:
         # Average confidence
         avg_confidence = sum(s.confidence for s in signals) / max(len(signals), 1)
 
-        # === STRATEGY SELECTION ===
+        # === STRATEGY SELECTION (with portfolio context) ===
+        existing_positions = (portfolio_context or {}).get("existing_positions", [])
+        symbols_held = (portfolio_context or {}).get("symbols_held", [])
+
         best_strategy = self._select_best_strategy(
-            overall_signal, regime, iv_signal, sideways, vix, days_to_earnings
+            overall_signal, regime, iv_signal, sideways, vix, days_to_earnings,
+            symbol=symbol, existing_positions=existing_positions,
         )
 
         # === TIME-HORIZON RECOMMENDATIONS ===
@@ -416,6 +422,19 @@ class AIBrain:
             overall_signal, regime, iv_signal, vix
         )
 
+        # Build portfolio warnings
+        portfolio_warnings = []
+        for pos in existing_positions:
+            if pos.get("symbol", "").upper() == symbol.upper():
+                portfolio_warnings.append(
+                    f"Already have {pos.get('strategy', 'position')} on {symbol} — "
+                    f"consider closing or rolling before opening new"
+                )
+        if len(existing_positions) >= 8:
+            portfolio_warnings.append(
+                f"Portfolio has {len(existing_positions)} positions — near capacity limit"
+            )
+
         return BrainOutput(
             symbol=symbol,
             stock_price=stock_price,
@@ -434,6 +453,7 @@ class AIBrain:
             sentiment_signal=pcr_signal,
             sideways_signal=sideways,
             all_signals=all_signal_dicts,
+            portfolio_warnings=portfolio_warnings,
         )
 
     def _detect_regime(self, vix: float, iv: float, hv: float) -> str:
@@ -454,9 +474,22 @@ class AIBrain:
         sideways: Dict,
         vix: float,
         days_to_earnings: Optional[int],
+        symbol: str = "",
+        existing_positions: List[Dict] = None,
     ) -> Dict[str, str]:
-        """Select the best strategy based on all signals."""
+        """Select the best strategy based on all signals + portfolio context."""
         ivr = iv_signal.get("iv_rank", 50)
+
+        # Check if already have position on this symbol
+        has_position = any(
+            p.get("symbol", "").upper() == symbol.upper()
+            for p in (existing_positions or [])
+        )
+        if has_position:
+            return {
+                "strategy": "roll_or_close",
+                "reasoning": f"Already have a position on {symbol} — roll for credit or close for profit",
+            }
 
         # Earnings filter
         if days_to_earnings and days_to_earnings <= 5:

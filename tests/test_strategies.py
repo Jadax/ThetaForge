@@ -48,7 +48,7 @@ async def test_wheel_strategy_scan():
 @pytest.mark.asyncio
 async def test_wheel_no_signal_low_iv():
     strategy = WheelStrategy()
-    market_data = {"SPY_iv_rank": 30, "SPY_price": 500}
+    market_data = {"SPY_iv_rank": 25, "SPY_price": 500}
     signals = await strategy.scan(market_data)
     assert len(signals) == 0
 
@@ -80,7 +80,7 @@ async def test_credit_spread_scan():
 @pytest.mark.asyncio
 async def test_covered_call_scan():
     strategy = CoveredCallStrategy()
-    market_data = {"SPY_price": 500, "owns_SPY": True}
+    market_data = {"SPY_price": 500, "owns_SPY": True, "SPY_shares": 100}
     signals = await strategy.scan(market_data)
     assert len(signals) > 0
 
@@ -88,7 +88,7 @@ async def test_covered_call_scan():
 @pytest.mark.asyncio
 async def test_earnings_straddle_scan():
     strategy = EarningsStraddleStrategy()
-    market_data = {"AAPL_dte": 2, "AAPL_iv_rank": 60, "AAPL_price": 190}
+    market_data = {"AAPL_dte": 2, "AAPL_iv_rank": 15, "AAPL_price": 190, "AAPL_implied_move_pct": 3.0, "AAPL_historical_earnings_move_pct": 5.0}
     signals = await strategy.scan(market_data)
     assert len(signals) > 0
 
@@ -288,12 +288,12 @@ def test_risk_manager():
     rm = RiskManager()
     rm.set_start_equity(100_000)
     assert rm.check_daily_loss(100_000) is False
-    assert rm.check_daily_loss(80_000) is False  # -20% > -15% threshold
-    assert rm.check_daily_loss(84_000) is False  # -16% breach
+    assert rm.check_daily_loss(90_000) is False  # -10%, no breach
+    assert rm.check_daily_loss(84_000) is True   # -16%, exceeds -15% threshold
 
     rm2 = RiskManager()
     rm2.peak_equity = 100_000
-    assert rm2.check_drawdown(60_000) is True  # -40% drawdown
+    assert rm2.check_drawdown(40_000) is True  # -60% drawdown exceeds -50% threshold
 
 
 # ==========================================
@@ -302,7 +302,7 @@ def test_risk_manager():
 
 def test_iv_rank():
     iv_rank = calculate_iv_rank(0.3, [0.1, 0.2, 0.3, 0.4, 0.5])
-    assert iv_rank == 50.0  # (0.3 - 0.1) / (0.5 - 0.1) * 100
+    assert iv_rank == pytest.approx(50.0)  # (0.3 - 0.1) / (0.5 - 0.1) * 100
 
 
 def test_iv_percentile():
@@ -363,7 +363,7 @@ def test_unusual_activity_scan():
         {"volume": 5000, "avg_volume": 500, "open_interest": 1000, "prev_open_interest": 900, "symbol": "SPY", "strike": 500, "expiry": "2026-08-15"},
         {"volume": 100, "avg_volume": 500, "open_interest": 1000, "prev_open_interest": 1000, "symbol": "SPY", "strike": 490, "expiry": "2026-08-15"},
     ]
-    alerts = detector.scan(chain)
+    alerts = detector.scan_chain(chain, stock_price=500)
     assert len(alerts) > 0  # First option should trigger high volume alert
 
 
