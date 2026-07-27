@@ -71,7 +71,7 @@ const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
 const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
-const VERSION = "v0.5.3";
+const VERSION = "v0.5.4";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -236,6 +236,15 @@ export default function Home() {
         if (pricedLegs.some((quote) => !quote?.executable)) {
           return { ...trade, pricing_status: "IBKR quote is delayed, frozen, or unavailable — not executable" };
         }
+        if (trade.legs.length === 1 && trade.legs[0].action === "SELL") {
+          const quote = pricedLegs[0]!;
+          const credit = quote.bid!;
+          if (trade.legs[0].type === "PUT") {
+            const maxLoss = (trade.legs[0].strike - credit) * 100;
+            return { ...trade, net_credit: credit, net_debit: 0, max_profit: credit * 100, max_loss: maxLoss, capital_required: maxLoss, breakeven: trade.legs[0].strike - credit, pricing_status: "IBKR live bid/ask verified" };
+          }
+          return { ...trade, net_credit: credit, net_debit: 0, max_profit: credit * 100, pricing_status: "IBKR live bid/ask verified — covered shares checked at submit" };
+        }
         // A two-leg vertical can be repriced exactly from the current bid/ask.
         // More complex structures retain IBKR live leg quotes but are left for
         // TWS Performance Profile to calculate as a combo.
@@ -385,7 +394,7 @@ export default function Home() {
           </div>
           <div className="trade-legs">{trade.legs.map((leg, legIndex) => <span key={`${trade.id}-${legIndex}`} className={leg.action === "SELL" ? "sell" : "buy"}>{leg.action} {leg.type} {leg.strike} · {leg.expiry}</span>)}</div>
           <details className="trade-plan"><summary>View entry and exit plan</summary><div><section><small>ENTRY</small>{Object.entries(trade.entry_rules).map(([key, value]) => <p key={key}><b>{signalLabel(key)}</b>{value}</p>)}</section><section><small>EXIT</small>{Object.entries(trade.exit_rules).map(([key, value]) => <p key={key}><b>{signalLabel(key)}</b>{value}</p>)}</section></div></details>
-          <div className="paper-trade-action">{trade.pricing_status?.startsWith("IBKR live") && [2, 4].includes(trade.legs.length) ? <button type="button" onClick={() => submitPaperTrade(trade)} disabled={submittingTrade === trade.id}>{submittingTrade === trade.id ? "Submitting paper order…" : "Send paper order to IBKR"}</button> : <span>Connect the Paper Bridge and open this stock to verify live IBKR quotes before paper execution.</span>}{paperOrderStatus[trade.id] && <small>{paperOrderStatus[trade.id]}</small>}</div>
+          <div className="paper-trade-action">{trade.pricing_status?.startsWith("IBKR live") && [1, 2, 4].includes(trade.legs.length) ? <button type="button" onClick={() => submitPaperTrade(trade)} disabled={submittingTrade === trade.id}>{submittingTrade === trade.id ? "Submitting paper order…" : "Send paper order to IBKR"}</button> : <span>Connect the Paper Bridge and open this stock to verify live IBKR quotes before paper execution.</span>}{paperOrderStatus[trade.id] && <small>{paperOrderStatus[trade.id]}</small>}</div>
           <p className="trade-risk">{trade.risk_warning}</p>
         </article>)}</div> : <div className="no-trades"><b>No defined-risk candidates passed the Advisor’s filters.</b><span>This is a valid outcome—avoid forcing a trade. Expand the scan universe or try again when market data changes.</span></div>)}
         {topTrades?.shortlisted_symbols?.length ? <p className="scan-warning">Screened {topTrades.universe_size} liquid and actively traded underlyings ({topTrades.active_discoveries || 0} live screener discoveries); full options analysis ran on {topTrades.shortlisted_symbols.join(", ")}.</p> : null}

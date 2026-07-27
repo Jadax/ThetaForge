@@ -1,5 +1,13 @@
 # ThetaForge Changelog
 
+## v0.5.4 — 2026-07-27
+
+- Extended paper execution to every currently supported Advisor strategy:
+  defined-risk spreads and condors, cash-secured puts, and covered calls.
+- Cash-secured puts now require verified IBKR available funds; covered calls
+  require verified ownership of at least 100 shares per contract. Naked short
+  options continue to be rejected.
+
 ## v0.5.3 — 2026-07-27
 
 - Added live-quote-gated paper order submission from each eligible trade card.

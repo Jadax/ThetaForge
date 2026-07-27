@@ -94,8 +94,8 @@ class ComboOrderLeg(OptionQuoteLeg):
 
 
 class PaperComboOrder(BaseModel):
-    """A defined-risk option structure submitted as one paper-only combo."""
-    legs: list[ComboOrderLeg] = Field(min_length=2, max_length=4)
+    """An Advisor structure submitted to the paper-only IBKR Bridge."""
+    legs: list[ComboOrderLeg] = Field(min_length=1, max_length=4)
     quantity: int = Field(default=1, gt=0, le=10)
     capital_limit: float = Field(gt=0)
 
@@ -177,6 +177,15 @@ async def _live_option_tickers(legs: list[OptionQuoteLeg]):
 
 def _defined_risk_per_combo(legs: list[ComboOrderLeg], net_credit: float) -> float | None:
     """Calculate maximum loss only for structures this Bridge can prove defined-risk."""
+    if len(legs) == 1:
+        leg = legs[0]
+        if leg.action == "SELL" and leg.right == "P" and net_credit > 0:
+            return (leg.strike - net_credit) * 100
+        # A covered call's stock downside belongs to the already-held shares;
+        # ownership is checked separately before the call order is submitted.
+        if leg.action == "SELL" and leg.right == "C" and net_credit > 0:
+            return 0.0
+        return None
     if len(legs) == 2 and {leg.action for leg in legs} == {"BUY", "SELL"} and legs[0].right == legs[1].right:
         width = abs(legs[0].strike - legs[1].strike)
         return (width - net_credit) * 100 if net_credit >= 0 else abs(net_credit) * 100
@@ -189,6 +198,26 @@ def _defined_risk_per_combo(legs: list[ComboOrderLeg], net_credit: float) -> flo
             widths.append(abs(side[0].strike - side[1].strike))
         return (max(widths) - net_credit) * 100 if net_credit >= 0 else None
     return None
+
+
+def _available_usd_funds() -> float | None:
+    assert ib is not None
+    values = [
+        _quote_number(item.value)
+        for item in ib.accountValues()
+        if item.tag == "AvailableFunds" and item.currency == "USD"
+    ]
+    usable = [value for value in values if value is not None]
+    return max(usable) if usable else None
+
+
+def _owned_shares(symbol: str) -> float:
+    assert ib is not None
+    return sum(
+        max(float(position.position), 0)
+        for position in ib.positions()
+        if position.contract.secType == "STK" and position.contract.symbol.upper() == symbol.upper()
+    )
 
 
 @app.post("/options/quotes")
@@ -233,25 +262,41 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
 
     net_credit = sum(live_prices)
     max_loss = _defined_risk_per_combo(order.legs, net_credit)
-    if max_loss is None or max_loss <= 0:
-        raise HTTPException(status_code=422, detail="Only defined-risk verticals and iron condors can be automated")
+    if max_loss is None or max_loss < 0:
+        raise HTTPException(status_code=422, detail="This structure cannot be proven defined-risk by the paper Bridge")
     total_risk = max_loss * order.quantity
     if total_risk > order.capital_limit:
         raise HTTPException(status_code=422, detail=f"Live maximum loss ${total_risk:.2f} exceeds the dashboard capital limit")
 
-    bag = Bag(
-        symbol=order.legs[0].symbol.upper(),
-        exchange="SMART",
-        currency="USD",
-        comboLegs=[ComboLeg(conId=contract.conId, ratio=1, action=leg.action, exchange="SMART") for contract, leg in zip(qualified, order.legs)],
-    )
-    # A combo is bought as one structure. Credit combinations therefore have a
-    # negative limit price; IBKR interprets that as receiving cash for a buy
-    # spread. This prevents execution at a worse net price than live quotes.
-    limit_price = round(-net_credit, 2)
-    ib_order = LimitOrder("BUY", order.quantity, limit_price, tif="DAY")
+    if len(order.legs) == 1:
+        leg = order.legs[0]
+        if leg.action != "SELL" or leg.right not in {"C", "P"}:
+            raise HTTPException(status_code=422, detail="Only Advisor-recommended cash-secured puts and covered calls support single-leg automation")
+        if leg.right == "P":
+            available_funds = _available_usd_funds()
+            if available_funds is None or total_risk > available_funds:
+                raise HTTPException(status_code=422, detail="Insufficient verified IBKR available funds for this cash-secured put")
+        elif _owned_shares(leg.symbol) < 100 * order.quantity:
+            raise HTTPException(status_code=422, detail="A covered call requires at least 100 owned shares per contract in IBKR")
+
+    if len(order.legs) == 1:
+        contract = qualified[0]
+        limit_price = round(abs(net_credit), 2)
+        ib_order = LimitOrder(order.legs[0].action, order.quantity, limit_price, tif="DAY")
+    else:
+        bag = Bag(
+            symbol=order.legs[0].symbol.upper(),
+            exchange="SMART",
+            currency="USD",
+            comboLegs=[ComboLeg(conId=contract.conId, ratio=1, action=leg.action, exchange="SMART") for contract, leg in zip(qualified, order.legs)],
+        )
+        # A combo is bought as one structure. Credit combinations therefore have a
+        # negative limit price; IBKR interprets that as receiving cash for a buy
+        # spread. This prevents execution at a worse net price than live quotes.
+        limit_price = round(-net_credit, 2)
+        contract = bag
     assert ib is not None
-    trade = ib.placeOrder(bag, ib_order)
+    trade = ib.placeOrder(contract, ib_order)
     return {
         "mode": "paper_only",
         "status": str(trade.orderStatus.status),
