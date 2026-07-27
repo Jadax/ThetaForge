@@ -26,9 +26,18 @@ type TradeRecommendation = {
   quantity: number;
   capital_required: number;
   max_loss: number;
+  max_profit: number;
+  net_credit: number;
+  net_debit: number;
+  breakeven: number;
   probability_of_profit: number;
   composite_score: number;
   confidence_score: number;
+  iv_rank: number;
+  vix: number;
+  market_regime: string;
+  return_on_capital_pct: number;
+  annualized_return_pct: number;
   reasoning: string;
   risk_warning: string;
   entry_rules: Record<string, string>;
@@ -45,6 +54,8 @@ type RecommendationResponse = {
 };
 
 const signalLabel = (signal: string) => signal.replaceAll("_", " ");
+const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
+const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
 const VERSION = "v0.5.1";
 
@@ -266,8 +277,14 @@ export default function Home() {
         {topTrades && (topTrades.recommendations.length ? <div className="trade-list">{(stockTrades?.recommendations || topTrades.recommendations).slice(0, 3).map((trade, index) => <article className="trade-card" key={trade.id}>
           <div className="trade-rank">#{index + 1}</div>
           <div className="trade-title"><p className="eyebrow">{trade.symbol} · ${trade.underlying_price.toFixed(2)}</p><h3>{signalLabel(trade.strategy)}</h3><p>{trade.reasoning}</p></div>
-          <div className="trade-metrics"><span><small>COMPOSITE</small><b>{trade.composite_score.toFixed(0)}</b></span><span><small>POP</small><b>{trade.probability_of_profit.toFixed(0)}%</b></span><span><small>AT RISK</small><b>${trade.max_loss.toFixed(0)}</b></span><span><small>CAPITAL</small><b>${trade.capital_required.toFixed(0)}</b></span></div>
+          <div className="trade-metrics"><span><small>COMPOSITE</small><b>{trade.composite_score.toFixed(0)}/100</b></span><span><small>PROBABILITY OF PROFIT</small><b>{percent(trade.probability_of_profit)}</b></span><span className="loss"><small>MAX LOSS</small><b>{dollars(trade.max_loss)}</b></span><span className="profit"><small>MAX PROFIT</small><b>{dollars(trade.max_profit)}</b></span><span><small>CAPITAL REQUIRED</small><b>{dollars(trade.capital_required)}</b></span><span><small>{trade.net_credit > 0 ? "NET CREDIT" : "NET DEBIT"}</small><b>{dollars(trade.net_credit || trade.net_debit)}</b></span></div>
+          <div className="trade-insight">
+            <div className="payoff-visual" aria-label={`Maximum loss ${dollars(trade.max_loss)} and maximum profit ${dollars(trade.max_profit)}`}><div className="payoff-caption"><span>MAX LOSS {dollars(trade.max_loss)}</span><span>MAX PROFIT {dollars(trade.max_profit)}</span></div><div className="payoff-track"><i className="loss-fill" style={{ width: `${Math.max(20, Math.min(50, (trade.max_loss / Math.max(trade.max_loss + trade.max_profit, 1)) * 100))}%` }} /><i className="profit-fill" /></div><p>Defined risk/reward · breakeven {dollars(trade.breakeven)}</p></div>
+            <div className="signal-stack"><div><small>CONFIDENCE</small><b>{percent(trade.confidence_score)}</b></div><div className="confidence-meter"><i style={{ width: `${Math.min(100, Math.max(0, trade.confidence_score))}%` }} /></div><p>IV rank {percent(trade.iv_rank)} · VIX {trade.vix.toFixed(1)} · {signalLabel(trade.market_regime)}</p></div>
+            <div className="return-stack"><small>RETURN ON CAPITAL</small><b>{percent(trade.return_on_capital_pct)}</b><span>{percent(trade.annualized_return_pct)} annualized</span></div>
+          </div>
           <div className="trade-legs">{trade.legs.map((leg, legIndex) => <span key={`${trade.id}-${legIndex}`} className={leg.action === "SELL" ? "sell" : "buy"}>{leg.action} {leg.type} {leg.strike} · {leg.expiry}</span>)}</div>
+          <details className="trade-plan"><summary>View entry and exit plan</summary><div><section><small>ENTRY</small>{Object.entries(trade.entry_rules).map(([key, value]) => <p key={key}><b>{signalLabel(key)}</b>{value}</p>)}</section><section><small>EXIT</small>{Object.entries(trade.exit_rules).map(([key, value]) => <p key={key}><b>{signalLabel(key)}</b>{value}</p>)}</section></div></details>
           <p className="trade-risk">{trade.risk_warning}</p>
         </article>)}</div> : <div className="no-trades"><b>No defined-risk candidates passed the Advisor’s filters.</b><span>This is a valid outcome—avoid forcing a trade. Expand the scan universe or try again when market data changes.</span></div>)}
         {topTrades?.shortlisted_symbols?.length ? <p className="scan-warning">Screened {topTrades.universe_size} liquid and actively traded underlyings ({topTrades.active_discoveries || 0} live screener discoveries); full options analysis ran on {topTrades.shortlisted_symbols.join(", ")}.</p> : null}
