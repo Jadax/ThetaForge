@@ -1,5 +1,13 @@
 # ThetaForge Changelog
 
+## v0.5.2 — 2026-07-27
+
+- Expanded every trade card into a decision view with maximum loss, maximum
+  profit, probability of profit, capital required, credit/debit, breakeven,
+  confidence, volatility context, and return-on-capital metrics.
+- Added a compact defined-risk/reward visual and expandable entry/exit plan
+  for each eligible paper-trading recommendation.
+
 ## v0.5.1 — 2026-07-27
 
 - Corrected strategy scoring to use each underlying's actual volatility rank,

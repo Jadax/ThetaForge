@@ -57,7 +57,7 @@ const signalLabel = (signal: string) => signal.replaceAll("_", " ");
 const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
 const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
-const VERSION = "v0.5.1";
+const VERSION = "v0.5.2";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
