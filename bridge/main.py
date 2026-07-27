@@ -1,7 +1,9 @@
 """Personal, localhost-only bridge between ThetaForge and IBKR paper trading."""
 import os
 import asyncio
+import math
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
 
@@ -76,6 +78,17 @@ class PaperOrder(BaseModel):
     limit_price: float = Field(gt=0)
 
 
+class OptionQuoteLeg(BaseModel):
+    symbol: str = Field(min_length=1, max_length=12)
+    expiry: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    strike: float = Field(gt=0)
+    right: Literal["C", "P"]
+
+
+class OptionQuoteRequest(BaseModel):
+    legs: list[OptionQuoteLeg] = Field(min_length=1, max_length=12)
+
+
 async def require_access_token(x_thetaforge_bridge_token: str | None = Header(default=None)) -> None:
     """Require a token whenever one is configured for remote/private-network use."""
     if ACCESS_TOKEN and x_thetaforge_bridge_token != ACCESS_TOKEN:
@@ -129,6 +142,51 @@ async def positions(_: None = Depends(require_access_token)):
     return [{"symbol": item.contract.symbol, "position": item.position, "average_cost": item.avgCost} for item in ib.positions()]
 
 
+def _quote_number(value) -> float | None:
+    """JSON-safe quote value; IBKR uses NaN for unavailable fields."""
+    try:
+        number = float(value)
+        return number if math.isfinite(number) and number > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+@app.post("/options/quotes")
+async def option_quotes(request: OptionQuoteRequest, _: None = Depends(require_access_token)):
+    """Fetch a bounded IBKR quote snapshot and disclose its data quality.
+
+    The request explicitly asks TWS for live data. IBKR labels the returned
+    snapshot as live, frozen, delayed, or delayed-frozen, allowing the
+    dashboard to reject anything other than live for executable calculations.
+    """
+    await ensure_connected()
+    assert ib is not None
+    contracts = [Option(leg.symbol.upper(), leg.expiry.replace("-", ""), leg.strike, leg.right, "SMART") for leg in request.legs]
+    qualified = await ib.qualifyContractsAsync(*contracts)
+    if len(qualified) != len(contracts):
+        raise HTTPException(status_code=422, detail="IBKR could not qualify one or more option contracts")
+
+    ib.reqMarketDataType(1)  # Request live data; TWS reports if it falls back.
+    tickers = await ib.reqTickersAsync(*qualified)
+    quality = {1: "live", 2: "frozen", 3: "delayed", 4: "delayed_frozen"}
+    quotes = []
+    for leg, ticker in zip(request.legs, tickers):
+        bid = _quote_number(ticker.bid)
+        ask = _quote_number(ticker.ask)
+        quotes.append({
+            "symbol": leg.symbol.upper(),
+            "expiry": leg.expiry,
+            "strike": leg.strike,
+            "right": leg.right,
+            "bid": bid,
+            "ask": ask,
+            "last": _quote_number(ticker.last),
+            "market_data_type": quality.get(ticker.marketDataType, "unavailable"),
+            "executable": ticker.marketDataType == 1 and bid is not None and ask is not None,
+        })
+    return {"source": "IBKR TWS", "requested_at": datetime.now(timezone.utc).isoformat(), "quotes": quotes}
+
+
 @app.post("/orders/stage")
 async def stage_order(order: PaperOrder, _: None = Depends(require_access_token)):
     order_id = str(uuid4())
@@ -145,7 +203,7 @@ async def submit_paper_order(order_id: str, confirm_paper_order: bool = False, _
         raise HTTPException(status_code=404, detail="Staged order not found")
     await ensure_connected()
     assert ib is not None
-    contract = Option(order.symbol.upper(), order.expiry, order.strike, order.right, "SMART")
+    contract = Option(order.symbol.upper(), order.expiry.replace("-", ""), order.strike, order.right, "SMART")
     qualified = ib.qualifyContracts(contract)
     if not qualified:
         raise HTTPException(status_code=422, detail="IBKR could not qualify this option contract")

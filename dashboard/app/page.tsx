@@ -42,6 +42,19 @@ type TradeRecommendation = {
   risk_warning: string;
   entry_rules: Record<string, string>;
   exit_rules: Record<string, string>;
+  pricing_status?: string;
+};
+
+type IBKRQuote = {
+  symbol: string;
+  expiry: string;
+  strike: number;
+  right: "C" | "P";
+  bid: number | null;
+  ask: number | null;
+  last: number | null;
+  market_data_type: "live" | "frozen" | "delayed" | "delayed_frozen" | "unavailable";
+  executable: boolean;
 };
 
 type RecommendationResponse = {
@@ -56,6 +69,7 @@ type RecommendationResponse = {
 const signalLabel = (signal: string) => signal.replaceAll("_", " ");
 const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
 const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
+const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
 const VERSION = "v0.5.2";
 
@@ -198,6 +212,54 @@ export default function Home() {
     await fetchAutomaticOpportunities(capital);
   }
 
+  async function verifyWithIBKR(result: RecommendationResponse): Promise<RecommendationResponse> {
+    const uniqueLegs = new Map<string, { symbol: string; expiry: string; strike: number; right: "C" | "P" }>();
+    for (const trade of result.recommendations) for (const leg of trade.legs) {
+      const right = leg.type === "CALL" ? "C" : "P";
+      uniqueLegs.set(quoteKey(trade.symbol, leg.expiry, leg.strike, right), { symbol: trade.symbol, expiry: leg.expiry, strike: leg.strike, right });
+    }
+    const headers: HeadersInit = { "Content-Type": "application/json" };
+    if (bridgeToken) headers["X-ThetaForge-Bridge-Token"] = bridgeToken;
+    const response = await fetch(`${bridgeBase.replace(/\/$/, "")}/options/quotes`, {
+      method: "POST", headers, body: JSON.stringify({ legs: [...uniqueLegs.values()] }),
+    });
+    if (!response.ok) throw new Error("IBKR live-quote verification was unavailable");
+    const payload = await response.json() as { quotes: IBKRQuote[] };
+    const quotes = new Map(payload.quotes.map((quote) => [quoteKey(quote.symbol, quote.expiry, quote.strike, quote.right), quote]));
+
+    return {
+      ...result,
+      recommendations: result.recommendations.map((trade) => {
+        const pricedLegs = trade.legs.map((leg) => quotes.get(quoteKey(trade.symbol, leg.expiry, leg.strike, leg.type === "CALL" ? "C" : "P")));
+        if (pricedLegs.some((quote) => !quote?.executable)) {
+          return { ...trade, pricing_status: "IBKR quote is delayed, frozen, or unavailable — not executable" };
+        }
+        // A two-leg vertical can be repriced exactly from the current bid/ask.
+        // More complex structures retain IBKR live leg quotes but are left for
+        // TWS Performance Profile to calculate as a combo.
+        if (trade.legs.length !== 2 || trade.legs[0].type !== trade.legs[1].type) {
+          return { ...trade, pricing_status: "IBKR live option-leg quotes verified — review combo profile in TWS" };
+        }
+        const sellIndex = trade.legs.findIndex((leg) => leg.action === "SELL");
+        const buyIndex = trade.legs.findIndex((leg) => leg.action === "BUY");
+        if (sellIndex < 0 || buyIndex < 0) return { ...trade, pricing_status: "IBKR live option-leg quotes verified" };
+        const sell = pricedLegs[sellIndex]!;
+        const buy = pricedLegs[buyIndex]!;
+        const net = sell.bid! - buy.ask!;
+        const width = Math.abs(trade.legs[sellIndex].strike - trade.legs[buyIndex].strike);
+        const right = trade.legs[sellIndex].type;
+        if (net >= 0) {
+          const breakeven = right === "CALL" ? trade.legs[sellIndex].strike + net : trade.legs[sellIndex].strike - net;
+          return { ...trade, net_credit: net, net_debit: 0, max_profit: net * 100, max_loss: (width - net) * 100, capital_required: (width - net) * 100, breakeven, pricing_status: "IBKR live bid/ask verified" };
+        }
+        const debit = Math.abs(net);
+        const longIndex = buyIndex;
+        const breakeven = right === "CALL" ? trade.legs[longIndex].strike + debit : trade.legs[longIndex].strike - debit;
+        return { ...trade, net_credit: 0, net_debit: debit, max_profit: (width - debit) * 100, max_loss: debit * 100, capital_required: debit * 100, breakeven, pricing_status: "IBKR live bid/ask verified" };
+      }),
+    };
+  }
+
   async function openStock(symbolToOpen: string) {
     const capital = Number(maxOptionsCapital);
     if (!capital) return;
@@ -222,7 +284,16 @@ export default function Home() {
         const body = await response.json().catch(() => ({}));
         throw new Error(body.detail || `Trade detail returned ${response.status}`);
       }
-      setStockTrades(await response.json());
+      const result = await response.json() as RecommendationResponse;
+      if (bridgeStatus === "Paper Bridge connected") {
+        try {
+          setStockTrades(await verifyWithIBKR(result));
+        } catch {
+          setStockTrades({ ...result, recommendations: result.recommendations.map((trade) => ({ ...trade, pricing_status: "External indicative quotes — connect IBKR Bridge to verify" })) });
+        }
+      } else {
+        setStockTrades({ ...result, recommendations: result.recommendations.map((trade) => ({ ...trade, pricing_status: "External indicative quotes — connect IBKR Bridge to verify" })) });
+      }
     } catch (requestError) {
       setScanError(requestError instanceof Error ? requestError.message : "Unable to load this stock's trade structures");
     } finally {
@@ -271,12 +342,12 @@ export default function Home() {
           {topTrades && <div className="market-chip"><small>MARKET</small><b>{signalLabel(topTrades.market_context.regime)}</b><span>VIX {topTrades.market_context.vix.toFixed(1)}</span></div>}
         </div>
         <form className="scan-form" onSubmit={scanTopTrades}><button disabled={scanLoading}>{scanLoading ? "Scanning the market…" : "Refresh Advisor scan"}</button></form>
-        <p className="scan-note">Uses your weekly options allocation as the scan budget. Payoff figures use conservative bid/ask pricing but remain indicative until verified in IBKR&apos;s Performance Profile.</p>
+        <p className="scan-note">Uses your weekly options allocation as the scan budget. Open a selected stock while the Paper Bridge is connected to reprice eligible verticals from IBKR live bid/ask quotes. Anything else remains indicative.</p>
         {scanError && <p className="error">{scanError}</p>}
         {topTrades?.recommendations.length ? <><p className="choose-stock">These stocks were selected by the Advisor. Click one to open up to three independently qualified trade structures for that stock.</p><div className="stock-list">{topTrades.recommendations.map((trade, index) => <button type="button" onClick={() => openStock(trade.symbol)} className={`stock-card ${selectedStock === trade.symbol ? "selected" : ""}`} key={trade.id}><small>ADVISOR PICK #{index + 1} · {signalLabel(trade.strategy)}</small><b>{trade.symbol}</b><span>${trade.underlying_price.toFixed(2)} · {trade.composite_score.toFixed(0)} score</span></button>)}</div></> : null}
         {topTrades && (topTrades.recommendations.length ? <div className="trade-list">{(stockTrades?.recommendations || topTrades.recommendations).slice(0, 3).map((trade, index) => <article className="trade-card" key={trade.id}>
           <div className="trade-rank">#{index + 1}</div>
-          <div className="trade-title"><p className="eyebrow">{trade.symbol} · ${trade.underlying_price.toFixed(2)}</p><h3>{signalLabel(trade.strategy)}</h3><p>{trade.reasoning}</p></div>
+          <div className="trade-title"><p className="eyebrow">{trade.symbol} · ${trade.underlying_price.toFixed(2)}</p><h3>{signalLabel(trade.strategy)}</h3>{trade.pricing_status && <span className={`pricing-status ${trade.pricing_status.startsWith("IBKR live") ? "live" : "indicative"}`}>{trade.pricing_status}</span>}<p>{trade.reasoning}</p></div>
           <div className="trade-metrics"><span><small>COMPOSITE</small><b>{trade.composite_score.toFixed(0)}/100</b></span><span><small>PROBABILITY OF PROFIT</small><b>{percent(trade.probability_of_profit)}</b></span><span className="loss"><small>MAX LOSS</small><b>{dollars(trade.max_loss)}</b></span><span className="profit"><small>MAX PROFIT</small><b>{dollars(trade.max_profit)}</b></span><span><small>CAPITAL REQUIRED</small><b>{dollars(trade.capital_required)}</b></span><span><small>{trade.net_credit > 0 ? "NET CREDIT" : "NET DEBIT"}</small><b>{dollars(trade.net_credit || trade.net_debit)}</b></span></div>
           <div className="trade-insight">
             <div className="payoff-visual" aria-label={`Maximum loss ${dollars(trade.max_loss)} and maximum profit ${dollars(trade.max_profit)}`}><div className="payoff-caption"><span>MAX LOSS {dollars(trade.max_loss)}</span><span>MAX PROFIT {dollars(trade.max_profit)}</span></div><div className="payoff-track"><i className="loss-fill" style={{ width: `${Math.max(20, Math.min(50, (trade.max_loss / Math.max(trade.max_loss + trade.max_profit, 1)) * 100))}%` }} /><i className="profit-fill" /></div><p>Defined risk/reward · breakeven {dollars(trade.breakeven)}</p></div>
