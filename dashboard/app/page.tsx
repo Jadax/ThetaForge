@@ -227,9 +227,9 @@ export default function Home() {
       <section className="hero">
         <p className="eyebrow">OPTIONS INTELLIGENCE · PAPER FIRST</p>
         <h1>Trade decisions, <em>without the noise.</em></h1>
-        <p className="subhead">A focused decision desk for your IBKR workflow. Analysis stays deliberate; orders always remain yours to confirm.</p>
+        <p className="subhead">Your Advisor scans the market and selects the top stocks for options trades. Use this field only when you want to inspect a specific symbol yourself.</p>
         <form onSubmit={analyze}>
-          <label>Symbol<input aria-label="Symbol" value={symbol} onChange={(event) => setSymbol(event.target.value)} maxLength={8} /></label>
+          <label>Optional symbol inspection<input aria-label="Symbol" value={symbol} onChange={(event) => setSymbol(event.target.value)} maxLength={8} /></label>
           <button disabled={loading}>{loading ? "Reading market…" : "Run Brain analysis"}</button>
         </form>
         <details>
@@ -254,13 +254,13 @@ export default function Home() {
 
       <section className="opportunity-panel">
         <div className="opportunity-heading">
-          <div><p className="eyebrow">AUTOMATIC PAPER-ONLY OPPORTUNITY SCAN</p><h2>Top trade candidates now</h2><p>The Advisor screens its liquid options universe, then fully analyzes the strongest names. Nothing is sent to IBKR from this view.</p></div>
+          <div><p className="eyebrow">AUTOMATIC PAPER-ONLY OPPORTUNITY SCAN</p><h2>Advisor-selected stocks to trade</h2><p>The Advisor chooses these stocks from its market scan, then analyzes their option chains. Click an Advisor-selected stock to review its best eligible trade structures.</p></div>
           {topTrades && <div className="market-chip"><small>MARKET</small><b>{signalLabel(topTrades.market_context.regime)}</b><span>VIX {topTrades.market_context.vix.toFixed(1)}</span></div>}
         </div>
         <form className="scan-form" onSubmit={scanTopTrades}><button disabled={scanLoading}>{scanLoading ? "Scanning the market…" : "Refresh Advisor scan"}</button></form>
         <p className="scan-note">Uses your weekly options allocation as the scan budget. Review every candidate before staging a paper order.</p>
         {scanError && <p className="error">{scanError}</p>}
-        {topTrades?.recommendations.length ? <><p className="choose-stock">Choose a stock to open its filtered trade structures.</p><div className="stock-list">{topTrades.recommendations.map((trade, index) => <button type="button" onClick={() => openStock(trade.symbol)} className={`stock-card ${selectedStock === trade.symbol ? "selected" : ""}`} key={trade.id}><small>#{index + 1} · {signalLabel(trade.strategy)}</small><b>{trade.symbol}</b><span>${trade.underlying_price.toFixed(2)} · {trade.composite_score.toFixed(0)} score</span></button>)}</div></> : null}
+        {topTrades?.recommendations.length ? <><p className="choose-stock">These stocks were selected by the Advisor. Click one to open its filtered trade structures.</p><div className="stock-list">{topTrades.recommendations.map((trade, index) => <button type="button" onClick={() => openStock(trade.symbol)} className={`stock-card ${selectedStock === trade.symbol ? "selected" : ""}`} key={trade.id}><small>ADVISOR PICK #{index + 1} · {signalLabel(trade.strategy)}</small><b>{trade.symbol}</b><span>${trade.underlying_price.toFixed(2)} · {trade.composite_score.toFixed(0)} score</span></button>)}</div></> : null}
         {topTrades && (topTrades.recommendations.length ? <div className="trade-list">{(stockTrades?.recommendations || topTrades.recommendations).slice(0, 3).map((trade, index) => <article className="trade-card" key={trade.id}>
           <div className="trade-rank">#{index + 1}</div>
           <div className="trade-title"><p className="eyebrow">{trade.symbol} · ${trade.underlying_price.toFixed(2)}</p><h3>{signalLabel(trade.strategy)}</h3><p>{trade.reasoning}</p></div>
