@@ -94,41 +94,18 @@ Get aggregated portfolio Greeks.
 }
 ```
 
-## Admin
+## Trading mode
 
-### POST /admin/toggle-live
-
-Toggle between paper and live trading. Requires PIN authentication.
-
-**Request:**
-```json
-{
-  "pin": "123456",
-  "enable_live": true
-}
-```
-
-**Response (success):**
-```json
-{
-  "message": "Trading mode set to LIVE.",
-  "warning": "Ensure hardware switch is in correct position."
-}
-```
-
-**Response (failure):**
-```json
-{
-  "detail": "Invalid PIN."
-}
-```
+ThetaForge is paper-only. The hosted Advisor cannot enable live execution;
+the local Bridge accepts only explicitly confirmed paper orders through a
+paper TWS / IB Gateway session.
 
 ## Error Codes
 
 | Code | Description |
 |------|-------------|
 | 200 | Success |
-| 403 | Invalid PIN for live trading toggle |
+| 403 | Attempted live trading activation (not supported) |
 | 500 | Internal server error |
 
 ## WebSocket (Planned)
