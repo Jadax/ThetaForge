@@ -13,8 +13,9 @@ not expose port 8002 directly to the public internet.
 
 The dashboard can be opened as a normal website, but a browser cannot launch a
 local IBKR API connection by itself. On the trading computer, double-click
-`Install-ThetaForge-Autostart.cmd` once. It registers a hidden task for the
-current Windows user that starts the paper-only Bridge automatically at sign-in.
+`Install-ThetaForge-Autostart.cmd` once. It creates a current-user startup
+entry that starts the paper-only Bridge automatically at sign-in; administrator
+access is not required.
 
 After that, open the ThetaForge dashboard website, sign in to Paper TWS when
 needed, and use **Connect paper Bridge**. No terminal window is required.
