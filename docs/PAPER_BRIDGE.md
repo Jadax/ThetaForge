@@ -9,6 +9,16 @@ Tailscale. Install it on the trading computer and each computer you use, then
 access the Bridge through the trading computer's private Tailscale address. Do
 not expose port 8002 directly to the public internet.
 
+## Website-first setup (recommended)
+
+The dashboard can be opened as a normal website, but a browser cannot launch a
+local IBKR API connection by itself. On the trading computer, double-click
+`Install-ThetaForge-Autostart.cmd` once. It registers a hidden task for the
+current Windows user that starts the paper-only Bridge automatically at sign-in.
+
+After that, open the ThetaForge dashboard website, sign in to Paper TWS when
+needed, and use **Connect paper Bridge**. No terminal window is required.
+
 ## Start the Bridge
 
 Set a long, random `BRIDGE_ACCESS_TOKEN` in the local `.env`, log into IBKR
