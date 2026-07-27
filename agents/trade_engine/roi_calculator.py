@@ -32,6 +32,7 @@ class ROICalculator:
         premium: float,
         dte: int,
         stock_price: float,
+        iv: float = 0.20,
     ) -> Dict[str, float]:
         """
         Cash-Secured Put ROI calculation.
@@ -46,9 +47,7 @@ class ROICalculator:
         annualized_return = (premium_yield / dte) * 365 if dte > 0 else 0
         otm_pct = ((strike - stock_price) / stock_price) * 100
         return_on_risk = (premium / (strike - premium)) * 100 if (strike - premium) > 0 else 0
-
-        # Probability of profit (simplified: % OTM)
-        pop = self._approx_pop_otm(stock_price, strike, dte)
+        pop = self._approx_pop_otm(stock_price, strike, dte, "put", iv)
 
         return {
             "strategy": "cash_secured_put",
@@ -73,6 +72,7 @@ class ROICalculator:
         dte: int,
         stock_price: float,
         cost_basis: float = None,
+        iv: float = 0.20,
     ) -> Dict[str, float]:
         """Covered Call ROI calculation."""
         if strike <= 0 or dte <= 0:
@@ -87,7 +87,7 @@ class ROICalculator:
         max_profit = (strike - basis + premium) * 100
         return_on_capital = (max_profit / capital_required) * 100
 
-        pop = self._approx_pop_otm(stock_price, strike, dte)
+        pop = self._approx_pop_otm(stock_price, strike, dte, "call", iv)
 
         return {
             "strategy": "covered_call",
@@ -113,6 +113,7 @@ class ROICalculator:
         dte: int,
         stock_price: float,
         spread_type: str = "put",
+        iv: float = 0.20,
     ) -> Dict[str, float]:
         """Credit Spread (Bull Put / Bear Call) ROI calculation."""
         width = abs(short_strike - long_strike)
@@ -123,10 +124,7 @@ class ROICalculator:
         annualized_return = (premium_yield / dte) * 365 if dte > 0 else 0
         return_on_risk = (credit / (width - credit)) * 100 if (width - credit) > 0 else 0
 
-        if spread_type == "put":
-            pop = self._approx_pop_otm(stock_price, short_strike, dte)
-        else:
-            pop = self._approx_pop_otm(short_strike, stock_price, dte)
+        pop = self._approx_pop_otm(stock_price, short_strike, dte, spread_type, iv)
 
         return {
             "strategy": f"{spread_type}_credit_spread",
@@ -154,11 +152,13 @@ class ROICalculator:
         credit: float,
         dte: int,
         stock_price: float,
+        iv: float = 0.20,
     ) -> Dict[str, float]:
         """Iron Condor ROI calculation."""
         put_width = put_short - put_long
         call_width = call_long - call_short
-        width = min(put_width, call_width)
+        # Maximum loss occurs on the wider wing, not the narrower one.
+        width = max(put_width, call_width)
         max_loss = (width - credit) * 100
         max_profit = credit * 100
         capital_required = max_loss
@@ -166,8 +166,8 @@ class ROICalculator:
         annualized_return = (premium_yield / dte) * 365 if dte > 0 else 0
 
         # POP = probability stock stays between short strikes
-        pop_put = self._approx_pop_otm(stock_price, put_short, dte)
-        pop_call = self._approx_pop_otm(call_short, stock_price, dte)
+        pop_put = self._approx_pop_otm(stock_price, put_short, dte, "put", iv) / 100
+        pop_call = self._approx_pop_otm(stock_price, call_short, dte, "call", iv) / 100
         pop = pop_put + pop_call - 1.0
 
         return {
@@ -248,20 +248,19 @@ class ROICalculator:
 
         return self.rank_opportunities(results)
 
-    def _approx_pop_otm(self, stock_price: float, strike: float, dte: int) -> float:
-        """Approximate probability of option expiring OTM."""
-        otm_pct = abs(stock_price - strike) / max(stock_price, 1)
-        # Rough approximation: ~50% at ATM, increases with distance
-        # Using lognormal approximation
-        if dte <= 0:
+    def _approx_pop_otm(self, stock_price: float, strike: float, dte: int, option_type: str = "put", iv: float = 0.20) -> float:
+        """Lognormal probability that an option expires out of the money.
+
+        This is an IV-based model estimate, not a guaranteed win probability.
+        """
+        if dte <= 0 or stock_price <= 0 or strike <= 0:
             return 50.0
-        vol = 0.20  # Assumed 20% vol if not provided
-        expected_move = stock_price * vol * math.sqrt(dte / 365)
-        if expected_move <= 0:
+        volatility = max(float(iv or 0), 0.01)
+        time = dte / 365
+        sigma_sqrt_t = volatility * math.sqrt(time)
+        if sigma_sqrt_t <= 0:
             return 50.0
-        z = abs(strike - stock_price) / expected_move
-        # Approximate using normal distribution
-        pop = 50 + 35 * math.erf(z * 0.7)
-        if stock_price > strike:  # For puts
-            pop = 100 - pop
-        return min(max(pop, 5), 95)
+        d2 = (math.log(stock_price / strike) - 0.5 * volatility * volatility * time) / sigma_sqrt_t
+        normal_cdf = lambda value: 0.5 * (1 + math.erf(value / math.sqrt(2)))
+        pop = normal_cdf(d2) if option_type.lower() == "put" else normal_cdf(-d2)
+        return min(max(pop * 100, 1), 99)

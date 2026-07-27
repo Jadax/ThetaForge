@@ -1,5 +1,14 @@
 # ThetaForge Changelog
 
+## v0.5.5 — 2026-07-27
+
+- Raised the Advisor’s hard composite-score floor to 75/100 and added separate
+  minimum edge (60/100) and IV-based model probability-of-profit (55%) gates.
+- Corrected model probability calculations to use option direction and actual
+  implied volatility rather than a fixed-volatility distance heuristic.
+- Corrected iron-condor maximum-loss calculations to use the wider wing.
+- Explicitly preserves a no-trade outcome when no setup clears every gate.
+
 ## v0.5.4 — 2026-07-27
 
 - Extended paper execution to every currently supported Advisor strategy:

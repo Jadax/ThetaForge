@@ -91,6 +91,18 @@ def test_iron_condor_roi():
     assert roi["probability_of_profit"] > 0
 
 
+def test_iron_condor_uses_wider_wing_for_risk():
+    calc = ROICalculator()
+    roi = calc.iron_condor_roi(95, 92, 105, 104, 0.50, 30, 100, iv=0.20)
+    assert roi["max_loss"] == 250.0
+
+
+def test_iv_based_pop_respects_option_direction():
+    calc = ROICalculator()
+    assert calc._approx_pop_otm(100, 90, 30, "put", 0.20) > 50
+    assert calc._approx_pop_otm(100, 110, 30, "call", 0.20) > 50
+
+
 def test_rank_opportunities():
     calc = ROICalculator()
     opps = [
@@ -324,7 +336,11 @@ def test_low_volume_filtered():
 
 def test_recommender_uses_strict_dashboard_score_floor():
     """Only strong, independently qualified setups may reach the dashboard."""
-    assert MIN_COMPOSITE_SCORE == 70.0
+    assert MIN_COMPOSITE_SCORE == 75.0
+    recommender = TradeRecommender()
+    assert recommender._passes_quality_gate({"composite_score": 75, "edge_score": 60}, {"probability_of_profit": 55})
+    assert not recommender._passes_quality_gate({"composite_score": 75, "edge_score": 59}, {"probability_of_profit": 80})
+    assert not recommender._passes_quality_gate({"composite_score": 80, "edge_score": 80}, {"probability_of_profit": 54})
 
 def test_recommender_creates_account():
     rec = TradeRecommender()

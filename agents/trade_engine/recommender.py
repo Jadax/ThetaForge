@@ -40,7 +40,9 @@ MAX_PORTFOLIO_VEGA = 5.0
 MAX_CORRELATED_POSITIONS = 3
 # A candidate must demonstrate strong agreement across the strategy scorer's
 # inputs before it is eligible for the dashboard. Ranking alone is never enough.
-MIN_COMPOSITE_SCORE = 70.0
+MIN_COMPOSITE_SCORE = 75.0
+MIN_EDGE_SCORE = 60.0
+MIN_PROBABILITY_OF_PROFIT = 55.0
 MIN_LIQUIDITY_VOLUME = 10
 MIN_LIQUIDITY_OI = 100
 
@@ -325,6 +327,15 @@ class TradeRecommender:
             return None
         return short_bid - long_ask
 
+    @staticmethod
+    def _passes_quality_gate(score: Dict[str, Any], roi: Dict[str, Any]) -> bool:
+        """Reject mediocre candidates even when they rank highest in a scan."""
+        return (
+            score.get("composite_score", 0) >= MIN_COMPOSITE_SCORE
+            and score.get("edge_score", 0) >= MIN_EDGE_SCORE
+            and roi.get("probability_of_profit", 0) >= MIN_PROBABILITY_OF_PROFIT
+        )
+
     def _score_csp(
         self, symbol, stock_price, put, dte, regime, tech, flow, nvrp, risk, max_cap
     ) -> Optional[Dict]:
@@ -340,7 +351,7 @@ class TradeRecommender:
         if put.get("volume", 0) < MIN_LIQUIDITY_VOLUME and put.get("open_interest", 0) < MIN_LIQUIDITY_OI:
             return None
 
-        roi = self.roi_calc.csp_roi(strike, premium, dte, stock_price)
+        roi = self.roi_calc.csp_roi(strike, premium, dte, stock_price, nvrp.get("iv", 0.20))
         capital_needed = strike * 100
 
         if capital_needed > max_cap:
@@ -356,7 +367,7 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.CASH_SECURED_PUT, market_ctx, opt_ctx, tech, flow)
 
-        if score["composite_score"] < MIN_COMPOSITE_SCORE:
+        if not self._passes_quality_gate(score, roi):
             return None
 
         return {
@@ -387,7 +398,7 @@ class TradeRecommender:
         if call.get("volume", 0) < MIN_LIQUIDITY_VOLUME and call.get("open_interest", 0) < MIN_LIQUIDITY_OI:
             return None
 
-        roi = self.roi_calc.covered_call_roi(strike, premium, dte, stock_price)
+        roi = self.roi_calc.covered_call_roi(strike, premium, dte, stock_price, iv=nvrp.get("iv", 0.20))
         capital_needed = stock_price * 100
 
         if capital_needed > max_cap:
@@ -402,7 +413,7 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.COVERED_CALL, market_ctx, opt_ctx, tech, flow)
 
-        if score["composite_score"] < MIN_COMPOSITE_SCORE:
+        if not self._passes_quality_gate(score, roi):
             return None
 
         return {
@@ -442,7 +453,7 @@ class TradeRecommender:
         if capital_needed > max_cap or capital_needed <= 0:
             return None
 
-        roi = self.roi_calc.credit_spread_roi(short_strike, long_strike, credit, dte, stock_price, "put")
+        roi = self.roi_calc.credit_spread_roi(short_strike, long_strike, credit, dte, stock_price, "put", nvrp.get("iv", 0.20))
 
         market_ctx = self._strategy_market_context(nvrp, tech)
         opt_ctx = {
@@ -453,7 +464,7 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.BULL_PUT_CREDIT, market_ctx, opt_ctx, tech, flow)
 
-        if score["composite_score"] < MIN_COMPOSITE_SCORE:
+        if not self._passes_quality_gate(score, roi):
             return None
 
         return {
@@ -494,7 +505,7 @@ class TradeRecommender:
         if capital_needed > max_cap or capital_needed <= 0:
             return None
 
-        roi = self.roi_calc.credit_spread_roi(short_strike, long_strike, credit, dte, stock_price, "call")
+        roi = self.roi_calc.credit_spread_roi(short_strike, long_strike, credit, dte, stock_price, "call", nvrp.get("iv", 0.20))
 
         market_ctx = self._strategy_market_context(nvrp, tech)
         opt_ctx = {
@@ -505,7 +516,7 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.BEAR_CALL_CREDIT, market_ctx, opt_ctx, tech, flow)
 
-        if score["composite_score"] < MIN_COMPOSITE_SCORE:
+        if not self._passes_quality_gate(score, roi):
             return None
 
         return {
@@ -571,7 +582,7 @@ class TradeRecommender:
 
         put_width = put_short.get("strike", 0) - put_long.get("strike", 0)
         call_width = call_long.get("strike", 0) - call_short.get("strike", 0)
-        wing_width = min(put_width, call_width)
+        wing_width = max(put_width, call_width)
         max_loss = (wing_width - total_credit) * 100
         capital_needed = max_loss
 
@@ -581,7 +592,7 @@ class TradeRecommender:
         roi = self.roi_calc.iron_condor_roi(
             put_short.get("strike", 0), put_long.get("strike", 0),
             call_short.get("strike", 0), call_long.get("strike", 0),
-            total_credit, dte, stock_price
+            total_credit, dte, stock_price, nvrp.get("iv", 0.20)
         )
 
         market_ctx = self._strategy_market_context(nvrp, tech)
@@ -593,7 +604,7 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.IRON_CONDOR, market_ctx, opt_ctx, tech, flow)
 
-        if score["composite_score"] < MIN_COMPOSITE_SCORE:
+        if not self._passes_quality_gate(score, roi):
             return None
 
         return {
@@ -654,7 +665,11 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.CALL_DEBIT_SPREAD, market_ctx, opt_ctx, tech, flow)
 
-        if score["composite_score"] < MIN_COMPOSITE_SCORE:
+        roi = {
+            "max_profit": max_profit, "max_loss": capital_needed,
+            "probability_of_profit": self.roi_calc._approx_pop_otm(stock_price, long_strike, dte, "call", nvrp.get("iv", 0.20)),
+        }
+        if not self._passes_quality_gate(score, roi):
             return None
 
         return {
@@ -671,6 +686,7 @@ class TradeRecommender:
             "max_profit": max_profit,
             "risk_reward": rr,
             "score": score,
+            "roi": roi,
             "nvrp": nvrp,
             "legs": [{**long_call, "action": "BUY"}, {**short_call, "action": "SELL"}],
         }
@@ -711,7 +727,11 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.PUT_DEBIT_SPREAD, market_ctx, opt_ctx, tech, flow)
 
-        if score["composite_score"] < MIN_COMPOSITE_SCORE:
+        roi = {
+            "max_profit": max_profit, "max_loss": capital_needed,
+            "probability_of_profit": self.roi_calc._approx_pop_otm(stock_price, long_strike, dte, "put", nvrp.get("iv", 0.20)),
+        }
+        if not self._passes_quality_gate(score, roi):
             return None
 
         return {
@@ -728,6 +748,7 @@ class TradeRecommender:
             "max_profit": max_profit,
             "risk_reward": rr,
             "score": score,
+            "roi": roi,
             "nvrp": nvrp,
             "legs": [{**long_put, "action": "BUY"}, {**short_put, "action": "SELL"}],
         }
