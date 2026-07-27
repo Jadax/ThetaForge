@@ -124,23 +124,18 @@ class AIBrain:
 
     # Strategy-to-horizon mapping
     HORIZON_STRATEGIES = {
-        TimeHorizon.SWING_1W: [
-            "0DTE_gamma_blast", "short_straddle", "short_strangle",
-            "iron_condor_weekly", "credit_spread_weekly",
-        ],
+        # Only strategies with defined risk and an implemented execution path
+        # are surfaced as live ideas. 0DTE and naked-short structures require
+        # separate margin, event, and execution controls.
+        TimeHorizon.SWING_1W: [],
         TimeHorizon.MONTHLY_1M: [
             "iron_condor", "bull_put_credit", "bear_call_credit",
-            "cash_secured_put", "covered_call", "wheel",
-            "short_strangle", "iron_butterfly",
+            "cash_secured_put", "covered_call",
         ],
         TimeHorizon.QUARTERLY_3M: [
-            "calendar_spread", "diagonal_spread", "leaps",
-            "poor_mans_covered_call", "broken_wing_butterfly",
+            "call_debit_spread", "put_debit_spread",
         ],
-        TimeHorizon.LEAPS_6M: [
-            "leaps", "poor_mans_covered_call", "calendar_spread",
-            " diagonal_spread", "backspread",
-        ],
+        TimeHorizon.LEAPS_6M: [],
     }
 
     def __init__(self):
@@ -413,7 +408,7 @@ class AIBrain:
 
         best_strategy = self._select_best_strategy(
             overall_signal, regime, iv_signal, sideways, vix, days_to_earnings,
-            symbol=symbol, existing_positions=existing_positions,
+            symbol=symbol, existing_positions=existing_positions, confidence=avg_confidence,
         )
 
         # === TIME-HORIZON RECOMMENDATIONS ===
@@ -470,12 +465,10 @@ class AIBrain:
 
     def _detect_regime(self, vix: float, iv: float, hv: float) -> str:
         """Detect current market regime."""
-        if vix > 30:
+        # Volatility is not a directional signal. Direction belongs to the
+        # technical, CPR and flow engines.
+        if vix >= 25 or (hv > 0 and iv / hv >= 1.5):
             return "high_vol"
-        elif vix > 22:
-            return "bearish"
-        elif vix < 15:
-            return "bullish"
         return "neutral"
 
     def _select_best_strategy(
@@ -488,6 +481,7 @@ class AIBrain:
         days_to_earnings: Optional[int],
         symbol: str = "",
         existing_positions: List[Dict] = None,
+        confidence: float = 0,
     ) -> Dict[str, str]:
         """Select the best strategy based on all signals + portfolio context."""
         ivr = iv_signal.get("iv_rank", 50)
@@ -504,8 +498,8 @@ class AIBrain:
             }
 
         # Earnings filter
-        if days_to_earnings and days_to_earnings <= 5:
-            if days_to_earnings <= 2:
+        if days_to_earnings and days_to_earnings <= 7:
+            if days_to_earnings <= 7:
                 return {
                     "strategy": "avoid_new_positions",
                     "reasoning": f"Earnings in {days_to_earnings} days → too close, avoid new positions",
@@ -515,8 +509,15 @@ class AIBrain:
                 "reasoning": f"Earnings in {days_to_earnings} days → pre-earnings straddle/strangle play",
             }
 
-        # High IV + Sideways = sell premium
-        if ivr >= 50 and sideways.get("is_sideways", False):
+        if confidence < 55:
+            return {
+                "strategy": "no_trade",
+                "reasoning": f"Signal agreement is only {confidence:.0f}% — insufficient confirmation",
+            }
+
+        # High IV + Sideways = sell premium. Iron condors are deliberately
+        # limited to their documented moderate-volatility range.
+        if ivr >= 50 and sideways.get("is_sideways", False) and 15 <= vix <= 25:
             return {
                 "strategy": "iron_condor",
                 "reasoning": f"IVR {ivr:.0f} + sideways market → iron condor captures theta from both sides",
@@ -548,6 +549,17 @@ class AIBrain:
                     "reasoning": f"IVR {ivr:.0f} + bearish → debit spread captures downside",
                 }
 
+        # A VIX spike does not itself authorize selling puts. Cash-secured
+        # puts require an explicit assignment-approved underlying list, which
+        # is outside this generic Brain input.
+        if vix > 30:
+            return {
+                "strategy": "no_trade",
+                "reasoning": f"VIX {vix:.0f} is extreme; wait for a directional and volatility confirmation",
+            }
+
+        # Legacy fallback retained for compatibility; unreachable because the
+        # branch above rejects unqualified high-volatility entries.
         # High VIX = defensive
         if vix > 30:
             return {

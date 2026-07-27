@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from orchestrator.routes import advisor
+from agents.trade_engine.ai_brain import AIBrain, SignalStrength, TimeHorizon
 
 
 class _Tracker:
@@ -46,7 +47,8 @@ async def test_brain_analyze_uses_async_provider_and_all_available_signals(monke
 
     assert response["symbol"] == "TEST"
     assert response["stock_price"] == 103.9
-    assert response["regime"] == "bearish"
+    # VIX is a volatility input, not a directional bearish signal.
+    assert response["regime"] == "high_vol"
     assert {signal["source"] for signal in response["all_signals"]} >= {
         "cpr", "iv", "technical", "sideways", "sentiment", "flow", "gex",
     }
@@ -66,3 +68,24 @@ async def test_brain_rejects_missing_market_price(monkeypatch):
         await advisor.brain_analyze(advisor.BrainAnalysisRequest(symbol="MISSING"))
 
     assert error.value.status_code == 502
+
+
+def test_brain_rejects_unsafe_or_event_driven_default_strategies():
+    brain = AIBrain()
+    base = dict(
+        signal=SignalStrength.STRONG_BUY,
+        regime="high_vol",
+        iv_signal={"iv_rank": 80},
+        sideways={"is_sideways": True},
+        symbol="TEST",
+        existing_positions=[],
+        confidence=80,
+    )
+
+    earnings = brain._select_best_strategy(days_to_earnings=6, vix=20, **base)
+    extreme_vix = brain._select_best_strategy(days_to_earnings=None, vix=31, **base)
+
+    assert earnings["strategy"] == "avoid_new_positions"
+    assert extreme_vix["strategy"] == "no_trade"
+    assert brain.HORIZON_STRATEGIES[TimeHorizon.SWING_1W] == []
+    assert "short_strangle" not in brain.HORIZON_STRATEGIES[TimeHorizon.MONTHLY_1M]
