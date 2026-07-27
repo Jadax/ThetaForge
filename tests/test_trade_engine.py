@@ -437,6 +437,14 @@ def test_recommender_preserves_actual_market_context_and_otm_credit_geometry():
     ) is None
 
 
+def test_credit_spreads_use_executable_bid_ask_not_stale_last_trade():
+    recommender = TradeRecommender()
+    short_call = {"bid": 0.20, "ask": 0.25, "last": 0.95}
+    long_call = {"bid": 0.08, "ask": 0.10, "last": 0.08}
+    assert recommender._executable_credit(short_call, long_call) == 0.10
+    assert recommender._executable_credit({"bid": 0, "last": 0.95}, long_call) is None
+
+
 # ============================================================
 # Pipeline Model Tests
 # ============================================================

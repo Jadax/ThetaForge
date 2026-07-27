@@ -309,12 +309,30 @@ class TradeRecommender:
             "hv_20": nvrp.get("hv_20", nvrp.get("iv", 0.20)),
         }
 
+    @staticmethod
+    def _executable_credit(short_leg: Dict[str, Any], long_leg: Dict[str, Any]) -> Optional[float]:
+        """Return conservative spread credit: sell bid less buy ask.
+
+        Last-trade prices are deliberately excluded because they may be stale
+        and cannot be assumed to be obtainable when opening a spread.
+        """
+        try:
+            short_bid = float(short_leg.get("bid", 0) or 0)
+            long_ask = float(long_leg.get("ask", 0) or 0)
+        except (TypeError, ValueError):
+            return None
+        if short_bid <= 0 or long_ask <= 0:
+            return None
+        return short_bid - long_ask
+
     def _score_csp(
         self, symbol, stock_price, put, dte, regime, tech, flow, nvrp, risk, max_cap
     ) -> Optional[Dict]:
         """Score a Cash-Secured Put opportunity."""
         strike = put.get("strike", 0)
-        premium = put.get("last", 0) or put.get("bid", 0)
+        # A sell order can only be valued at the available bid. Last trade can
+        # be stale and is not an executable quote.
+        premium = put.get("bid", 0)
         if premium <= 0 or strike <= 0 or strike >= stock_price:
             return None
 
@@ -362,7 +380,7 @@ class TradeRecommender:
     ) -> Optional[Dict]:
         """Score a Covered Call opportunity."""
         strike = call.get("strike", 0)
-        premium = call.get("last", 0) or call.get("bid", 0)
+        premium = call.get("bid", 0)
         if premium <= 0 or strike <= stock_price:
             return None
 
@@ -410,14 +428,12 @@ class TradeRecommender:
         """Score a Bull Put Credit Spread."""
         short_strike = short_put.get("strike", 0)
         long_strike = long_put.get("strike", 0)
-        short_prem = short_put.get("last", 0) or short_put.get("bid", 0)
-        long_prem = long_put.get("last", 0) or long_put.get("ask", 0)
+        credit = self._executable_credit(short_put, long_put)
 
-        if short_strike <= long_strike or short_strike >= stock_price or short_prem <= 0:
+        if short_strike <= long_strike or short_strike >= stock_price:
             return None
 
-        credit = short_prem - long_prem
-        if credit <= 0:
+        if credit is None or credit <= 0:
             return None
 
         width = short_strike - long_strike
@@ -464,14 +480,12 @@ class TradeRecommender:
         """Score a Bear Call Credit Spread."""
         short_strike = short_call.get("strike", 0)
         long_strike = long_call.get("strike", 0)
-        short_prem = short_call.get("last", 0) or short_call.get("bid", 0)
-        long_prem = long_call.get("last", 0) or long_call.get("ask", 0)
+        credit = self._executable_credit(short_call, long_call)
 
-        if short_strike >= long_strike or short_strike <= stock_price or short_prem <= 0:
+        if short_strike >= long_strike or short_strike <= stock_price:
             return None
 
-        credit = short_prem - long_prem
-        if credit <= 0:
+        if credit is None or credit <= 0:
             return None
 
         width = long_strike - short_strike
@@ -546,8 +560,10 @@ class TradeRecommender:
             return None
 
         # Calculate credit
-        put_credit = (put_short.get("bid", 0) or put_short.get("last", 0)) - (put_long.get("ask", 0) or put_long.get("last", 0))
-        call_credit = (call_short.get("bid", 0) or call_short.get("last", 0)) - (call_long.get("ask", 0) or call_long.get("last", 0))
+        put_credit = self._executable_credit(put_short, put_long)
+        call_credit = self._executable_credit(call_short, call_long)
+        if put_credit is None or call_credit is None:
+            return None
         total_credit = put_credit + call_credit
 
         if total_credit <= 0:
@@ -613,8 +629,8 @@ class TradeRecommender:
         if long_strike >= short_strike or long_strike < stock_price * 0.97:
             return None
 
-        long_prem = long_call.get("ask", 0) or long_call.get("last", 0)
-        short_prem = short_call.get("bid", 0) or short_call.get("last", 0)
+        long_prem = long_call.get("ask", 0)
+        short_prem = short_call.get("bid", 0)
         debit = long_prem - short_prem
 
         if debit <= 0:
@@ -670,8 +686,8 @@ class TradeRecommender:
         if long_strike <= short_strike or long_strike > stock_price * 1.03:
             return None
 
-        long_prem = long_put.get("ask", 0) or long_put.get("last", 0)
-        short_prem = short_put.get("bid", 0) or short_put.get("last", 0)
+        long_prem = long_put.get("ask", 0)
+        short_prem = short_put.get("bid", 0)
         debit = long_prem - short_prem
 
         if debit <= 0:
