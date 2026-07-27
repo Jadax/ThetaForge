@@ -62,6 +62,7 @@ class TradeRecommender:
         technical_data: Dict[str, Any],
         flow_data: Dict[str, Any] = None,
         volatility_data: Dict[str, Any] = None,
+        diversify_underlyings: bool = True,
     ) -> AdvisoryOutput:
         """
         MAIN ENTRY POINT: Capital In → Trade Recommendations Out.
@@ -130,6 +131,7 @@ class TradeRecommender:
             account=account,
             portfolio_greeks=portfolio_greeks,
             risk_per_trade=risk_per_trade,
+            diversify_underlyings=diversify_underlyings,
         )
 
         # Step 7: Convert to TradeRecommendation objects
@@ -740,6 +742,7 @@ class TradeRecommender:
         account: AccountInfo,
         portfolio_greeks: Dict,
         risk_per_trade: float,
+        diversify_underlyings: bool = True,
     ) -> List[Dict]:
         """Select top recommendations respecting portfolio limits."""
         selected = []
@@ -753,11 +756,11 @@ class TradeRecommender:
             if len(selected) >= account.max_positions:
                 break
 
-            # The scanner is a stock-selection tool first. One high-quality
-            # structure per underlying gives the user diversified choices;
-            # alternate structures remain available in the per-stock detail
-            # view instead of crowding the headline list.
-            if cand.get("symbol", "").upper() in selected_symbols:
+            # The market-wide scanner is a stock-selection tool first. A
+            # focused stock review can opt out, but each alternative still
+            # passes the identical capital, score, liquidity, and Greeks
+            # requirements below.
+            if diversify_underlyings and cand.get("symbol", "").upper() in selected_symbols:
                 continue
 
             capital_needed = cand.get("capital_required", 0)

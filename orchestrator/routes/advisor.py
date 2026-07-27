@@ -163,6 +163,10 @@ class AdvisoryRequest(BaseModel):
     risk_tolerance: str = Field("moderate", description="conservative/moderate/aggressive")
     watchlist: List[str] = Field(default_factory=list, description="Symbols to analyze")
     max_positions: int = Field(10, description="Maximum open positions")
+    diversify_underlyings: bool = Field(
+        True,
+        description="Keep the headline scan to one trade per underlying; false permits qualified alternatives for one requested stock",
+    )
     current_positions: List[Dict[str, Any]] = Field(default_factory=list)
 
 
@@ -639,6 +643,7 @@ async def get_recommendations(request: AdvisoryRequest):
         technical_data=technical_data,
         flow_data={},
         volatility_data=volatility_data,
+        diversify_underlyings=request.diversify_underlyings,
     )
 
     return {

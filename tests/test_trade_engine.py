@@ -383,6 +383,31 @@ def test_recommender_with_chain():
     assert output.market_context["vix"] == 25
 
 
+def test_stock_detail_can_keep_multiple_qualified_structures():
+    """Per-stock detail may show alternatives without weakening risk filters."""
+    recommender = TradeRecommender()
+    account = AccountInfo(
+        total_equity=100000,
+        buying_power=100000,
+        cash_available=100000,
+        risk_tolerance=RiskTolerance.MODERATE,
+        max_positions=3,
+    )
+    candidates = [
+        {"symbol": "AAPL", "capital_required": 500, "delta_impact": 0.05, "vega_impact": 0.01},
+        {"symbol": "AAPL", "capital_required": 600, "delta_impact": 0.04, "vega_impact": 0.01},
+    ]
+    portfolio = {"net_delta": 0, "net_vega": 0}
+
+    headline = recommender._select_recommendations(candidates, account, portfolio, 2000)
+    detail = recommender._select_recommendations(
+        candidates, account, portfolio, 2000, diversify_underlyings=False
+    )
+
+    assert len(headline) == 1
+    assert len(detail) == 2
+
+
 # ============================================================
 # Pipeline Model Tests
 # ============================================================

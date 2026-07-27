@@ -203,6 +203,8 @@ export default function Home() {
           risk_tolerance: "moderate",
           watchlist: [symbolToOpen],
           current_positions: positions,
+          max_positions: Math.max(3, positions.length + 3),
+          diversify_underlyings: false,
         }),
       });
       if (!response.ok) {
@@ -260,7 +262,7 @@ export default function Home() {
         <form className="scan-form" onSubmit={scanTopTrades}><button disabled={scanLoading}>{scanLoading ? "Scanning the market…" : "Refresh Advisor scan"}</button></form>
         <p className="scan-note">Uses your weekly options allocation as the scan budget. Review every candidate before staging a paper order.</p>
         {scanError && <p className="error">{scanError}</p>}
-        {topTrades?.recommendations.length ? <><p className="choose-stock">These stocks were selected by the Advisor. Click one to open its filtered trade structures.</p><div className="stock-list">{topTrades.recommendations.map((trade, index) => <button type="button" onClick={() => openStock(trade.symbol)} className={`stock-card ${selectedStock === trade.symbol ? "selected" : ""}`} key={trade.id}><small>ADVISOR PICK #{index + 1} · {signalLabel(trade.strategy)}</small><b>{trade.symbol}</b><span>${trade.underlying_price.toFixed(2)} · {trade.composite_score.toFixed(0)} score</span></button>)}</div></> : null}
+        {topTrades?.recommendations.length ? <><p className="choose-stock">These stocks were selected by the Advisor. Click one to open up to three independently qualified trade structures for that stock.</p><div className="stock-list">{topTrades.recommendations.map((trade, index) => <button type="button" onClick={() => openStock(trade.symbol)} className={`stock-card ${selectedStock === trade.symbol ? "selected" : ""}`} key={trade.id}><small>ADVISOR PICK #{index + 1} · {signalLabel(trade.strategy)}</small><b>{trade.symbol}</b><span>${trade.underlying_price.toFixed(2)} · {trade.composite_score.toFixed(0)} score</span></button>)}</div></> : null}
         {topTrades && (topTrades.recommendations.length ? <div className="trade-list">{(stockTrades?.recommendations || topTrades.recommendations).slice(0, 3).map((trade, index) => <article className="trade-card" key={trade.id}>
           <div className="trade-rank">#{index + 1}</div>
           <div className="trade-title"><p className="eyebrow">{trade.symbol} · ${trade.underlying_price.toFixed(2)}</p><h3>{signalLabel(trade.strategy)}</h3><p>{trade.reasoning}</p></div>
