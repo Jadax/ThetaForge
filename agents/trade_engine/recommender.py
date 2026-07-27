@@ -747,10 +747,18 @@ class TradeRecommender:
         remaining_risk = risk_per_trade * (account.max_positions - len(account.current_positions))
         current_delta = portfolio_greeks.get("net_delta", 0)
         current_vega = portfolio_greeks.get("net_vega", 0)
+        selected_symbols = set()
 
         for cand in ranked:
             if len(selected) >= account.max_positions:
                 break
+
+            # The scanner is a stock-selection tool first. One high-quality
+            # structure per underlying gives the user diversified choices;
+            # alternate structures remain available in the per-stock detail
+            # view instead of crowding the headline list.
+            if cand.get("symbol", "").upper() in selected_symbols:
+                continue
 
             capital_needed = cand.get("capital_required", 0)
             if capital_needed > remaining_capital:
@@ -768,6 +776,7 @@ class TradeRecommender:
                 continue
 
             selected.append(cand)
+            selected_symbols.add(cand.get("symbol", "").upper())
             remaining_capital -= capital_needed
             remaining_risk -= capital_needed
             current_delta += est_delta

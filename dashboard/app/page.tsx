@@ -40,6 +40,7 @@ type RecommendationResponse = {
   warnings: string[];
   market_context: { regime: string; vix: number };
   universe_size?: number;
+  active_discoveries?: number;
   shortlisted_symbols?: string[];
 };
 
@@ -63,6 +64,9 @@ export default function Home() {
   const [topTrades, setTopTrades] = useState<RecommendationResponse | null>(null);
   const [scanLoading, setScanLoading] = useState(false);
   const [scanError, setScanError] = useState("");
+  const [selectedStock, setSelectedStock] = useState("");
+  const [stockTrades, setStockTrades] = useState<RecommendationResponse | null>(null);
+  const [stockLoading, setStockLoading] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
@@ -157,7 +161,10 @@ export default function Home() {
         const body = await response.json().catch(() => ({}));
         throw new Error(body.detail || `Opportunity service returned ${response.status}`);
       }
-      setTopTrades(await response.json());
+      const result = await response.json() as RecommendationResponse;
+      setTopTrades(result);
+      setSelectedStock("");
+      setStockTrades(null);
       setStatus("Advisor connected");
     } catch (requestError) {
       setScanError(requestError instanceof Error ? requestError.message : "Unable to scan the opportunity universe");
@@ -178,6 +185,36 @@ export default function Home() {
       return;
     }
     await fetchAutomaticOpportunities(capital);
+  }
+
+  async function openStock(symbolToOpen: string) {
+    const capital = Number(maxOptionsCapital);
+    if (!capital) return;
+    setSelectedStock(symbolToOpen);
+    setStockLoading(true);
+    setScanError("");
+    try {
+      const response = await fetch(`${apiBase.replace(/\/$/, "")}/api/advisor/recommend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          capital,
+          buying_power: capital,
+          risk_tolerance: "moderate",
+          watchlist: [symbolToOpen],
+          current_positions: positions,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Trade detail returned ${response.status}`);
+      }
+      setStockTrades(await response.json());
+    } catch (requestError) {
+      setScanError(requestError instanceof Error ? requestError.message : "Unable to load this stock's trade structures");
+    } finally {
+      setStockLoading(false);
+    }
   }
 
   return (
@@ -223,14 +260,15 @@ export default function Home() {
         <form className="scan-form" onSubmit={scanTopTrades}><button disabled={scanLoading}>{scanLoading ? "Scanning the market…" : "Refresh Advisor scan"}</button></form>
         <p className="scan-note">Uses your weekly options allocation as the scan budget. Review every candidate before staging a paper order.</p>
         {scanError && <p className="error">{scanError}</p>}
-        {topTrades && (topTrades.recommendations.length ? <div className="trade-list">{topTrades.recommendations.slice(0, 3).map((trade, index) => <article className="trade-card" key={trade.id}>
+        {topTrades?.recommendations.length ? <><p className="choose-stock">Choose a stock to open its filtered trade structures.</p><div className="stock-list">{topTrades.recommendations.map((trade, index) => <button type="button" onClick={() => openStock(trade.symbol)} className={`stock-card ${selectedStock === trade.symbol ? "selected" : ""}`} key={trade.id}><small>#{index + 1} · {signalLabel(trade.strategy)}</small><b>{trade.symbol}</b><span>${trade.underlying_price.toFixed(2)} · {trade.composite_score.toFixed(0)} score</span></button>)}</div></> : null}
+        {topTrades && (topTrades.recommendations.length ? <div className="trade-list">{(stockTrades?.recommendations || topTrades.recommendations).slice(0, 3).map((trade, index) => <article className="trade-card" key={trade.id}>
           <div className="trade-rank">#{index + 1}</div>
           <div className="trade-title"><p className="eyebrow">{trade.symbol} · ${trade.underlying_price.toFixed(2)}</p><h3>{signalLabel(trade.strategy)}</h3><p>{trade.reasoning}</p></div>
           <div className="trade-metrics"><span><small>COMPOSITE</small><b>{trade.composite_score.toFixed(0)}</b></span><span><small>POP</small><b>{trade.probability_of_profit.toFixed(0)}%</b></span><span><small>AT RISK</small><b>${trade.max_loss.toFixed(0)}</b></span><span><small>CAPITAL</small><b>${trade.capital_required.toFixed(0)}</b></span></div>
           <div className="trade-legs">{trade.legs.map((leg, legIndex) => <span key={`${trade.id}-${legIndex}`} className={leg.action === "SELL" ? "sell" : "buy"}>{leg.action} {leg.type} {leg.strike} · {leg.expiry}</span>)}</div>
           <p className="trade-risk">{trade.risk_warning}</p>
         </article>)}</div> : <div className="no-trades"><b>No defined-risk candidates passed the Advisor’s filters.</b><span>This is a valid outcome—avoid forcing a trade. Expand the scan universe or try again when market data changes.</span></div>)}
-        {topTrades?.shortlisted_symbols?.length ? <p className="scan-warning">Analyzed {topTrades.universe_size} liquid option underlyings; full options analysis ran on {topTrades.shortlisted_symbols.join(", ")}.</p> : null}
+        {topTrades?.shortlisted_symbols?.length ? <p className="scan-warning">Screened {topTrades.universe_size} liquid and actively traded underlyings ({topTrades.active_discoveries || 0} live screener discoveries); full options analysis ran on {topTrades.shortlisted_symbols.join(", ")}.</p> : null}
         {topTrades?.warnings.length ? <p className="scan-warning">{topTrades.warnings.join(" · ")}</p> : null}
       </section>
 

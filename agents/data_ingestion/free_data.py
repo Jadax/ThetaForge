@@ -143,6 +143,35 @@ class FreeDataProvider:
         except Exception:
             return {"advancers": 0, "decliners": 0, "unchanged": 0}
 
+    async def get_active_stock_universe(self, limit: int = 80) -> List[str]:
+        """Discover actively traded US equities from free Yahoo screeners.
+
+        This broadens the static liquid-options seed list with current market
+        leaders, movers, and liquid technology names. It is a discovery pass,
+        not an assertion that every returned equity has usable options; the
+        Advisor still validates chain liquidity before it can recommend one.
+        """
+        screeners = ("most_actives", "day_gainers", "day_losers", "growth_technology_stocks")
+
+        def fetch_screener(name: str) -> List[str]:
+            try:
+                response = yf.screen(name, count=25)
+                quotes = response.get("quotes", []) if isinstance(response, dict) else []
+                return [str(item.get("symbol", "")).upper() for item in quotes if item.get("symbol")]
+            except Exception as error:
+                logger.warning("Yahoo screener failed for %s: %s", name, error)
+                return []
+
+        groups = await asyncio.gather(*(asyncio.to_thread(fetch_screener, name) for name in screeners))
+        symbols: List[str] = []
+        for group in groups:
+            for symbol in group:
+                if symbol not in symbols:
+                    symbols.append(symbol)
+                if len(symbols) >= limit:
+                    return symbols
+        return symbols
+
     async def get_sector_performance(self) -> Dict[str, float]:
         """Get sector ETF performance from yfinance."""
         sectors = {

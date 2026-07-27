@@ -356,7 +356,7 @@ async def brain_analyze_watchlist(request: AdvisoryRequest):
     }
 
 
-async def _screen_liquid_universe() -> List[Dict[str, Any]]:
+async def _screen_liquid_universe(symbols: List[str]) -> List[Dict[str, Any]]:
     """Rank the liquid universe before requesting expensive option chains.
 
     The first pass only uses three months of price/volume history. It is run
@@ -405,7 +405,7 @@ async def _screen_liquid_universe() -> List[Dict[str, Any]]:
         except (KeyError, TypeError, ValueError, ZeroDivisionError):
             return None
 
-    screened = await asyncio.gather(*(score_symbol(symbol) for symbol in LIQUID_OPTIONS_UNIVERSE))
+    screened = await asyncio.gather(*(score_symbol(symbol) for symbol in symbols))
     ranked = [item for item in screened if item]
     ranked.sort(key=lambda item: item["screen_score"], reverse=True)
     return ranked
@@ -414,7 +414,9 @@ async def _screen_liquid_universe() -> List[Dict[str, Any]]:
 @router.post("/opportunities")
 async def automatic_opportunities(request: OpportunityScanRequest):
     """Find the best current paper-trade candidates without user-picked symbols."""
-    screened = await _screen_liquid_universe()
+    active_symbols = await provider.get_active_stock_universe(limit=80)
+    universe = list(dict.fromkeys(LIQUID_OPTIONS_UNIVERSE + active_symbols))[:120]
+    screened = await _screen_liquid_universe(universe)
     shortlist = [item["symbol"] for item in screened[:10]]
     if not shortlist:
         raise HTTPException(status_code=502, detail="Market sources did not return enough data for the automatic scan")
@@ -426,7 +428,8 @@ async def automatic_opportunities(request: OpportunityScanRequest):
         watchlist=shortlist,
         current_positions=request.current_positions,
     ))
-    recommendations["universe_size"] = len(LIQUID_OPTIONS_UNIVERSE)
+    recommendations["universe_size"] = len(universe)
+    recommendations["active_discoveries"] = len(active_symbols)
     recommendations["screened_symbols"] = screened[:10]
     recommendations["shortlisted_symbols"] = shortlist
     return recommendations
