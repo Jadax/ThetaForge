@@ -1,5 +1,10 @@
 # ThetaForge Changelog
 
+## v0.5.7 — 2026-07-27
+
+- Added backward-compatible unique position keys so existing local Bridge
+  sessions cannot trigger duplicate-key dashboard warnings during an update.
+
 ## v0.5.6 — 2026-07-27
 
 - Fixed duplicate position rendering when IBKR returns multiple contracts for
