@@ -1,5 +1,14 @@
 # ThetaForge Changelog
 
+## v0.5.3 — 2026-07-27
+
+- Added live-quote-gated paper order submission from each eligible trade card.
+- The local IBKR Bridge now requotes every leg immediately before submitting a
+  single combo limit order, rejects delayed/frozen quotes, and enforces the
+  dashboard capital limit against live maximum loss.
+- Automated execution is limited to defined-risk verticals and iron condors;
+  uncovered and stock-dependent structures remain analysis-only.
+
 ## v0.5.2 — 2026-07-27
 
 - Expanded every trade card into a decision view with maximum loss, maximum

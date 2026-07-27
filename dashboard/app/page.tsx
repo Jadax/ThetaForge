@@ -71,7 +71,7 @@ const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
 const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
-const VERSION = "v0.5.2";
+const VERSION = "v0.5.3";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -92,6 +92,8 @@ export default function Home() {
   const [selectedStock, setSelectedStock] = useState("");
   const [stockTrades, setStockTrades] = useState<RecommendationResponse | null>(null);
   const [stockLoading, setStockLoading] = useState(false);
+  const [paperOrderStatus, setPaperOrderStatus] = useState<Record<string, string>>({});
+  const [submittingTrade, setSubmittingTrade] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
@@ -301,6 +303,33 @@ export default function Home() {
     }
   }
 
+  async function submitPaperTrade(trade: TradeRecommendation) {
+    const capital = Number(maxOptionsCapital);
+    if (!capital || !trade.pricing_status?.startsWith("IBKR live")) return;
+    setSubmittingTrade(trade.id);
+    setPaperOrderStatus((current) => ({ ...current, [trade.id]: "Submitting paper combo to IBKR…" }));
+    const headers: HeadersInit = { "Content-Type": "application/json" };
+    if (bridgeToken) headers["X-ThetaForge-Bridge-Token"] = bridgeToken;
+    try {
+      const response = await fetch(`${bridgeBase.replace(/\/$/, "")}/orders/submit-combo`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          legs: trade.legs.map((leg) => ({ symbol: trade.symbol, expiry: leg.expiry, strike: leg.strike, right: leg.type === "CALL" ? "C" : "P", action: leg.action })),
+          quantity: trade.quantity,
+          capital_limit: capital,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.detail || `Paper order returned ${response.status}`);
+      setPaperOrderStatus((current) => ({ ...current, [trade.id]: `Paper order ${result.status || "submitted"} · limit ${result.limit_price}` }));
+    } catch (submitError) {
+      setPaperOrderStatus((current) => ({ ...current, [trade.id]: submitError instanceof Error ? submitError.message : "Paper order could not be submitted" }));
+    } finally {
+      setSubmittingTrade(null);
+    }
+  }
+
   return (
     <main>
       <nav>
@@ -356,6 +385,7 @@ export default function Home() {
           </div>
           <div className="trade-legs">{trade.legs.map((leg, legIndex) => <span key={`${trade.id}-${legIndex}`} className={leg.action === "SELL" ? "sell" : "buy"}>{leg.action} {leg.type} {leg.strike} · {leg.expiry}</span>)}</div>
           <details className="trade-plan"><summary>View entry and exit plan</summary><div><section><small>ENTRY</small>{Object.entries(trade.entry_rules).map(([key, value]) => <p key={key}><b>{signalLabel(key)}</b>{value}</p>)}</section><section><small>EXIT</small>{Object.entries(trade.exit_rules).map(([key, value]) => <p key={key}><b>{signalLabel(key)}</b>{value}</p>)}</section></div></details>
+          <div className="paper-trade-action">{trade.pricing_status?.startsWith("IBKR live") && [2, 4].includes(trade.legs.length) ? <button type="button" onClick={() => submitPaperTrade(trade)} disabled={submittingTrade === trade.id}>{submittingTrade === trade.id ? "Submitting paper order…" : "Send paper order to IBKR"}</button> : <span>Connect the Paper Bridge and open this stock to verify live IBKR quotes before paper execution.</span>}{paperOrderStatus[trade.id] && <small>{paperOrderStatus[trade.id]}</small>}</div>
           <p className="trade-risk">{trade.risk_warning}</p>
         </article>)}</div> : <div className="no-trades"><b>No defined-risk candidates passed the Advisor’s filters.</b><span>This is a valid outcome—avoid forcing a trade. Expand the scan universe or try again when market data changes.</span></div>)}
         {topTrades?.shortlisted_symbols?.length ? <p className="scan-warning">Screened {topTrades.universe_size} liquid and actively traded underlyings ({topTrades.active_discoveries || 0} live screener discoveries); full options analysis ran on {topTrades.shortlisted_symbols.join(", ")}.</p> : null}

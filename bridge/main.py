@@ -10,7 +10,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from ib_insync import IB, LimitOrder, Option
+from ib_insync import IB, Bag, ComboLeg, LimitOrder, Option
 import ib_insync.connection as ib_connection
 
 
@@ -89,6 +89,17 @@ class OptionQuoteRequest(BaseModel):
     legs: list[OptionQuoteLeg] = Field(min_length=1, max_length=12)
 
 
+class ComboOrderLeg(OptionQuoteLeg):
+    action: Literal["BUY", "SELL"]
+
+
+class PaperComboOrder(BaseModel):
+    """A defined-risk option structure submitted as one paper-only combo."""
+    legs: list[ComboOrderLeg] = Field(min_length=2, max_length=4)
+    quantity: int = Field(default=1, gt=0, le=10)
+    capital_limit: float = Field(gt=0)
+
+
 async def require_access_token(x_thetaforge_bridge_token: str | None = Header(default=None)) -> None:
     """Require a token whenever one is configured for remote/private-network use."""
     if ACCESS_TOKEN and x_thetaforge_bridge_token != ACCESS_TOKEN:
@@ -151,6 +162,35 @@ def _quote_number(value) -> float | None:
         return None
 
 
+async def _live_option_tickers(legs: list[OptionQuoteLeg]):
+    """Qualify legs and request strict live snapshots from TWS."""
+    await ensure_connected()
+    assert ib is not None
+    contracts = [Option(leg.symbol.upper(), leg.expiry.replace("-", ""), leg.strike, leg.right, "SMART") for leg in legs]
+    qualified = await ib.qualifyContractsAsync(*contracts)
+    if len(qualified) != len(contracts):
+        raise HTTPException(status_code=422, detail="IBKR could not qualify one or more option contracts")
+    ib.reqMarketDataType(1)
+    tickers = await ib.reqTickersAsync(*qualified)
+    return qualified, tickers
+
+
+def _defined_risk_per_combo(legs: list[ComboOrderLeg], net_credit: float) -> float | None:
+    """Calculate maximum loss only for structures this Bridge can prove defined-risk."""
+    if len(legs) == 2 and {leg.action for leg in legs} == {"BUY", "SELL"} and legs[0].right == legs[1].right:
+        width = abs(legs[0].strike - legs[1].strike)
+        return (width - net_credit) * 100 if net_credit >= 0 else abs(net_credit) * 100
+    if len(legs) == 4 and {leg.right for leg in legs} == {"C", "P"}:
+        widths = []
+        for right in ("C", "P"):
+            side = [leg for leg in legs if leg.right == right]
+            if len(side) != 2 or {leg.action for leg in side} != {"BUY", "SELL"}:
+                return None
+            widths.append(abs(side[0].strike - side[1].strike))
+        return (max(widths) - net_credit) * 100 if net_credit >= 0 else None
+    return None
+
+
 @app.post("/options/quotes")
 async def option_quotes(request: OptionQuoteRequest, _: None = Depends(require_access_token)):
     """Fetch a bounded IBKR quote snapshot and disclose its data quality.
@@ -159,15 +199,7 @@ async def option_quotes(request: OptionQuoteRequest, _: None = Depends(require_a
     snapshot as live, frozen, delayed, or delayed-frozen, allowing the
     dashboard to reject anything other than live for executable calculations.
     """
-    await ensure_connected()
-    assert ib is not None
-    contracts = [Option(leg.symbol.upper(), leg.expiry.replace("-", ""), leg.strike, leg.right, "SMART") for leg in request.legs]
-    qualified = await ib.qualifyContractsAsync(*contracts)
-    if len(qualified) != len(contracts):
-        raise HTTPException(status_code=422, detail="IBKR could not qualify one or more option contracts")
-
-    ib.reqMarketDataType(1)  # Request live data; TWS reports if it falls back.
-    tickers = await ib.reqTickersAsync(*qualified)
+    _, tickers = await _live_option_tickers(request.legs)
     quality = {1: "live", 2: "frozen", 3: "delayed", 4: "delayed_frozen"}
     quotes = []
     for leg, ticker in zip(request.legs, tickers):
@@ -185,6 +217,50 @@ async def option_quotes(request: OptionQuoteRequest, _: None = Depends(require_a
             "executable": ticker.marketDataType == 1 and bid is not None and ask is not None,
         })
     return {"source": "IBKR TWS", "requested_at": datetime.now(timezone.utc).isoformat(), "quotes": quotes}
+
+
+@app.post("/orders/submit-combo")
+async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_access_token)):
+    """Submit one live-quote-verified, defined-risk combo to IBKR paper TWS."""
+    legs = [OptionQuoteLeg(**leg.model_dump(exclude={"action"})) for leg in order.legs]
+    qualified, tickers = await _live_option_tickers(legs)
+    live_prices = []
+    for leg, ticker in zip(order.legs, tickers):
+        bid, ask = _quote_number(ticker.bid), _quote_number(ticker.ask)
+        if ticker.marketDataType != 1 or bid is None or ask is None:
+            raise HTTPException(status_code=422, detail="Live executable IBKR bid/ask data is required before a paper order can be submitted")
+        live_prices.append(bid if leg.action == "SELL" else -ask)
+
+    net_credit = sum(live_prices)
+    max_loss = _defined_risk_per_combo(order.legs, net_credit)
+    if max_loss is None or max_loss <= 0:
+        raise HTTPException(status_code=422, detail="Only defined-risk verticals and iron condors can be automated")
+    total_risk = max_loss * order.quantity
+    if total_risk > order.capital_limit:
+        raise HTTPException(status_code=422, detail=f"Live maximum loss ${total_risk:.2f} exceeds the dashboard capital limit")
+
+    bag = Bag(
+        symbol=order.legs[0].symbol.upper(),
+        exchange="SMART",
+        currency="USD",
+        comboLegs=[ComboLeg(conId=contract.conId, ratio=1, action=leg.action, exchange="SMART") for contract, leg in zip(qualified, order.legs)],
+    )
+    # A combo is bought as one structure. Credit combinations therefore have a
+    # negative limit price; IBKR interprets that as receiving cash for a buy
+    # spread. This prevents execution at a worse net price than live quotes.
+    limit_price = round(-net_credit, 2)
+    ib_order = LimitOrder("BUY", order.quantity, limit_price, tif="DAY")
+    assert ib is not None
+    trade = ib.placeOrder(bag, ib_order)
+    return {
+        "mode": "paper_only",
+        "status": str(trade.orderStatus.status),
+        "limit_price": limit_price,
+        "net_credit": round(net_credit, 2),
+        "max_loss": round(max_loss, 2),
+        "quantity": order.quantity,
+        "message": "Paper combo submitted to TWS",
+    }
 
 
 @app.post("/orders/stage")
