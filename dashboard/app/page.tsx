@@ -71,7 +71,7 @@ const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
 const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
-const VERSION = "v0.5.7";
+const VERSION = "v0.5.8";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -179,10 +179,17 @@ export default function Home() {
     setStatus("Advisor scanning market");
     const base = apiBase.replace(/\/$/, "");
     try {
+      let bridgeSymbols: string[] = [];
+      if (bridgeStatus === "Paper Bridge connected") {
+        const headers: HeadersInit = {};
+        if (bridgeToken) headers["X-ThetaForge-Bridge-Token"] = bridgeToken;
+        const scannerResponse = await fetch(`${bridgeBase.replace(/\/$/, "")}/scanner/universe`, { headers });
+        if (scannerResponse.ok) bridgeSymbols = (await scannerResponse.json() as { symbols?: string[] }).symbols || [];
+      }
       const response = await fetch(`${base}/api/advisor/opportunities`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ capital, current_positions: positions }),
+        body: JSON.stringify({ capital, current_positions: positions, bridge_symbols: bridgeSymbols }),
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));

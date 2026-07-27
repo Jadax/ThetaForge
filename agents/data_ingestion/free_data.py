@@ -155,7 +155,7 @@ class FreeDataProvider:
 
         def fetch_screener(name: str) -> List[str]:
             try:
-                response = yf.screen(name, count=25)
+                response = yf.screen(name, count=75)
                 quotes = response.get("quotes", []) if isinstance(response, dict) else []
                 return [str(item.get("symbol", "")).upper() for item in quotes if item.get("symbol")]
             except Exception as error:

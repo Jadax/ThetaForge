@@ -1,5 +1,13 @@
 # ThetaForge Changelog
 
+## v0.5.8 — 2026-07-27
+
+- Expanded the first-pass market universe from 120 to 300 underlyings.
+- Added optional live IBKR TWS scanner discovery (hot-by-volume, top gainers,
+  and top losers) whenever the local Paper Bridge is connected.
+- Retained the quality screen and deep top-10 options-chain analysis to avoid
+  treating a larger universe as permission to recommend weaker trades.
+
 ## v0.5.7 — 2026-07-27
 
 - Added backward-compatible unique position keys so existing local Bridge

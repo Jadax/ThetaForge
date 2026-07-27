@@ -10,7 +10,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from ib_insync import IB, Bag, ComboLeg, LimitOrder, Option
+from ib_insync import IB, Bag, ComboLeg, LimitOrder, Option, ScannerSubscription
 import ib_insync.connection as ib_connection
 
 
@@ -163,6 +163,33 @@ async def positions(_: None = Depends(require_access_token)):
         }
         for item in ib.positions()
     ]
+
+
+@app.get("/scanner/universe")
+async def scanner_universe(_: None = Depends(require_access_token)):
+    """Return a broad, current US stock discovery set from TWS scanners."""
+    await ensure_connected()
+    assert ib is not None
+    scans = ("HOT_BY_VOLUME", "TOP_PERC_GAIN", "TOP_PERC_LOSE")
+    symbols: list[str] = []
+    scan_results: dict[str, int] = {}
+    for scan_code in scans:
+        subscription = ScannerSubscription(
+            numberOfRows=50,
+            instrument="STK",
+            locationCode="STK.US.MAJOR",
+            scanCode=scan_code,
+        )
+        try:
+            rows = await asyncio.to_thread(ib.reqScannerData, subscription)
+        except Exception as error:
+            raise HTTPException(status_code=503, detail=f"IBKR scanner {scan_code} is unavailable: {error}") from error
+        scan_results[scan_code] = len(rows)
+        for row in rows:
+            symbol = str(row.contractDetails.contract.symbol or "").upper()
+            if symbol and symbol not in symbols:
+                symbols.append(symbol)
+    return {"source": "IBKR TWS scanner", "symbols": symbols[:150], "scan_results": scan_results}
 
 
 def _quote_number(value) -> float | None:

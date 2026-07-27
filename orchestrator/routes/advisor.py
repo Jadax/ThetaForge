@@ -184,6 +184,7 @@ class OpportunityScanRequest(BaseModel):
     """Budget and existing exposure for the automatic liquid-universe scan."""
     capital: float = Field(gt=0, description="Weekly options allocation")
     current_positions: List[Dict[str, Any]] = Field(default_factory=list)
+    bridge_symbols: List[str] = Field(default_factory=list, max_length=150)
 
 
 class WatchlistAddRequest(BaseModel):
@@ -422,8 +423,9 @@ async def _screen_liquid_universe(symbols: List[str]) -> List[Dict[str, Any]]:
 @router.post("/opportunities")
 async def automatic_opportunities(request: OpportunityScanRequest):
     """Find the best current paper-trade candidates without user-picked symbols."""
-    active_symbols = await provider.get_active_stock_universe(limit=80)
-    universe = list(dict.fromkeys(LIQUID_OPTIONS_UNIVERSE + active_symbols))[:120]
+    active_symbols = await provider.get_active_stock_universe(limit=180)
+    bridge_symbols = [symbol.upper().strip() for symbol in request.bridge_symbols if symbol and symbol.isalpha()]
+    universe = list(dict.fromkeys(LIQUID_OPTIONS_UNIVERSE + bridge_symbols + active_symbols))[:300]
     screened = await _screen_liquid_universe(universe)
     shortlist = [item["symbol"] for item in screened[:10]]
     if not shortlist:
