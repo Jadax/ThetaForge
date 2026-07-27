@@ -46,7 +46,7 @@ type RecommendationResponse = {
 
 const signalLabel = (signal: string) => signal.replaceAll("_", " ");
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
-const VERSION = "v0.5.0";
+const VERSION = "v0.5.1";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");

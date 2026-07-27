@@ -1,5 +1,14 @@
 # ThetaForge Changelog
 
+## v0.5.1 — 2026-07-27
+
+- Corrected strategy scoring to use each underlying's actual volatility rank,
+  realized volatility, technical regime, and market VIX context.
+- Fixed neutral MACD normalization so it does not create a bearish bias.
+- Enforced out-of-the-money strike geometry for defined-risk credit spreads.
+- Retained the strict 70/100 composite-score eligibility floor across all
+  supported strategy types.
+
 ## v0.5.0 — 2026-07-27
 
 - Added the Advisor-selected stock workflow: the scanner chooses diversified
