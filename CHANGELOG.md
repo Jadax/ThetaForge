@@ -1,5 +1,11 @@
 # ThetaForge Changelog
 
+## v0.5.6 — 2026-07-27
+
+- Fixed duplicate position rendering when IBKR returns multiple contracts for
+  one underlying. The dashboard now identifies each position by its IBKR
+  contract and displays option strike, right, and expiry where applicable.
+
 ## v0.5.5 — 2026-07-27
 
 - Raised the Advisor’s hard composite-score floor to 75/100 and added separate

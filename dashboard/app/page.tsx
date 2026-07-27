@@ -15,7 +15,7 @@ type Analysis = {
   recommendations_1m: Array<{ strategy: string; suitability: number; typical_dte: string; typical_delta: string }>;
 };
 
-type BridgePosition = { symbol: string; position: number; average_cost: number };
+type BridgePosition = { id: string; symbol: string; position: number; average_cost: number; contract_type?: string; strike?: number | null; expiry?: string | null; right?: string | null };
 
 type TradeRecommendation = {
   id: string;
@@ -71,7 +71,7 @@ const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
 const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
-const VERSION = "v0.5.5";
+const VERSION = "v0.5.6";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -408,7 +408,7 @@ export default function Home() {
           <label>Bridge token<input className="api" type="password" value={bridgeToken} onChange={(event) => setBridgeToken(event.target.value)} aria-label="IBKR Bridge token" placeholder="Current session only" /></label>
           <button type="button" onClick={connectBridge} disabled={bridgeLoading}>{bridgeLoading ? "Connecting…" : "Connect paper Bridge"}</button>
         </div>
-        {positions.length > 0 && <div className="positions">{positions.map((position) => <span key={position.symbol}><b>{position.symbol}</b> {position.position} @ ${position.average_cost.toFixed(2)}</span>)}</div>}
+        {positions.length > 0 && <div className="positions">{positions.map((position) => <span key={position.id}><b>{position.symbol}</b> {position.contract_type === "OPT" ? `${position.right} ${position.strike} · ${position.expiry}` : "stock"} · {position.position} @ ${position.average_cost.toFixed(2)}</span>)}</div>}
       </section>
       <section className="capital-limit">
         <div><p className="eyebrow">WEEKLY OPTIONS ALLOCATION</p><h3>Maximum options capital</h3><p>Your hard budget for the opportunity scan. The Advisor may use less, never more. Update this whenever your weekly allocation changes.</p></div>

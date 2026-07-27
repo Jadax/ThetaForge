@@ -150,7 +150,19 @@ async def connect(_: None = Depends(require_access_token)):
 async def positions(_: None = Depends(require_access_token)):
     await ensure_connected()
     assert ib is not None
-    return [{"symbol": item.contract.symbol, "position": item.position, "average_cost": item.avgCost} for item in ib.positions()]
+    return [
+        {
+            "id": str(item.contract.conId or f"{item.contract.symbol}-{item.contract.localSymbol}"),
+            "symbol": item.contract.symbol,
+            "position": item.position,
+            "average_cost": item.avgCost,
+            "contract_type": item.contract.secType,
+            "strike": item.contract.strike or None,
+            "expiry": item.contract.lastTradeDateOrContractMonth or None,
+            "right": item.contract.right or None,
+        }
+        for item in ib.positions()
+    ]
 
 
 def _quote_number(value) -> float | None:
