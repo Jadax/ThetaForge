@@ -182,6 +182,12 @@ def test_nvrp_neutral():
     assert nvrp["regime"] == "neutral"
 
 
+def test_nvrp_regimes_use_decimal_volatility_units():
+    analytics = OptionsAnalytics()
+    assert analytics.net_volatility_risk_premium(iv=0.24, hv_20=0.20)["regime"] == "sell_vol"
+    assert analytics.net_volatility_risk_premium(iv=0.16, hv_20=0.20)["regime"] == "buy_vol"
+
+
 def test_probability_of_touch():
     analytics = OptionsAnalytics()
     # ATM should be high (close to 100 since 0 distance)
@@ -410,6 +416,25 @@ def test_stock_detail_can_keep_multiple_qualified_structures():
 
     assert len(headline) == 1
     assert len(detail) == 2
+
+
+def test_recommender_preserves_actual_market_context_and_otm_credit_geometry():
+    recommender = TradeRecommender()
+    context = recommender._strategy_market_context(
+        {"iv": 0.30, "hv_20": 0.20, "iv_rank": 78, "vix": 26},
+        {"trend": "bullish"},
+    )
+    assert context == {"iv_rank": 78, "vix": 26, "trend": "bullish", "hv_20": 0.20}
+
+    # A bear-call spread must be sold above spot; otherwise it is not the
+    # defined-risk bearish structure the dashboard claims it to be.
+    below_spot_short_call = {"strike": 95, "bid": 2, "ask": 2.1, "last": 2, "volume": 100, "open_interest": 1000}
+    higher_long_call = {"strike": 105, "bid": 1, "ask": 1.1, "last": 1, "volume": 100, "open_interest": 1000}
+    assert recommender._score_bear_call(
+        "TEST", 100, below_spot_short_call, higher_long_call, 30,
+        MarketRegime.BEARISH, {"trend": "bearish"}, {},
+        {"iv": 0.30, "hv_20": 0.20, "iv_rank": 78, "vix": 26}, 2000, 10000,
+    ) is None
 
 
 # ============================================================

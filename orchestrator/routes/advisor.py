@@ -87,10 +87,14 @@ async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, 
                     raw_technical = tech_analyzer.calculate_all_indicators(clean_history)
                     if "error" not in raw_technical:
                         trend = str(raw_technical.get("trend", "NEUTRAL")).lower()
+                        macd_histogram = float(raw_technical.get("macd", {}).get("histogram", 0) or 0)
                         technical_data = {
                             **raw_technical,
                             "trend": "bullish" if "bullish" in trend else "bearish" if "bearish" in trend else "neutral",
-                            "macd_signal": "bullish" if raw_technical.get("macd", {}).get("bullish") else "bearish",
+                            # A non-positive MACD histogram is not automatically
+                            # bearish. Preserving neutral readings prevents a
+                            # systematic bias toward bearish credit spreads.
+                            "macd_signal": "bullish" if macd_histogram > 0 else "bearish" if macd_histogram < 0 else "neutral",
                         }
                 except (KeyError, TypeError, ValueError):
                     technical_data = {}

@@ -163,13 +163,16 @@ class OptionsAnalytics:
         nvrp_pct = (nvrp / iv * 100) if iv > 0 else 0
 
         # Regime classification
-        if nvrp > 5:
+        # IV and realized volatility are decimal values (for example 0.25),
+        # so the regime thresholds must be percentage *points* expressed as
+        # decimals, not whole percentages.
+        if nvrp > 0.05:
             regime = "strong_sell_vol"      # Strong edge for selling
-        elif nvrp > 2:
+        elif nvrp > 0.02:
             regime = "sell_vol"             # Moderate edge for selling
-        elif nvrp > -2:
+        elif nvrp > -0.02:
             regime = "neutral"              # No clear edge
-        elif nvrp > -5:
+        elif nvrp > -0.05:
             regime = "buy_vol"              # Moderate edge for buying
         else:
             regime = "strong_buy_vol"       # Strong edge for buying

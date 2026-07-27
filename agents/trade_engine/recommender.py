@@ -199,6 +199,12 @@ class TradeRecommender:
             volatility_data.get("hv_30"),
             volatility_data.get("hv_60"),
         )
+        # Carry the real, symbol-specific context into every strategy score.
+        # Previously each scorer received a fixed VIX of 20 and IV expressed
+        # as an IV-rank, which distorted the strategy comparison.
+        nvrp["iv_rank"] = volatility_data.get("iv_rank", 50)
+        nvrp["vix"] = market_data.get("vix", 20)
+        nvrp["trend"] = technical_data.get("trend", "neutral")
 
         # Group options by expiry
         expiries = {}
@@ -293,13 +299,23 @@ class TradeRecommender:
 
         return candidates
 
+    @staticmethod
+    def _strategy_market_context(nvrp: Dict[str, Any], tech: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize the actual per-symbol volatility and technical context."""
+        return {
+            "iv_rank": nvrp.get("iv_rank", 50),
+            "vix": nvrp.get("vix", 20),
+            "trend": tech.get("trend", nvrp.get("trend", "neutral")),
+            "hv_20": nvrp.get("hv_20", nvrp.get("iv", 0.20)),
+        }
+
     def _score_csp(
         self, symbol, stock_price, put, dte, regime, tech, flow, nvrp, risk, max_cap
     ) -> Optional[Dict]:
         """Score a Cash-Secured Put opportunity."""
         strike = put.get("strike", 0)
         premium = put.get("last", 0) or put.get("bid", 0)
-        if premium <= 0 or strike <= 0:
+        if premium <= 0 or strike <= 0 or strike >= stock_price:
             return None
 
         # Liquidity check
@@ -313,7 +329,7 @@ class TradeRecommender:
             return None
 
         # Score
-        market_ctx = {"iv_rank": nvrp.get("iv", 0.20) * 100, "vix": 20, "trend": tech.get("trend", "neutral")}
+        market_ctx = self._strategy_market_context(nvrp, tech)
         opt_ctx = {
             "iv": nvrp.get("iv", 0.20), "dte": dte, "volume": put.get("volume", 0),
             "open_interest": put.get("open_interest", 0), "bid": put.get("bid", 0),
@@ -359,7 +375,7 @@ class TradeRecommender:
         if capital_needed > max_cap:
             return None
 
-        market_ctx = {"iv_rank": nvrp.get("iv", 0.20) * 100, "vix": 20, "trend": tech.get("trend", "neutral")}
+        market_ctx = self._strategy_market_context(nvrp, tech)
         opt_ctx = {
             "iv": nvrp.get("iv", 0.20), "dte": dte, "volume": call.get("volume", 0),
             "open_interest": call.get("open_interest", 0), "bid": call.get("bid", 0),
@@ -397,7 +413,7 @@ class TradeRecommender:
         short_prem = short_put.get("last", 0) or short_put.get("bid", 0)
         long_prem = long_put.get("last", 0) or long_put.get("ask", 0)
 
-        if short_strike <= long_strike or short_prem <= 0:
+        if short_strike <= long_strike or short_strike >= stock_price or short_prem <= 0:
             return None
 
         credit = short_prem - long_prem
@@ -412,7 +428,7 @@ class TradeRecommender:
 
         roi = self.roi_calc.credit_spread_roi(short_strike, long_strike, credit, dte, stock_price, "put")
 
-        market_ctx = {"iv_rank": nvrp.get("iv", 0.20) * 100, "vix": 20, "trend": tech.get("trend", "neutral")}
+        market_ctx = self._strategy_market_context(nvrp, tech)
         opt_ctx = {
             "iv": nvrp.get("iv", 0.20), "dte": dte,
             "volume": short_put.get("volume", 0), "open_interest": short_put.get("open_interest", 0),
@@ -451,7 +467,7 @@ class TradeRecommender:
         short_prem = short_call.get("last", 0) or short_call.get("bid", 0)
         long_prem = long_call.get("last", 0) or long_call.get("ask", 0)
 
-        if short_strike >= long_strike or short_prem <= 0:
+        if short_strike >= long_strike or short_strike <= stock_price or short_prem <= 0:
             return None
 
         credit = short_prem - long_prem
@@ -466,7 +482,7 @@ class TradeRecommender:
 
         roi = self.roi_calc.credit_spread_roi(short_strike, long_strike, credit, dte, stock_price, "call")
 
-        market_ctx = {"iv_rank": nvrp.get("iv", 0.20) * 100, "vix": 20, "trend": tech.get("trend", "neutral")}
+        market_ctx = self._strategy_market_context(nvrp, tech)
         opt_ctx = {
             "iv": nvrp.get("iv", 0.20), "dte": dte,
             "volume": short_call.get("volume", 0), "open_interest": short_call.get("open_interest", 0),
@@ -552,7 +568,7 @@ class TradeRecommender:
             total_credit, dte, stock_price
         )
 
-        market_ctx = {"iv_rank": nvrp.get("iv", 0.20) * 100, "vix": 20, "trend": tech.get("trend", "neutral")}
+        market_ctx = self._strategy_market_context(nvrp, tech)
         opt_ctx = {
             "iv": nvrp.get("iv", 0.20), "dte": dte,
             "volume": put_short.get("volume", 0), "open_interest": put_short.get("open_interest", 0),
@@ -594,7 +610,7 @@ class TradeRecommender:
         long_strike = long_call.get("strike", 0)
         short_strike = short_call.get("strike", 0)
 
-        if long_strike >= short_strike:
+        if long_strike >= short_strike or long_strike < stock_price * 0.97:
             return None
 
         long_prem = long_call.get("ask", 0) or long_call.get("last", 0)
@@ -613,7 +629,7 @@ class TradeRecommender:
 
         rr = max_profit / (capital_needed) if capital_needed > 0 else 0
 
-        market_ctx = {"iv_rank": nvrp.get("iv", 0.20) * 100, "vix": 20, "trend": tech.get("trend", "neutral")}
+        market_ctx = self._strategy_market_context(nvrp, tech)
         opt_ctx = {
             "iv": nvrp.get("iv", 0.20), "dte": dte,
             "volume": long_call.get("volume", 0), "open_interest": long_call.get("open_interest", 0),
@@ -651,7 +667,7 @@ class TradeRecommender:
         long_strike = long_put.get("strike", 0)
         short_strike = short_put.get("strike", 0)
 
-        if long_strike <= short_strike:
+        if long_strike <= short_strike or long_strike > stock_price * 1.03:
             return None
 
         long_prem = long_put.get("ask", 0) or long_put.get("last", 0)
@@ -670,7 +686,7 @@ class TradeRecommender:
 
         rr = max_profit / (capital_needed) if capital_needed > 0 else 0
 
-        market_ctx = {"iv_rank": nvrp.get("iv", 0.20) * 100, "vix": 20, "trend": tech.get("trend", "neutral")}
+        market_ctx = self._strategy_market_context(nvrp, tech)
         opt_ctx = {
             "iv": nvrp.get("iv", 0.20), "dte": dte,
             "volume": long_put.get("volume", 0), "open_interest": long_put.get("open_interest", 0),
