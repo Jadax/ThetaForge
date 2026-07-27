@@ -17,7 +17,7 @@ from agents.trade_engine.models import (
 from agents.trade_engine.roi_calculator import ROICalculator
 from agents.trade_engine.analytics import OptionsAnalytics
 from agents.trade_engine.strategy_scorer import StrategyScorer
-from agents.trade_engine.recommender import TradeRecommender
+from agents.trade_engine.recommender import TradeRecommender, MIN_COMPOSITE_SCORE
 from agents.flow_analysis.unusual_activity import UnusualActivityDetector
 from agents.trade_engine import alerts as alerts_module
 from agents.trade_engine import signal_tracker as tracker_module
@@ -315,6 +315,10 @@ def test_low_volume_filtered():
 # ============================================================
 # Recommender Integration Tests
 # ============================================================
+
+def test_recommender_uses_strict_dashboard_score_floor():
+    """Only strong, independently qualified setups may reach the dashboard."""
+    assert MIN_COMPOSITE_SCORE == 70.0
 
 def test_recommender_creates_account():
     rec = TradeRecommender()

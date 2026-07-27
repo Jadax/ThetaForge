@@ -38,7 +38,9 @@ MAX_RISK_PCT = {
 MAX_PORTFOLIO_DELTA = 20
 MAX_PORTFOLIO_VEGA = 5.0
 MAX_CORRELATED_POSITIONS = 3
-MIN_COMPOSITE_SCORE = 60.0
+# A candidate must demonstrate strong agreement across the strategy scorer's
+# inputs before it is eligible for the dashboard. Ranking alone is never enough.
+MIN_COMPOSITE_SCORE = 70.0
 MIN_LIQUIDITY_VOLUME = 10
 MIN_LIQUIDITY_OI = 100
 
