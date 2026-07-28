@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from orchestrator.routes import health, strategies, positions, toggle_live, scanner, advisor
+from agents.trade_engine.background_scanner import get_background_scanner
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,14 +20,29 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Manage startup and shutdown events."""
     logger.info("ThetaForge Orchestrator starting up...")
-    # Initialize database connections, redis, etc.
+
+    # Start background brain scanner
+    try:
+        scanner = await get_background_scanner()
+        await scanner.start()
+        logger.info("Background Brain Scanner started (300s interval)")
+    except Exception as e:
+        logger.warning(f"Could not start background scanner: {e}")
+
     yield
+
     logger.info("ThetaForge Orchestrator shutting down...")
+    try:
+        scanner = await get_background_scanner()
+        await scanner.stop()
+        logger.info("Background Brain Scanner stopped")
+    except Exception:
+        pass
 
 app = FastAPI(
     title="ThetaForge Orchestrator",
     description="Multi-agent AI-augmented options trading intelligence system.",
-    version="0.5.8",
+    version="0.6.0",
     lifespan=lifespan
 )
 

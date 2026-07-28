@@ -21,6 +21,7 @@ from agents.technical.indicators import TechnicalEngine as TechAnalyzer
 from agents.flow_analysis.gex_engine import GEXEngine
 from agents.trade_engine.alerts import AlertEngine, AlertPriority, AlertType
 from agents.trade_engine.signal_tracker import SignalTracker
+from agents.trade_engine.background_scanner import get_background_scanner
 
 router = APIRouter(prefix="/api/advisor", tags=["advisor"])
 
@@ -797,3 +798,49 @@ async def list_strategies():
             {"name": "Vertical Spread", "type": "vertical_spread", "win_rate": "65-80%", "best_iv": "Any"},
         ]
     }
+
+
+# ── Background Scanner & Notification Endpoints ──────────────────────────
+
+
+@router.get("/notifications")
+async def get_notifications(unacknowledged_only: bool = True, limit: int = 50):
+    """Get trade notifications from the background Brain scanner."""
+    scanner = await get_background_scanner()
+    notifs = await scanner.get_notifications(
+        unacknowledged_only=unacknowledged_only, limit=limit
+    )
+    return {"notifications": notifs, "count": len(notifs)}
+
+
+@router.post("/notifications/{notification_id}/acknowledge")
+async def acknowledge_notification(notification_id: str):
+    """Mark a single notification as acknowledged."""
+    scanner = await get_background_scanner()
+    ok = await scanner.acknowledge_notification(notification_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {"status": "acknowledged"}
+
+
+@router.post("/notifications/acknowledge-all")
+async def acknowledge_all_notifications():
+    """Acknowledge all pending notifications."""
+    scanner = await get_background_scanner()
+    await scanner.acknowledge_all()
+    return {"status": "all_acknowledged"}
+
+
+@router.get("/scanner/status")
+async def scanner_status():
+    """Get background scanner status (last run, next run, pending count)."""
+    scanner = await get_background_scanner()
+    return await scanner.get_status()
+
+
+@router.post("/scanner/trigger")
+async def trigger_scan():
+    """Manually trigger an immediate background Brain scan."""
+    scanner = await get_background_scanner()
+    new = await scanner.scan_once()
+    return {"status": "scan_completed", "new_notifications": new}

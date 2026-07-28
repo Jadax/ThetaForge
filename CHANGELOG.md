@@ -1,5 +1,21 @@
 # ThetaForge Changelog
 
+## v0.6.0 — 2026-07-28
+
+- Added background Brain scanner (`agents/trade_engine/background_scanner.py`)
+  — runs the AI Brain on the full tradeable universe every 5 minutes in an
+  asyncio task, diffs results against the previous scan, and persists trade
+  notifications for the dashboard to surface.
+- Added `build_scan_universe()` — dynamically discovers 300 symbols from the
+  liquid options universe, IBKR TWS scanner, current positions, and Yahoo
+  Finance screeners.
+- Added notification API endpoints under `/api/advisor`:
+  `GET /notifications`, `POST /notifications/{id}/acknowledge`,
+  `POST /notifications/acknowledge-all`, `GET /scanner/status`,
+  `POST /scanner/trigger`.
+- Wired scanner lifecycle into FastAPI lifespan (auto-starts on boot, stops
+  on shutdown).
+
 ## v0.5.9 — 2026-07-28
 
 - Added unified AI Brain (`agents/trade_engine/ai_brain.py`) — orchestrates 15+
