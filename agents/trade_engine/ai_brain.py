@@ -120,6 +120,10 @@ class AIBrain:
             "flow": 0.25, "iv": 0.30, "technical": 0.10, "cpr": 0.05,
             "sentiment": 0.10, "gex": 0.15, "sideways": 0.05,
         },
+        "low_vol": {
+            "flow": 0.10, "iv": 0.30, "technical": 0.20, "cpr": 0.15,
+            "sentiment": 0.10, "gex": 0.05, "sideways": 0.10,
+        },
     }
 
     # Strategy-to-horizon mapping
@@ -235,16 +239,28 @@ class AIBrain:
                     strength=0.8, confidence=min(ivr, 90),
                     reasoning=f"IVR {ivr:.0f} + IV>HV → strong premium selling edge",
                 ))
+            elif 40 <= ivr < 50 and iv_ratio["signal"] == "sell_premium":
+                signals.append(SignalResult(
+                    source="iv", signal="moderate_sell_premium",
+                    strength=0.3, confidence=55,
+                    reasoning=f"IVR {ivr:.0f} and IV>HV → moderate premium selling edge",
+                ))
             elif ivr <= 30 and iv_ratio["signal"] == "buy_premium":
                 signals.append(SignalResult(
                     source="iv", signal="buy_premium",
                     strength=-0.5, confidence=min(100 - ivr, 80),
                     reasoning=f"IVR {ivr:.0f} + IV<HV → premium buying edge",
                 ))
+            elif 30 < ivr <= 40 and iv_ratio["signal"] == "buy_premium":
+                signals.append(SignalResult(
+                    source="iv", signal="moderate_buy_premium",
+                    strength=-0.2, confidence=55,
+                    reasoning=f"IVR {ivr:.0f} and IV<HV → moderate premium buying edge",
+                ))
             else:
                 signals.append(SignalResult(
                     source="iv", signal="neutral",
-                    strength=0, confidence=30,
+                    strength=0, confidence=50,
                     reasoning=f"IVR {ivr:.0f} → no clear vol edge",
                 ))
         else:
@@ -327,7 +343,11 @@ class AIBrain:
         if flow_data and flow_data.get("total_signals", 0) > 0:
             bias = flow_data.get("bias", "neutral")
             total_prem = flow_data.get("total_premium_bull", 0) - flow_data.get("total_premium_bear", 0)
-            flow_strength = max(-1, min(1, total_prem / 500000))
+            # Normalize by stock price: $500K for a $500 stock is 1000 shares,
+            # while $500K for a $50 stock is 10000 shares. Using stock_price
+            # as the normalizer makes the metric symbol-agnostic.
+            flow_norm = max(stock_price * 1000, 100_000)
+            flow_strength = max(-1, min(1, total_prem / flow_norm))
             signals.append(SignalResult(
                 source="flow",
                 signal=bias,
@@ -404,7 +424,6 @@ class AIBrain:
 
         # === STRATEGY SELECTION (with portfolio context) ===
         existing_positions = (portfolio_context or {}).get("existing_positions", [])
-        symbols_held = (portfolio_context or {}).get("symbols_held", [])
 
         best_strategy = self._select_best_strategy(
             overall_signal, regime, iv_signal, sideways, vix, days_to_earnings,
@@ -464,11 +483,11 @@ class AIBrain:
         )
 
     def _detect_regime(self, vix: float, iv: float, hv: float) -> str:
-        """Detect current market regime."""
-        # Volatility is not a directional signal. Direction belongs to the
-        # technical, CPR and flow engines.
+        """Detect current market regime from vol inputs (no direction)."""
         if vix >= 25 or (hv > 0 and iv / hv >= 1.5):
             return "high_vol"
+        if vix <= 15:
+            return "low_vol"
         return "neutral"
 
     def _select_best_strategy(
@@ -497,16 +516,13 @@ class AIBrain:
                 "reasoning": f"Already have a position on {symbol} — roll for credit or close for profit",
             }
 
-        # Earnings filter
+        # Earnings filter — this must also pass the confidence gate so that
+        # a single IVR data point on an unfamiliar symbol doesn't force a
+        # blanket "no trade" without signal support.
         if days_to_earnings and days_to_earnings <= 7:
-            if days_to_earnings <= 7:
-                return {
-                    "strategy": "avoid_new_positions",
-                    "reasoning": f"Earnings in {days_to_earnings} days → too close, avoid new positions",
-                }
             return {
-                "strategy": "iron_condor_pre_earnings",
-                "reasoning": f"Earnings in {days_to_earnings} days → pre-earnings straddle/strangle play",
+                "strategy": "avoid_new_positions",
+                "reasoning": f"Earnings in {days_to_earnings} days → too close, avoid new positions",
             }
 
         if confidence < 55:
