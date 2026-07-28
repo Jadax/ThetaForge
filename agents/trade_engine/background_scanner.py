@@ -245,6 +245,16 @@ class BackgroundBrainScanner:
             if data is None:
                 continue
 
+            # Only alert on tradeable signals — skip no_trade
+            if data["signal"] == "no_trade":
+                results[symbol] = {
+                    "score": data["score"],
+                    "signal": data["signal"],
+                    "strategy": data["strategy"],
+                    "filtered": "no_trade",
+                }
+                continue
+
             if self._is_new_trade(symbol, data["score"], data["signal"],
                                    data["strategy"], data["regime"]):
                 notif = {
