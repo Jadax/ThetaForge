@@ -70,7 +70,7 @@ async def build_scan_universe(max_symbols: int = 300) -> List[str]:
         headers = {"X-Access-Token": token} if token else {}
         resp = await asyncio.wait_for(
             httpx.AsyncClient().get(
-                "http://127.0.0.1:8006/positions", headers=headers, timeout=5
+                "http://127.0.0.1:8002/positions", headers=headers, timeout=5
             ),
             timeout=8,
         )
@@ -87,7 +87,7 @@ async def build_scan_universe(max_symbols: int = 300) -> List[str]:
         headers = {"X-Access-Token": token} if token else {}
         resp = await asyncio.wait_for(
             httpx.AsyncClient().get(
-                "http://127.0.0.1:8006/scanner/universe", headers=headers, timeout=8
+                "http://127.0.0.1:8002/scanner/universe", headers=headers, timeout=8
             ),
             timeout=10,
         )
@@ -174,27 +174,26 @@ class BackgroundBrainScanner:
     async def _analyze_one(self, symbol: str) -> Optional[dict]:
         """Run the Brain on a single symbol and return a result dict, or None."""
         try:
-            price = await asyncio.to_thread(self._provider.get_stock_price, symbol)
+            price = await self._provider.get_stock_price(symbol)
             if not price or price <= 0:
                 return None
         except Exception:
             return None
 
         try:
-            chain = await asyncio.to_thread(self._provider.get_option_chain, symbol) or []
+            chain = await self._provider.get_option_chain(symbol) or []
         except Exception:
             chain = []
 
         try:
-            vix_data = await asyncio.to_thread(self._provider.get_vix)
-            vix = vix_data.get("regularMarketPrice", 20) if vix_data else 20
+            vix = await self._provider.get_vix()
+            if vix is None:
+                vix = 20
         except Exception:
             vix = 20
 
         try:
-            hist = await asyncio.to_thread(
-                self._provider.get_historical_prices, symbol, period="1y"
-            )
+            hist = await self._provider.get_historical_prices(symbol, period="1y")
             if hist is not None and len(hist):
                 closes = hist["Close"].tolist() if hasattr(hist, "tolist") else list(hist["Close"])
                 high_prices = hist["High"].tolist() if "High" in hist.columns else closes

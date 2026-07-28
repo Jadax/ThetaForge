@@ -206,8 +206,18 @@ class AIBrain:
         highs = high_prices or [stock_price * 1.01]
         lows = low_prices or [stock_price * 0.99]
 
+        # Quick price-trend check for regime detection
+        if len(closes) >= 50:
+            sma_50 = sum(closes[-50:]) / 50
+            sma_20 = sum(closes[-20:]) / 20
+            price = closes[-1]
+            # 20-period MA above 50-period MA → uptrend; below → downtrend
+            trend = "bullish" if sma_20 > sma_50 and price > sma_20 else "bearish" if sma_20 < sma_50 and price < sma_20 else "neutral"
+        else:
+            trend = "neutral"
+
         # Detect regime
-        regime = self._detect_regime(vix, current_iv, hv_20)
+        regime = self._detect_regime(vix, current_iv, hv_20, trend)
 
         # Run all signal engines
         signals = []
@@ -482,12 +492,19 @@ class AIBrain:
             portfolio_warnings=portfolio_warnings,
         )
 
-    def _detect_regime(self, vix: float, iv: float, hv: float) -> str:
-        """Detect current market regime from vol inputs (no direction)."""
+    def _detect_regime(self, vix: float, iv: float, hv: float, trend: str = "neutral") -> str:
+        """Detect current market regime from vol inputs and trend direction.
+
+        When vol is normal (not high/low), the regime reflects directional
+        bias from technical trend, making "bullish"/"bearish" weight profiles
+        reachable instead of dead code.
+        """
         if vix >= 25 or (hv > 0 and iv / hv >= 1.5):
             return "high_vol"
         if vix <= 15:
             return "low_vol"
+        if trend in ("bullish", "bearish"):
+            return trend
         return "neutral"
 
     def _select_best_strategy(

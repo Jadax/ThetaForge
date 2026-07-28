@@ -21,7 +21,7 @@ from agents.technical.indicators import TechnicalEngine as TechAnalyzer
 from agents.flow_analysis.gex_engine import GEXEngine
 from agents.trade_engine.alerts import AlertEngine, AlertPriority, AlertType
 from agents.trade_engine.signal_tracker import SignalTracker
-from agents.trade_engine.background_scanner import get_background_scanner
+from agents.trade_engine.background_scanner import get_background_scanner, LIQUID_OPTIONS_UNIVERSE
 
 router = APIRouter(prefix="/api/advisor", tags=["advisor"])
 
@@ -32,19 +32,6 @@ gex_engine = GEXEngine()
 brain = AIBrain()
 watchlist_store = FavoritesStore()
 
-# This is deliberately a broad, liquid options universe rather than every US
-# listing. Free sources do not provide a reliable real-time option chain for
-# every stock; scanning illiquid names creates misleading recommendations. The
-# first pass covers the most actively traded ETFs and large-cap underlyings,
-# then the Brain performs a full option-chain analysis on the strongest names.
-LIQUID_OPTIONS_UNIVERSE = [
-    "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "XLV", "XLI", "XLY", "XLP", "XLB", "XLC", "XLU",
-    "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "AMD", "NFLX", "CRM", "ORCL", "ADBE", "INTC", "QCOM", "CSCO",
-    "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "COIN", "HOOD",
-    "LLY", "UNH", "JNJ", "MRK", "ABBV", "PFE", "AMGN", "TMO", "ISRG",
-    "XOM", "CVX", "OXY", "SLB", "CAT", "DE", "GE", "BA", "LMT", "NKE", "COST", "WMT", "HD", "MCD", "SBUX", "DIS", "UBER", "PLTR", "SMCI",
-]
-
 
 async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, Any]:
     """Fetch and normalize the inputs consumed by ``AIBrain``.
@@ -53,25 +40,30 @@ async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, 
     coroutine objects and missing legacy method names from being treated as
     market data by the API routes.
     """
-    price_task = None if supplied_price > 0 else provider.get_stock_price(symbol)
-    option_chain_task = provider.get_option_chain(symbol)
-    history_task = provider.get_historical_prices(symbol, period="1y")
-    vix_task = provider.get_vix()
-    pcr_task = provider.get_put_call_ratio()
+    tasks: Dict[str, Any] = {}
+    tasks["price"] = None if supplied_price > 0 else provider.get_stock_price(symbol)
+    tasks["option_chain"] = provider.get_option_chain(symbol)
+    tasks["history"] = provider.get_historical_prices(symbol, period="1y")
+    tasks["vix"] = provider.get_vix()
+    tasks["pcr"] = provider.get_put_call_ratio()
 
     results = await asyncio.gather(
-        *(task for task in (price_task, option_chain_task, history_task, vix_task, pcr_task) if task is not None),
+        *(v for v in tasks.values() if v is not None),
         return_exceptions=True,
     )
     result_iter = iter(results)
-    fetched_price = supplied_price if supplied_price > 0 else next(result_iter, None)
-    option_chain = next(result_iter, [])
-    historical_frame = next(result_iter, None)
-    vix = next(result_iter, None)
-    pcr = next(result_iter, None)
+    fetched: Dict[str, Any] = {}
+    for key in tasks:
+        if tasks[key] is not None:
+            fetched[key] = next(result_iter, None)
+        else:
+            fetched[key] = supplied_price if key == "price" else None
 
-    stock_price = float(fetched_price) if isinstance(fetched_price, (int, float)) else 0.0
-    option_chain = option_chain if isinstance(option_chain, list) else []
+    stock_price = float(fetched["price"]) if isinstance(fetched.get("price"), (int, float)) else 0.0
+    option_chain = fetched.get("option_chain") if isinstance(fetched.get("option_chain"), list) else []
+    historical_frame = fetched.get("history")
+    vix = fetched.get("vix")
+    pcr = fetched.get("pcr")
     historical: List[float] = []
     high_prices: List[float] = []
     low_prices: List[float] = []

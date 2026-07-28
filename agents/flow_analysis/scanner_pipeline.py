@@ -152,11 +152,11 @@ class MultiLayerScanner:
             # Favor selling premium when GEX is positive (dealers pin price)
             # Favor buying premium when GEX is negative (dealers amplify moves)
             favorable_gex = True
-            if gex_regime == "HIGH_POSITIVE_GEX" and c.get("action") == "SELL":
+            if gex_regime in ("high_positive", "high_positive_gex") and c.get("action") == "SELL":
                 favorable_gex = True  # Selling premium in high GEX = good
-            elif gex_regime == "HIGH_NEGATIVE_GEX" and c.get("action") == "BUY":
+            elif gex_regime in ("high_negative", "high_negative_gex") and c.get("action") == "BUY":
                 favorable_gex = True  # Buying in negative GEX = good
-            elif gex_regime == "FLIP_ZONE":
+            elif gex_regime in ("flip_zone", "FLIP_ZONE"):
                 favorable_gex = False  # Avoid flip zone (max volatility)
             else:
                 favorable_gex = True  # Default: pass through
