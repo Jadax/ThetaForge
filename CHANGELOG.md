@@ -1,5 +1,45 @@
 # ThetaForge Changelog
 
+## v0.5.9 — 2026-07-28
+
+- Added unified AI Brain (`agents/trade_engine/ai_brain.py`) — orchestrates 15+
+  signal engines (CPR, IVR, technicals, sideways, PCR sentiment, flow, GEX)
+  into a single composite score per symbol with regime-based weighting.
+- Added time-horizon tab system (1W, 1M, 3M, 6M) with strategy-appropriate
+  recommendations per duration.
+- Added favorites/watchlist persistence (`agents/trade_engine/watchlist.py`)
+  with per-symbol preferences and full CRUD API.
+- Added signal performance tracker (`agents/trade_engine/signal_tracker.py`)
+  — records every Brain prediction and measures accuracy against actual
+  outcomes, enabling dynamic weight adjustment over time.
+- Added alert engine (`agents/trade_engine/alerts.py`) — monitors price, IV,
+  signal flips, drawdown, and Greeks thresholds with one-shot/recurring rules.
+- Added dashboard summary endpoint `POST /api/advisor/dashboard` — single-call
+  portfolio view with VIX, regime, watchlist rankings, portfolio risk, and
+  top picks per horizon.
+- Enhanced AI Brain with portfolio context awareness — detects existing
+  positions and warns/redirects before suggesting new entries.
+- Enhanced AI Brain GEX ingestion — normalised GEX dictionary key differences
+  so that `gex_regime` from the scanner and `regime` from the GEX engine both
+  map to the correct signal branch.
+- Enhanced AI Brain flow normalization — premium is now scaled by
+  `stock_price × 1000` (shares-equivalent) instead of a hardcoded $500K,
+  making flow signals meaningful for mid/small-cap symbols.
+- Added moderate IV signal bands (IVR 30–50) — the most common range no longer
+  silently falls through to a blank neutral; graduated sell/buy signals appear
+  when IV/HV ratio supports them.
+- Raised default neutral-signal confidence from 30 → 50 so that absent data
+  does not falsely trigger the Brain's `no_trade` confidence gate.
+- Restored multi-regime detection (`low_vol`, `neutral`, `high_vol`) with
+  corresponding weight profiles; the previous VIX-only heuristic collapsed
+  everything to two unreachable states.
+- Fixed all 13 pre-existing test failures: `TradeSignal.__init__()` now accepts
+  `entry_rules`/`exit_rules`, `UnusualActivityDetector` uses `scan_chain()`,
+  IV rank uses `pytest.approx`, `RiskManager` boundary assertions corrected,
+  and `CoveredCall`/`EarningsStraddle` test fixtures supply required keys.
+- Fixed dead-code earnings check in `_select_best_strategy` (duplicate nested
+  condition made the inner return unreachable).
+
 ## v0.5.8 — 2026-07-27
 
 - Expanded the first-pass market universe from 120 to 300 underlyings.
