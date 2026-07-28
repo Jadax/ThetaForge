@@ -57,6 +57,19 @@ type IBKRQuote = {
   executable: boolean;
 };
 
+type BrainNotification = {
+  id: string;
+  symbol: string;
+  score: number;
+  signal: string;
+  regime: string;
+  best_strategy: string;
+  strategy_reasoning: string;
+  top_signal: string;
+  timestamp: string;
+  acknowledged: boolean;
+};
+
 type RecommendationResponse = {
   recommendations: TradeRecommendation[];
   warnings: string[];
@@ -94,6 +107,8 @@ export default function Home() {
   const [stockLoading, setStockLoading] = useState(false);
   const [paperOrderStatus, setPaperOrderStatus] = useState<Record<string, string>>({});
   const [submittingTrade, setSubmittingTrade] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<BrainNotification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
@@ -106,6 +121,40 @@ export default function Home() {
     void checkAdvisor(advisorBase);
     if (Number(savedCapital) > 0) void fetchAutomaticOpportunities(Number(savedCapital));
   }, []);
+
+  useEffect(() => {
+    if (!apiBase) return;
+    const base = apiBase.replace(/\/$/, "");
+    const poll = async () => {
+      try {
+        const res = await fetch(`${base}/api/advisor/notifications?unacknowledged_only=true&limit=20`);
+        if (res.ok) {
+          const data = await res.json() as { notifications: BrainNotification[] };
+          setNotifications(data.notifications || []);
+        }
+      } catch { /* backend may be down */ }
+    };
+    void poll();
+    const interval = setInterval(poll, 30000);
+    return () => clearInterval(interval);
+  }, [apiBase]);
+
+  async function acknowledgeAll() {
+    const base = apiBase.replace(/\/$/, "");
+    try {
+      await fetch(`${base}/api/advisor/notifications/acknowledge-all`, { method: "POST" });
+      setNotifications([]);
+      setShowNotifications(false);
+    } catch { /* ignore */ }
+  }
+
+  async function acknowledgeOne(id: string) {
+    const base = apiBase.replace(/\/$/, "");
+    try {
+      await fetch(`${base}/api/advisor/notifications/${id}/acknowledge`, { method: "POST" });
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+    } catch { /* ignore */ }
+  }
 
   async function checkAdvisor(base: string) {
     try {
@@ -350,8 +399,14 @@ export default function Home() {
     <main>
       <nav>
         <div className="brand"><span>θ</span> ThetaForge <small>PERSONAL TERMINAL · {VERSION}</small></div>
-        <div className={`bridge ${status.includes("connected") ? "online" : ""}`}><i /> {status}</div>
+        <div className="nav-right">
+          <div className="notif-bell" onClick={() => setShowNotifications(!showNotifications)}>
+            🔔{notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
+          </div>
+          <div className={`bridge ${status.includes("connected") ? "online" : ""}`}><i /> {status}</div>
+        </div>
       </nav>
+      {showNotifications && <section className="notif-panel"><div className="notif-header"><h3>Trade Alerts</h3>{notifications.length > 0 && <button onClick={acknowledgeAll}>Acknowledge all</button>}</div>{notifications.length === 0 ? <p className="notif-empty">No new trade opportunities.</p> : notifications.map((n) => <div className="notif-card" key={n.id}><div className="notif-symbol">{n.symbol}</div><div className="notif-score" data-direction={n.score >= 0 ? "bull" : "bear"}>{n.score >= 0 ? "+" : ""}{n.score.toFixed(0)}</div><div className="notif-body"><b>{n.signal}</b> · {n.regime} · {n.best_strategy}<p>{n.strategy_reasoning}</p></div><button className="notif-ack" onClick={() => acknowledgeOne(n.id)}>✓</button></div>)}</section>}
 
       <section className="hero">
         <p className="eyebrow">OPTIONS INTELLIGENCE · PAPER FIRST</p>
