@@ -22,6 +22,7 @@ SCAN_STATE_FILE = os.path.join(DATA_DIR, "brain_scan_state.json")
 
 # A trade must exceed this absolute overall_score to generate a notification.
 NOTIFICATION_SCORE_FLOOR = 25
+NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
 
 # Liquid options underlyings — most actively traded US ETFs and large-caps.
 # These are the first-pass scan targets; the screener discovers additional names.
@@ -158,7 +159,7 @@ class BackgroundBrainScanner:
 
     def _is_new_trade(self, symbol: str, score: float, signal: str, strategy: str,
                        regime: str) -> bool:
-        if abs(score) < NOTIFICATION_SCORE_FLOOR:
+        if strategy in NON_ACTIONABLE_STRATEGIES or abs(score) < NOTIFICATION_SCORE_FLOOR:
             return False
         sig = self._result_signature(score, signal, strategy, regime)
         return self._last_results.get(symbol) != sig
@@ -240,13 +241,22 @@ class BackgroundBrainScanner:
         new_count = 0
         results: Dict[str, dict] = {}
 
+        # Clean old no_trade notifications so stale entries don't linger
+        old_notifs = self._read_json(SCAN_NOTIFICATIONS_FILE)
+        clean = [
+            notification for notification in old_notifs
+            if notification.get("best_strategy") not in NON_ACTIONABLE_STRATEGIES
+        ]
+        if len(clean) != len(old_notifs):
+            self._write_json(SCAN_NOTIFICATIONS_FILE, clean)
+
         for symbol in symbols:
             data = await self._analyze_one(symbol)
             if data is None:
                 continue
 
             # Only alert on tradeable signals — skip no_trade
-            if data["signal"] == "no_trade":
+            if data["strategy"] in NON_ACTIONABLE_STRATEGIES:
                 results[symbol] = {
                     "score": data["score"],
                     "signal": data["signal"],
@@ -296,7 +306,9 @@ class BackgroundBrainScanner:
         state["next_run"] = (datetime.utcnow() + timedelta(seconds=self.interval)).isoformat()
         state["symbols_scanned"] = len(results)
         state["symbols_with_trades"] = sum(
-            1 for r in results.values() if abs(r["score"]) >= NOTIFICATION_SCORE_FLOOR
+            1 for result in results.values()
+            if result.get("strategy") not in NON_ACTIONABLE_STRATEGIES
+            and abs(result["score"]) >= NOTIFICATION_SCORE_FLOOR
         )
         state["errors"] = []
         self._write_json(SCAN_STATE_FILE, state)
@@ -341,6 +353,12 @@ class BackgroundBrainScanner:
     async def get_notifications(self, unacknowledged_only: bool = False,
                                 limit: int = 50) -> List[Dict]:
         notifs = self._read_json(SCAN_NOTIFICATIONS_FILE)
+        # Defensive read-time filter hides invalid records already persisted by
+        # older deployments without waiting for the next five-minute scan.
+        notifs = [
+            notification for notification in notifs
+            if notification.get("best_strategy") not in NON_ACTIONABLE_STRATEGIES
+        ]
         if unacknowledged_only:
             notifs = [n for n in notifs if not n.get("acknowledged")]
         return notifs[-limit:]

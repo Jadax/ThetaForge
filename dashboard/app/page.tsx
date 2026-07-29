@@ -105,7 +105,8 @@ const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
 const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
-const VERSION = "v0.6.1";
+const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
+const VERSION = "v0.6.2";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -154,7 +155,11 @@ export default function Home() {
         const res = await fetch(`${base}/api/advisor/notifications?unacknowledged_only=true&limit=20`);
         if (res.ok) {
           const data = await res.json() as { notifications: BrainNotification[] };
-          setNotifications(data.notifications || []);
+          setNotifications(
+            (data.notifications || []).filter(
+              (notification) => !NON_ACTIONABLE_STRATEGIES.has(notification.best_strategy),
+            ),
+          );
         }
       } catch { /* backend may be down */ }
     };

@@ -1,5 +1,15 @@
 # ThetaForge Changelog
 
+## v0.6.2 — 2026-07-29
+
+- Corrected background alert eligibility to use the Brain's final strategy
+  decision rather than its directional signal. `no_trade`,
+  `avoid_new_positions`, and `roll_or_close` outcomes no longer trigger.
+- Added read-time API and dashboard filtering so invalid alerts persisted by
+  older deployments disappear immediately, before the next scanner pass.
+- Corrected scanner status counts so rejected outcomes are not reported as
+  symbols with trades.
+
 ## v0.6.1 — 2026-07-29
 
 - Fixed paper execution for multi-leg verticals and iron condors by creating
