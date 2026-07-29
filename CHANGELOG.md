@@ -1,5 +1,16 @@
 # ThetaForge Changelog
 
+## v0.6.1 — 2026-07-29
+
+- Fixed paper execution for multi-leg verticals and iron condors by creating
+  the missing IBKR combo limit order before submission.
+- Added a persistent local paper-order ledger reconciled with the current TWS
+  session, including status, fills, limit price, and reserved maximum loss.
+- Enforced the dashboard options allocation across all Bridge-submitted orders
+  in the current ISO week instead of checking each order in isolation.
+- Added dashboard paper-order activity, automatic status polling, capital
+  reserved/remaining totals, and cancellation for unfilled orders.
+
 ## v0.6.0 — 2026-07-28
 
 - Added background Brain scanner (`agents/trade_engine/background_scanner.py`)

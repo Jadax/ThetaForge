@@ -1,7 +1,6 @@
 ﻿# ThetaForge
 
-**Multi-agent, AI-augmented options trading intelligence system.**
-**100% FREE - Zero paid API subscriptions required.**
+**Personal, paper-first options trading intelligence and IBKR execution system.**
 
 ---
 
@@ -9,21 +8,27 @@
 
 ---
 
-## What Makes ThetaForge Different
+## Current Production Path
 
-- **Zero API Costs**: Uses only free data sources (IBKR, Alpaca, yfinance, Reddit, CBOE)
-- **6-Layer Scanner Pipeline**: Flow → Dark Pool → GEX → Technical → Catalyst → Risk
-- **13 Proven Strategies**: All with documented win rates and entry/exit rules
-- **GEX/Dealer Positioning**: Know where dealers are positioned (free GEX calculation)
-- **Dark Pool Detection**: Institutional activity detection without paid data
-- **Reddit Sentiment**: Community sentiment from r/thetagang, r/options, r/wallstreetbets
-- **Paper First**: Default to paper trading, multi-factor live activation
+- **Website dashboard**: GitHub Pages frontend backed by the Railway Advisor.
+- **Automatic discovery**: Screens up to 300 liquid/active underlyings and runs
+  deeper options analysis on the evidence-based shortlist.
+- **Unified Brain**: Combines regime, volatility, technical, positioning, flow,
+  sentiment, event, and portfolio context into one decision.
+- **Quality gates**: Recommendations must clear composite, edge, and modeled
+  probability thresholds. A no-trade result is intentional.
+- **Live IBKR verification**: Selected structures are repriced from live IBKR
+  bid/ask data immediately before paper submission.
+- **Paper-only execution**: The local Bridge rejects live accounts, delayed
+  quotes, naked options, unsupported structures, and capital-limit violations.
+- **Order ledger**: Bridge-submitted paper orders, fills, status, and weekly
+  capital reservations appear on the dashboard.
 
 ## Free Data Sources
 
 | Source | Data | Cost |
 |--------|------|------|
-| IBKR API | Real-time options, Greeks, execution | Free with account |
+| IBKR API | Real-time options, Greeks, execution | Account and relevant market-data entitlements required |
 | Alpaca Markets | Stocks, options (backup) | Free tier |
 | yfinance | Historical data, option chains, VIX | Free |
 | Reddit API | Community sentiment (8 subreddits) | Free |
@@ -32,39 +37,34 @@
 
 ## Quick Start
 
-```bash
-# 1. Clone
-git clone https://github.com/yourusername/thetaforge.git
-cd thetaforge
+1. Install Python 3.12 and Node.js 22 or newer.
+2. Install Python dependencies with `pip install -r requirements.txt`.
+3. Run `npm install` inside `dashboard`.
+4. Copy `.env.example` to `.env`, set a long random Bridge token, and keep the
+   Bridge locked to the paper port.
+5. Start and sign in to IBKR Paper TWS or IB Gateway.
+6. Double-click `Start-ThetaForge.cmd`.
 
-# 2. Configure
-cp .env.example .env
-# Edit .env with your IBKR credentials (paper trading)
+Docker is optional development infrastructure; it is not required for the
+personal dashboard and paper Bridge.
 
-# 3. Install
-pip install -r requirements.txt
-
-# 4. Start
-docker-compose up -d
-# Or individually:
-uvicorn orchestrator.main:app --reload --port 8000
-celery -A orchestrator.celery_app worker --loglevel=info
-```
-
-## 6-Layer Scanner Pipeline
+## Scanner Pipeline
 
 ```
-7,000 symbols → Layer 1: Flow (~200 signals)
-              → Layer 2: Dark Pool (~80 confirmed)
-              → Layer 3: GEX (~40 aligned)
-              → Layer 4: Technical (~25 confirmed)
-              → Layer 5: Catalyst (~15 cleared)
-              → Layer 6: Risk (~8-10 final setups)
+Liquid core + public screeners + optional local IBKR discoveries
+  → up to 300 first-pass underlyings
+  → price/volume liquidity and movement screen
+  → top 10 full option-chain analyses
+  → composite + edge + modeled POP quality gates
+  → diversified Advisor-selected stocks
+  → live IBKR verification before paper submission
 ```
 
-Each layer progressively filters to higher-conviction setups. Raw flow signals alone are noisy. Adding dark pool activity, GEX context, technical confirmation, and catalyst checks dramatically improves signal quality.
+The hosted Railway scanner cannot directly reach a Bridge running on a personal
+computer. Local IBKR discoveries are sent by the dashboard when the Bridge is
+connected; the hosted background scan otherwise uses its public discovery path.
 
-## Strategy Library
+## Strategy Research Library
 
 | # | Strategy | Win Rate | Difficulty | Best Market | IVR Required |
 |---|----------|----------|------------|-------------|--------------|
@@ -81,6 +81,12 @@ Each layer progressively filters to higher-conviction setups. Raw flow signals a
 | 11 | Calendar Spreads | 55-65% | Medium | Low IV → High IV | <30 |
 | 12 | Butterfly Spreads | 60-75% | Hard | Range-bound | <30 |
 | 13 | 0DTE Plays | 30-40% | Expert | Catalyst/expansion | Low VIX |
+
+These are research modules, not a promise that every strategy is emitted or
+executable. The current dashboard execution path supports cash-secured puts,
+covered calls, defined-risk vertical spreads, and iron condors. Other modules
+remain analysis/research work until they have production-grade pricing, risk,
+and execution tests.
 
 ## Architecture
 
@@ -149,12 +155,11 @@ Each layer progressively filters to higher-conviction setups. Raw flow signals a
 4. Enable "Accept inbound connections"
 5. Copy `.env.example` to `.env` and configure
 
-### Live Trading Activation
-Live trading requires multi-factor authentication:
-1. Set `LIVE_ACTIVATION_PIN` in `.env`
-2. POST to `/admin/toggle-live` with your PIN
-3. Physically switch IBKR to port 4002
-4. Hardware switch strongly recommended
+### Live Trading
+
+The personal Bridge is intentionally paper-only and accepts only IBKR paper
+ports `4002` or `7497` plus a `DU` paper account. Live-account execution is not
+enabled by the dashboard or the Bridge.
 
 ## Project Structure
 

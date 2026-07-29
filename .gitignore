@@ -33,6 +33,10 @@ celerybeat.pid
 # Logs
 *.log
 logs/
+.next/
+*.tsbuildinfo
+data/paper_order_ledger.json
+.validation-dashboard-*/
 
 # Redis
 dump.rdb

@@ -1,13 +1,14 @@
 """Personal, localhost-only bridge between ThetaForge and IBKR paper trading."""
 import os
 import asyncio
+import json
 import math
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from ib_insync import IB, Bag, ComboLeg, LimitOrder, Option, ScannerSubscription
@@ -19,6 +20,8 @@ PAPER_PORT = int(os.getenv("IBKR_PAPER_PORT", "4002"))
 CLIENT_ID = int(os.getenv("IBKR_BRIDGE_CLIENT_ID", "17"))
 ACCESS_TOKEN = os.getenv("BRIDGE_ACCESS_TOKEN", "")
 PAPER_ONLY = os.getenv("PAPER_TRADING_ONLY", "true").lower() == "true"
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+PAPER_ORDER_LEDGER_FILE = os.path.join(DATA_DIR, "paper_order_ledger.json")
 # Do not construct IB() at import time. On Windows uvicorn creates its running
 # asyncio loop after importing this module; an IB instance created too early can
 # retain a Future from that old loop ("attached to a different loop").
@@ -37,6 +40,7 @@ async def lifespan(_: FastAPI):
     # the loop currently executing this request/application instead.
     ib_connection.getLoop = asyncio.get_running_loop
     ib = IB()
+    _ensure_order_ledger()
     try:
         yield
     finally:
@@ -45,7 +49,7 @@ async def lifespan(_: FastAPI):
         ib = None
 
 
-app = FastAPI(title="ThetaForge Local IBKR Bridge", version="0.1.1", lifespan=lifespan)
+app = FastAPI(title="ThetaForge Local IBKR Bridge", version="0.2.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://jadax.github.io"],
@@ -98,6 +102,86 @@ class PaperComboOrder(BaseModel):
     legs: list[ComboOrderLeg] = Field(min_length=1, max_length=4)
     quantity: int = Field(default=1, gt=0, le=10)
     capital_limit: float = Field(gt=0)
+    recommendation_id: str | None = Field(default=None, max_length=120)
+    strategy: str | None = Field(default=None, max_length=80)
+
+
+RESERVING_ORDER_STATUSES = {
+    "ApiPending", "PendingSubmit", "PreSubmitted", "Submitted",
+    "PendingCancel", "Filled", "Unknown",
+}
+TERMINAL_ORDER_STATUSES = {"ApiCancelled", "Cancelled", "Inactive"}
+
+
+def _ensure_order_ledger() -> None:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    if not os.path.exists(PAPER_ORDER_LEDGER_FILE):
+        _write_order_ledger([])
+
+
+def _read_order_ledger() -> list[dict[str, Any]]:
+    _ensure_order_ledger()
+    try:
+        with open(PAPER_ORDER_LEDGER_FILE, "r", encoding="utf-8") as handle:
+            value = json.load(handle)
+            return value if isinstance(value, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def _write_order_ledger(records: list[dict[str, Any]]) -> None:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    temporary = f"{PAPER_ORDER_LEDGER_FILE}.tmp"
+    with open(temporary, "w", encoding="utf-8") as handle:
+        json.dump(records, handle, indent=2)
+    os.replace(temporary, PAPER_ORDER_LEDGER_FILE)
+
+
+def _current_week_key(moment: datetime | None = None) -> str:
+    current = moment or datetime.now(timezone.utc)
+    year, week, _ = current.isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+def _reserved_capital(records: list[dict[str, Any]], week_key: str | None = None) -> float:
+    selected_week = week_key or _current_week_key()
+    return round(sum(
+        float(record.get("max_loss_total", 0) or 0)
+        for record in records
+        if record.get("week_key") == selected_week
+        and record.get("status", "Unknown") in RESERVING_ORDER_STATUSES
+    ), 2)
+
+
+def _sync_order_ledger() -> list[dict[str, Any]]:
+    records = _read_order_ledger()
+    if ib is None or not ib.isConnected():
+        return records
+    trades_by_order_id = {
+        int(trade.order.orderId): trade
+        for trade in ib.trades()
+        if getattr(trade.order, "orderId", None) is not None
+    }
+    changed = False
+    for record in records:
+        order_id = record.get("ibkr_order_id")
+        trade = trades_by_order_id.get(int(order_id)) if order_id is not None else None
+        if trade is None:
+            continue
+        status = str(trade.orderStatus.status or "Unknown")
+        update = {
+            "status": status,
+            "filled": float(trade.orderStatus.filled or 0),
+            "remaining": float(trade.orderStatus.remaining or 0),
+            "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if any(record.get(key) != value for key, value in update.items()):
+            record.update(update)
+            changed = True
+    if changed:
+        _write_order_ledger(records)
+    return records
 
 
 async def require_access_token(x_thetaforge_bridge_token: str | None = Header(default=None)) -> None:
@@ -163,6 +247,55 @@ async def positions(_: None = Depends(require_access_token)):
         }
         for item in ib.positions()
     ]
+
+
+@app.get("/orders")
+async def paper_orders(
+    capital_limit: float | None = Query(default=None, gt=0),
+    _: None = Depends(require_access_token),
+):
+    """Return the Bridge's paper-order ledger reconciled with this TWS session."""
+    await ensure_connected()
+    records = _sync_order_ledger()
+    reserved = _reserved_capital(records)
+    return {
+        "mode": "paper_only",
+        "week_key": _current_week_key(),
+        "capital_limit": capital_limit,
+        "capital_reserved": reserved,
+        "capital_remaining": max(float(capital_limit) - reserved, 0) if capital_limit else None,
+        "orders": sorted(records, key=lambda item: item.get("submitted_at", ""), reverse=True)[:100],
+    }
+
+
+@app.post("/orders/{ledger_id}/cancel")
+async def cancel_paper_order(ledger_id: str, _: None = Depends(require_access_token)):
+    """Cancel an unfilled paper order and release its reservation once IBKR confirms."""
+    await ensure_connected()
+    assert ib is not None
+    records = _sync_order_ledger()
+    record = next((item for item in records if item.get("id") == ledger_id), None)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Paper order was not found")
+    if record.get("status") in TERMINAL_ORDER_STATUSES:
+        return {"mode": "paper_only", "status": record.get("status"), "id": ledger_id}
+    if float(record.get("filled", 0) or 0) > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="This order has a fill. Close the paper position in TWS; cancellation cannot undo a fill.",
+        )
+    order_id = record.get("ibkr_order_id")
+    trade = next(
+        (item for item in ib.trades() if int(item.order.orderId) == int(order_id)),
+        None,
+    ) if order_id is not None else None
+    if trade is None:
+        raise HTTPException(status_code=409, detail="IBKR no longer has this order in the current session")
+    ib.cancelOrder(trade.order)
+    record["status"] = "PendingCancel"
+    record["updated_at"] = datetime.now(timezone.utc).isoformat()
+    _write_order_ledger(records)
+    return {"mode": "paper_only", "status": "PendingCancel", "id": ledger_id}
 
 
 @app.get("/scanner/universe")
@@ -304,8 +437,16 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
     if max_loss is None or max_loss < 0:
         raise HTTPException(status_code=422, detail="This structure cannot be proven defined-risk by the paper Bridge")
     total_risk = max_loss * order.quantity
-    if total_risk > order.capital_limit:
-        raise HTTPException(status_code=422, detail=f"Live maximum loss ${total_risk:.2f} exceeds the dashboard capital limit")
+    records = _sync_order_ledger()
+    capital_reserved = _reserved_capital(records)
+    if capital_reserved + total_risk > order.capital_limit:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Weekly reserved capital ${capital_reserved:.2f} plus this order's "
+                f"${total_risk:.2f} maximum loss exceeds the ${order.capital_limit:.2f} limit"
+            ),
+        )
 
     if len(order.legs) == 1:
         leg = order.legs[0]
@@ -334,14 +475,44 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
         # spread. This prevents execution at a worse net price than live quotes.
         limit_price = round(-net_credit, 2)
         contract = bag
+        ib_order = LimitOrder("BUY", order.quantity, limit_price, tif="DAY")
     assert ib is not None
     trade = ib.placeOrder(contract, ib_order)
+    now = datetime.now(timezone.utc).isoformat()
+    ledger_id = str(uuid4())
+    status = str(trade.orderStatus.status or "PendingSubmit")
+    records.append({
+        "id": ledger_id,
+        "recommendation_id": order.recommendation_id,
+        "strategy": order.strategy,
+        "symbol": order.legs[0].symbol.upper(),
+        "legs": [leg.model_dump() for leg in order.legs],
+        "quantity": order.quantity,
+        "ibkr_order_id": int(trade.order.orderId),
+        "status": status,
+        "filled": float(trade.orderStatus.filled or 0),
+        "remaining": float(trade.orderStatus.remaining or order.quantity),
+        "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
+        "limit_price": limit_price,
+        "net_credit": round(net_credit, 2),
+        "max_loss_per_combo": round(max_loss, 2),
+        "max_loss_total": round(total_risk, 2),
+        "week_key": _current_week_key(),
+        "submitted_at": now,
+        "updated_at": now,
+    })
+    _write_order_ledger(records)
     return {
         "mode": "paper_only",
-        "status": str(trade.orderStatus.status),
+        "status": status,
+        "ledger_id": ledger_id,
+        "ibkr_order_id": int(trade.order.orderId),
         "limit_price": limit_price,
         "net_credit": round(net_credit, 2),
         "max_loss": round(max_loss, 2),
+        "max_loss_total": round(total_risk, 2),
+        "capital_reserved": round(capital_reserved + total_risk, 2),
+        "capital_remaining": round(order.capital_limit - capital_reserved - total_risk, 2),
         "quantity": order.quantity,
         "message": "Paper combo submitted to TWS",
     }

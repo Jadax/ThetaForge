@@ -70,6 +70,27 @@ type BrainNotification = {
   acknowledged: boolean;
 };
 
+type PaperOrderRecord = {
+  id: string;
+  symbol: string;
+  strategy?: string | null;
+  quantity: number;
+  status: string;
+  filled: number;
+  remaining: number;
+  limit_price: number;
+  max_loss_total: number;
+  submitted_at: string;
+};
+
+type PaperOrderLedger = {
+  week_key: string;
+  capital_limit: number | null;
+  capital_reserved: number;
+  capital_remaining: number | null;
+  orders: PaperOrderRecord[];
+};
+
 type RecommendationResponse = {
   recommendations: TradeRecommendation[];
   warnings: string[];
@@ -84,7 +105,7 @@ const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
 const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
-const VERSION = "v0.6.0";
+const VERSION = "v0.6.1";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -109,6 +130,9 @@ export default function Home() {
   const [submittingTrade, setSubmittingTrade] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<BrainNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [paperOrders, setPaperOrders] = useState<PaperOrderRecord[]>([]);
+  const [capitalReserved, setCapitalReserved] = useState(0);
+  const [capitalRemaining, setCapitalRemaining] = useState<number | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
@@ -138,6 +162,13 @@ export default function Home() {
     const interval = setInterval(poll, 30000);
     return () => clearInterval(interval);
   }, [apiBase]);
+
+  useEffect(() => {
+    if (bridgeStatus !== "Paper Bridge connected") return;
+    void loadPaperOrders();
+    const interval = setInterval(() => void loadPaperOrders(), 15000);
+    return () => clearInterval(interval);
+  }, [bridgeStatus, bridgeBase, bridgeToken, maxOptionsCapital]);
 
   async function acknowledgeAll() {
     const base = apiBase.replace(/\/$/, "");
@@ -185,11 +216,45 @@ export default function Home() {
       }
       setPositions(await positionResponse.json());
       setBridgeStatus("Paper Bridge connected");
+      await loadPaperOrders(base);
     } catch (bridgeError) {
       setBridgeStatus(bridgeError instanceof Error ? bridgeError.message : "Bridge unavailable");
       setPositions([]);
     } finally {
       setBridgeLoading(false);
+    }
+  }
+
+  async function loadPaperOrders(explicitBase?: string) {
+    const base = (explicitBase || bridgeBase).replace(/\/$/, "");
+    const headers: HeadersInit = bridgeToken ? { "X-ThetaForge-Bridge-Token": bridgeToken } : {};
+    const capital = Number(maxOptionsCapital);
+    const query = capital > 0 ? `?capital_limit=${encodeURIComponent(capital)}` : "";
+    try {
+      const response = await fetch(`${base}/orders${query}`, { headers });
+      if (!response.ok) return;
+      const result = await response.json() as PaperOrderLedger;
+      setPaperOrders(result.orders || []);
+      setCapitalReserved(result.capital_reserved || 0);
+      setCapitalRemaining(result.capital_remaining);
+    } catch {
+      // The Bridge may be restarting; the next poll reconciles the ledger.
+    }
+  }
+
+  async function cancelPaperOrder(orderId: string) {
+    const headers: HeadersInit = {};
+    if (bridgeToken) headers["X-ThetaForge-Bridge-Token"] = bridgeToken;
+    try {
+      const response = await fetch(`${bridgeBase.replace(/\/$/, "")}/orders/${orderId}/cancel`, {
+        method: "POST",
+        headers,
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.detail || `Cancel returned ${response.status}`);
+      await loadPaperOrders();
+    } catch (cancelError) {
+      setScanError(cancelError instanceof Error ? cancelError.message : "Paper order could not be cancelled");
     }
   }
 
@@ -383,11 +448,17 @@ export default function Home() {
           legs: trade.legs.map((leg) => ({ symbol: trade.symbol, expiry: leg.expiry, strike: leg.strike, right: leg.type === "CALL" ? "C" : "P", action: leg.action })),
           quantity: trade.quantity,
           capital_limit: capital,
+          recommendation_id: trade.id,
+          strategy: trade.strategy,
         }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.detail || `Paper order returned ${response.status}`);
-      setPaperOrderStatus((current) => ({ ...current, [trade.id]: `Paper order ${result.status || "submitted"} · limit ${result.limit_price}` }));
+      setPaperOrderStatus((current) => ({
+        ...current,
+        [trade.id]: `Paper order ${result.status || "submitted"} · limit ${result.limit_price} · ${dollars(result.capital_remaining)} weekly capital remaining`,
+      }));
+      await loadPaperOrders();
     } catch (submitError) {
       setPaperOrderStatus((current) => ({ ...current, [trade.id]: submitError instanceof Error ? submitError.message : "Paper order could not be submitted" }));
     } finally {
@@ -473,9 +544,23 @@ export default function Home() {
         {positions.length > 0 && <div className="positions">{positions.map((position, index) => <span key={position.id || `${position.symbol}-${position.contract_type || "legacy"}-${position.strike || ""}-${position.expiry || ""}-${position.right || ""}-${index}`}><b>{position.symbol}</b> {position.contract_type === "OPT" ? `${position.right} ${position.strike} · ${position.expiry}` : "stock"} · {position.position} @ ${position.average_cost.toFixed(2)}</span>)}</div>}
       </section>
       <section className="capital-limit">
-        <div><p className="eyebrow">WEEKLY OPTIONS ALLOCATION</p><h3>Maximum options capital</h3><p>Your hard budget for the opportunity scan. The Advisor may use less, never more. Update this whenever your weekly allocation changes.</p></div>
+        <div><p className="eyebrow">WEEKLY OPTIONS ALLOCATION</p><h3>Maximum options capital</h3><p>Your hard budget for the opportunity scan and paper orders. Open and filled orders reserve their live maximum loss for the current ISO week.</p>{bridgeStatus === "Paper Bridge connected" && <div className="capital-usage"><span><small>RESERVED</small><b>{dollars(capitalReserved)}</b></span><span><small>REMAINING</small><b>{capitalRemaining === null ? "Set a limit" : dollars(capitalRemaining)}</b></span></div>}</div>
         <label>USD<input className="capital-input" type="number" min="0" step="100" value={maxOptionsCapital} onChange={(event) => saveCapitalLimit(event.target.value)} placeholder="Set your weekly limit" aria-label="Maximum options capital in US dollars" /></label>
       </section>
+      {bridgeStatus === "Paper Bridge connected" && <section className="order-activity">
+        <div className="order-activity-head"><div><p className="eyebrow">IBKR PAPER ACTIVITY</p><h3>Orders and fills</h3></div><button type="button" onClick={() => loadPaperOrders()}>Refresh</button></div>
+        {paperOrders.length === 0 ? <p className="order-empty">No paper orders have been submitted through this Bridge yet.</p> : <div className="order-table">
+          {paperOrders.map((order) => <article key={order.id}>
+            <div><b>{order.symbol}</b><span>{signalLabel(order.strategy || "advisor trade")} · {order.quantity} combo</span></div>
+            <div><small>STATUS</small><b className={`order-status ${order.status.toLowerCase()}`}>{order.status}</b></div>
+            <div><small>FILLED</small><b>{order.filled}/{order.quantity}</b></div>
+            <div><small>LIMIT</small><b>{order.limit_price.toFixed(2)}</b></div>
+            <div><small>CAPITAL RESERVED</small><b>{dollars(order.max_loss_total)}</b></div>
+            <div><small>SUBMITTED</small><b>{new Date(order.submitted_at).toLocaleString()}</b></div>
+            {!["Filled", "Cancelled", "ApiCancelled", "Inactive"].includes(order.status) && <button type="button" onClick={() => cancelPaperOrder(order.id)}>Cancel</button>}
+          </article>)}
+        </div>}
+      </section>}
       <section className="safety"><b>Execution boundary</b><span>The Bridge is paper-only. Start the local Bridge and TWS/IB Gateway first; the dashboard can connect and control it but cannot start native applications.</span></section>
       <footer>Made with {"\u2665"} by <b>Tushant Sharma</b> · <span>Astraiva</span> · {VERSION}</footer>
     </main>
