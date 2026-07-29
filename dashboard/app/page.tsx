@@ -106,7 +106,8 @@ const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
-const VERSION = "v0.6.2";
+const ALERT_SCORE_FLOOR = 75;
+const VERSION = "v0.6.3";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -134,6 +135,8 @@ export default function Home() {
   const [paperOrders, setPaperOrders] = useState<PaperOrderRecord[]>([]);
   const [capitalReserved, setCapitalReserved] = useState(0);
   const [capitalRemaining, setCapitalRemaining] = useState<number | null>(null);
+  const [alertDetailOpen, setAlertDetailOpen] = useState(false);
+  const [alertDetailSymbol, setAlertDetailSymbol] = useState("");
 
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
@@ -157,7 +160,8 @@ export default function Home() {
           const data = await res.json() as { notifications: BrainNotification[] };
           setNotifications(
             (data.notifications || []).filter(
-              (notification) => !NON_ACTIONABLE_STRATEGIES.has(notification.best_strategy),
+              (notification) => !NON_ACTIONABLE_STRATEGIES.has(notification.best_strategy)
+                && Math.abs(notification.score) >= ALERT_SCORE_FLOOR,
             ),
           );
         }
@@ -190,6 +194,19 @@ export default function Home() {
       await fetch(`${base}/api/advisor/notifications/${id}/acknowledge`, { method: "POST" });
       setNotifications((prev) => prev.filter((n) => n.id !== id));
     } catch { /* ignore */ }
+  }
+
+  async function openNotification(notification: BrainNotification) {
+    const capital = Number(maxOptionsCapital);
+    setShowNotifications(false);
+    if (!capital || capital <= 0) {
+      setScanError("Set your weekly options allocation before validating an alert.");
+      document.getElementById("capital-allocation")?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    setAlertDetailSymbol(notification.symbol);
+    setAlertDetailOpen(true);
+    await openStock(notification.symbol);
   }
 
   async function checkAdvisor(base: string) {
@@ -402,6 +419,7 @@ export default function Home() {
     if (!capital) return;
     setSelectedStock(symbolToOpen);
     setStockLoading(true);
+    setStockTrades(null);
     setScanError("");
     try {
       const response = await fetch(`${apiBase.replace(/\/$/, "")}/api/advisor/recommend`, {
@@ -422,15 +440,18 @@ export default function Home() {
         throw new Error(body.detail || `Trade detail returned ${response.status}`);
       }
       const result = await response.json() as RecommendationResponse;
-      if (bridgeStatus === "Paper Bridge connected") {
+      let detailedResult = result;
+      if (bridgeStatus === "Paper Bridge connected" && result.recommendations.length > 0) {
         try {
-          setStockTrades(await verifyWithIBKR(result));
+          detailedResult = await verifyWithIBKR(result);
         } catch {
-          setStockTrades({ ...result, recommendations: result.recommendations.map((trade) => ({ ...trade, pricing_status: "External indicative quotes — connect IBKR Bridge to verify" })) });
+          detailedResult = { ...result, recommendations: result.recommendations.map((trade) => ({ ...trade, pricing_status: "External indicative quotes — connect IBKR Bridge to verify" })) };
         }
       } else {
-        setStockTrades({ ...result, recommendations: result.recommendations.map((trade) => ({ ...trade, pricing_status: "External indicative quotes — connect IBKR Bridge to verify" })) });
+        detailedResult = { ...result, recommendations: result.recommendations.map((trade) => ({ ...trade, pricing_status: "External indicative quotes — connect IBKR Bridge to verify" })) };
       }
+      setStockTrades(detailedResult);
+      setTopTrades((current) => current || detailedResult);
     } catch (requestError) {
       setScanError(requestError instanceof Error ? requestError.message : "Unable to load this stock's trade structures");
     } finally {
@@ -482,7 +503,17 @@ export default function Home() {
           <div className={`bridge ${status.includes("connected") ? "online" : ""}`}><i /> {status}</div>
         </div>
       </nav>
-      {showNotifications && <section className="notif-panel"><div className="notif-header"><h3>Trade Alerts</h3>{notifications.length > 0 && <button onClick={acknowledgeAll}>Acknowledge all</button>}</div>{notifications.length === 0 ? <p className="notif-empty">No new trade opportunities.</p> : notifications.map((n) => <div className="notif-card" key={n.id}><div className="notif-symbol">{n.symbol}</div><div className="notif-score" data-direction={n.score >= 0 ? "bull" : "bear"}>{n.score >= 0 ? "+" : ""}{n.score.toFixed(0)}</div><div className="notif-body"><b>{n.signal}</b> · {n.regime} · {n.best_strategy}<p>{n.strategy_reasoning}</p></div><button className="notif-ack" onClick={() => acknowledgeOne(n.id)}>✓</button></div>)}</section>}
+      {showNotifications && <section className="notif-panel"><div className="notif-header"><div><h3>High-conviction alerts</h3><p>Click an alert to run the final contract and execution checks.</p></div>{notifications.length > 0 && <button onClick={acknowledgeAll}>Acknowledge all</button>}</div>{notifications.length === 0 ? <p className="notif-empty">No new trade opportunities.</p> : notifications.map((n) => <div className="notif-card" key={n.id} role="button" tabIndex={0} onClick={() => openNotification(n)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") void openNotification(n); }}><div className="notif-symbol">{n.symbol}</div><div className="notif-score" data-direction={n.score >= 0 ? "bull" : "bear"}>{n.score >= 0 ? "+" : ""}{n.score.toFixed(0)}</div><div className="notif-body"><b>{signalLabel(n.signal)}</b> · {signalLabel(n.regime)} · {signalLabel(n.best_strategy)}<p>{n.strategy_reasoning}</p></div><button className="notif-open" type="button" onClick={(event) => { event.stopPropagation(); void openNotification(n); }}>Review</button><button className="notif-ack" aria-label={`Acknowledge ${n.symbol} alert`} onClick={(event) => { event.stopPropagation(); void acknowledgeOne(n.id); }}>✓</button></div>)}</section>}
+      {alertDetailOpen && <div className="trade-modal-backdrop" role="presentation" onClick={() => setAlertDetailOpen(false)}><section className="trade-modal" role="dialog" aria-modal="true" aria-labelledby="alert-trade-title" onClick={(event) => event.stopPropagation()}>
+        <div className="trade-modal-head"><div><p className="eyebrow">FINAL ADVISOR VALIDATION</p><h2 id="alert-trade-title">{alertDetailSymbol} trade structures</h2></div><button type="button" aria-label="Close trade details" onClick={() => setAlertDetailOpen(false)}>×</button></div>
+        {stockLoading ? <p className="modal-message">Running the full option-chain, quality-gate, portfolio, and IBKR quote checks…</p> : stockTrades?.recommendations.length ? <div className="modal-trades">{stockTrades.recommendations.slice(0, 3).map((trade) => <article key={`modal-${trade.id}`}>
+          <div className="modal-trade-head"><div><small>{signalLabel(trade.strategy)}</small><h3>{trade.symbol} · {trade.composite_score.toFixed(0)}/100</h3></div><span className={`pricing-status ${trade.pricing_status?.startsWith("IBKR live") ? "live" : "indicative"}`}>{trade.pricing_status || "Indicative pricing"}</span></div>
+          <div className="modal-metrics"><span><small>POP</small><b>{percent(trade.probability_of_profit)}</b></span><span><small>MAX LOSS</small><b>{dollars(trade.max_loss)}</b></span><span><small>MAX PROFIT</small><b>{dollars(trade.max_profit)}</b></span><span><small>CAPITAL</small><b>{dollars(trade.capital_required)}</b></span></div>
+          <div className="trade-legs">{trade.legs.map((leg, index) => <span key={`modal-${trade.id}-${index}`} className={leg.action === "SELL" ? "sell" : "buy"}>{leg.action} {leg.type} {leg.strike} · {leg.expiry}</span>)}</div>
+          <p>{trade.reasoning}</p>
+          <div className="paper-trade-action">{trade.pricing_status?.startsWith("IBKR live") ? <button type="button" onClick={() => submitPaperTrade(trade)} disabled={submittingTrade === trade.id}>{submittingTrade === trade.id ? "Submitting paper order…" : "Send paper order to IBKR"}</button> : <span>Connect the Paper Bridge to verify live IBKR quotes before this can be submitted.</span>}{paperOrderStatus[trade.id] && <small>{paperOrderStatus[trade.id]}</small>}</div>
+        </article>)}</div> : <div className="modal-no-trade"><b>No trade.</b><p>The alert candidate did not pass the final Advisor filters or did not produce a valid defined-risk structure. Do not place it.</p></div>}
+      </section></div>}
 
       <section className="hero">
         <p className="eyebrow">OPTIONS INTELLIGENCE · PAPER FIRST</p>
@@ -548,7 +579,7 @@ export default function Home() {
         </div>
         {positions.length > 0 && <div className="positions">{positions.map((position, index) => <span key={position.id || `${position.symbol}-${position.contract_type || "legacy"}-${position.strike || ""}-${position.expiry || ""}-${position.right || ""}-${index}`}><b>{position.symbol}</b> {position.contract_type === "OPT" ? `${position.right} ${position.strike} · ${position.expiry}` : "stock"} · {position.position} @ ${position.average_cost.toFixed(2)}</span>)}</div>}
       </section>
-      <section className="capital-limit">
+      <section className="capital-limit" id="capital-allocation">
         <div><p className="eyebrow">WEEKLY OPTIONS ALLOCATION</p><h3>Maximum options capital</h3><p>Your hard budget for the opportunity scan and paper orders. Open and filled orders reserve their live maximum loss for the current ISO week.</p>{bridgeStatus === "Paper Bridge connected" && <div className="capital-usage"><span><small>RESERVED</small><b>{dollars(capitalReserved)}</b></span><span><small>REMAINING</small><b>{capitalRemaining === null ? "Set a limit" : dollars(capitalRemaining)}</b></span></div>}</div>
         <label>USD<input className="capital-input" type="number" min="0" step="100" value={maxOptionsCapital} onChange={(event) => saveCapitalLimit(event.target.value)} placeholder="Set your weekly limit" aria-label="Maximum options capital in US dollars" /></label>
       </section>

@@ -26,6 +26,7 @@ async def test_persisted_no_trade_notifications_are_hidden(scanner):
         {
             "id": "valid",
             "best_strategy": "bull_put_spread",
+            "score": 80,
             "acknowledged": False,
         },
     ]
@@ -39,6 +40,9 @@ async def test_persisted_no_trade_notifications_are_hidden(scanner):
 
 def test_no_trade_cannot_pass_new_trade_gate(scanner):
     assert not scanner._is_new_trade("MRK", -55, "strong_sell", "no_trade", "bullish")
+    assert not scanner._is_new_trade(
+        "XLU", -36, "sell", "put_debit_spread", "neutral"
+    )
     assert scanner._is_new_trade(
         "SPY", 80, "strong_buy", "bull_put_spread", "bullish"
     )

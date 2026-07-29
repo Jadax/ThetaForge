@@ -20,8 +20,9 @@ SCAN_RESULTS_FILE = os.path.join(DATA_DIR, "brain_scan_results.json")
 SCAN_NOTIFICATIONS_FILE = os.path.join(DATA_DIR, "brain_notifications.json")
 SCAN_STATE_FILE = os.path.join(DATA_DIR, "brain_scan_state.json")
 
-# A trade must exceed this absolute overall_score to generate a notification.
-NOTIFICATION_SCORE_FLOOR = 25
+# Background alerts are discovery candidates, but they should still meet the
+# same high-conviction floor used by the detailed Advisor recommendation path.
+NOTIFICATION_SCORE_FLOOR = 75
 NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
 
 # Liquid options underlyings — most actively traded US ETFs and large-caps.
@@ -246,6 +247,7 @@ class BackgroundBrainScanner:
         clean = [
             notification for notification in old_notifs
             if notification.get("best_strategy") not in NON_ACTIONABLE_STRATEGIES
+            and abs(float(notification.get("score", 0) or 0)) >= NOTIFICATION_SCORE_FLOOR
         ]
         if len(clean) != len(old_notifs):
             self._write_json(SCAN_NOTIFICATIONS_FILE, clean)
@@ -358,6 +360,7 @@ class BackgroundBrainScanner:
         notifs = [
             notification for notification in notifs
             if notification.get("best_strategy") not in NON_ACTIONABLE_STRATEGIES
+            and abs(float(notification.get("score", 0) or 0)) >= NOTIFICATION_SCORE_FLOOR
         ]
         if unacknowledged_only:
             notifs = [n for n in notifs if not n.get("acknowledged")]

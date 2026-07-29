@@ -1,5 +1,18 @@
 # ThetaForge Changelog
 
+## v0.6.3 — 2026-07-29
+
+- Raised background candidate alerts to the same 75-point high-conviction
+  threshold used by the detailed Advisor path; older low-score alerts are
+  hidden immediately.
+- Made alert cards interactive. Selecting one runs that symbol through the
+  detailed option-chain, portfolio, quality-gate, and IBKR quote workflow.
+- Added an alert trade-detail modal showing qualified structures, probability
+  of profit, maximum risk/reward, capital, legs, quote quality, and the existing
+  paper-order action.
+- A candidate that fails detailed validation now produces an explicit no-trade
+  result instead of implying that the preliminary signal should be executed.
+
 ## v0.6.2 — 2026-07-29
 
 - Corrected background alert eligibility to use the Brain's final strategy
