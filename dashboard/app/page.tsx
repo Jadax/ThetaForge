@@ -107,11 +107,12 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v0.6.3";
+const VERSION = "v0.6.4";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
   const [apiBase, setApiBase] = useState(DEFAULT_ADVISOR_API);
+  const [advisorToken, setAdvisorToken] = useState("");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [status, setStatus] = useState("Advisor not connected");
   const [loading, setLoading] = useState(false);
@@ -138,24 +139,42 @@ export default function Home() {
   const [alertDetailOpen, setAlertDetailOpen] = useState(false);
   const [alertDetailSymbol, setAlertDetailSymbol] = useState("");
 
+  // The hosted Advisor holds one shared watchlist, alert set, and notification
+  // queue. Every call carries the shared secret so that a public URL does not
+  // mean public control of this account's state.
+  // On the first render the token has been read from session storage but not
+  // yet applied to state, so callers running at mount pass it explicitly.
+  function advisorRequest(path: string, init: RequestInit = {}, tokenOverride?: string) {
+    const token = tokenOverride ?? advisorToken;
+    const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
+    if (init.body) headers["Content-Type"] = "application/json";
+    if (token) headers["X-ThetaForge-Advisor-Token"] = token;
+    return fetch(`${apiBase.replace(/\/$/, "")}${path}`, { ...init, headers });
+  }
+
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
     const advisorBase = saved === "http://localhost:8000" || !saved ? DEFAULT_ADVISOR_API : saved;
+    const savedToken = window.sessionStorage.getItem("thetaforge-advisor-token") || "";
     setApiBase(advisorBase);
+    setAdvisorToken(savedToken);
     setBridgeBase(window.localStorage.getItem("thetaforge-bridge-base") || "http://127.0.0.1:8002");
     setBridgeToken(window.sessionStorage.getItem("thetaforge-bridge-token") || "");
     const savedCapital = window.localStorage.getItem("thetaforge-max-options-capital") || "";
     setMaxOptionsCapital(savedCapital);
     void checkAdvisor(advisorBase);
-    if (Number(savedCapital) > 0) void fetchAutomaticOpportunities(Number(savedCapital));
+    // Without a token the scan can only return 401, so wait for the user to
+    // supply one rather than opening with a failure.
+    if (savedToken && Number(savedCapital) > 0) {
+      void fetchAutomaticOpportunities(Number(savedCapital), savedToken);
+    }
   }, []);
 
   useEffect(() => {
-    if (!apiBase) return;
-    const base = apiBase.replace(/\/$/, "");
+    if (!apiBase || !advisorToken) return;
     const poll = async () => {
       try {
-        const res = await fetch(`${base}/api/advisor/notifications?unacknowledged_only=true&limit=20`);
+        const res = await advisorRequest("/api/advisor/notifications?unacknowledged_only=true&limit=20");
         if (res.ok) {
           const data = await res.json() as { notifications: BrainNotification[] };
           setNotifications(
@@ -170,7 +189,7 @@ export default function Home() {
     void poll();
     const interval = setInterval(poll, 30000);
     return () => clearInterval(interval);
-  }, [apiBase]);
+  }, [apiBase, advisorToken]);
 
   useEffect(() => {
     if (bridgeStatus !== "Paper Bridge connected") return;
@@ -180,18 +199,16 @@ export default function Home() {
   }, [bridgeStatus, bridgeBase, bridgeToken, maxOptionsCapital]);
 
   async function acknowledgeAll() {
-    const base = apiBase.replace(/\/$/, "");
     try {
-      await fetch(`${base}/api/advisor/notifications/acknowledge-all`, { method: "POST" });
+      await advisorRequest("/api/advisor/notifications/acknowledge-all", { method: "POST" });
       setNotifications([]);
       setShowNotifications(false);
     } catch { /* ignore */ }
   }
 
   async function acknowledgeOne(id: string) {
-    const base = apiBase.replace(/\/$/, "");
     try {
-      await fetch(`${base}/api/advisor/notifications/${id}/acknowledge`, { method: "POST" });
+      await advisorRequest(`/api/advisor/notifications/${id}/acknowledge`, { method: "POST" });
       setNotifications((prev) => prev.filter((n) => n.id !== id));
     } catch { /* ignore */ }
   }
@@ -290,12 +307,11 @@ export default function Home() {
     event.preventDefault();
     setLoading(true);
     setError("");
-    const base = apiBase.replace(/\/$/, "");
-    window.localStorage.setItem("thetaforge-api-base", base);
+    window.localStorage.setItem("thetaforge-api-base", apiBase.replace(/\/$/, ""));
+    window.sessionStorage.setItem("thetaforge-advisor-token", advisorToken);
     try {
-      const response = await fetch(`${base}/api/advisor/brain/analyze`, {
+      const response = await advisorRequest("/api/advisor/brain/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symbol: symbol.trim().toUpperCase() }),
       });
       if (!response.ok) throw new Error(`Analysis service returned ${response.status}`);
@@ -309,11 +325,10 @@ export default function Home() {
     }
   }
 
-  async function fetchAutomaticOpportunities(capital: number) {
+  async function fetchAutomaticOpportunities(capital: number, tokenOverride?: string) {
     setScanLoading(true);
     setScanError("");
     setStatus("Advisor scanning market");
-    const base = apiBase.replace(/\/$/, "");
     try {
       let bridgeSymbols: string[] = [];
       if (bridgeStatus === "Paper Bridge connected") {
@@ -322,11 +337,10 @@ export default function Home() {
         const scannerResponse = await fetch(`${bridgeBase.replace(/\/$/, "")}/scanner/universe`, { headers });
         if (scannerResponse.ok) bridgeSymbols = (await scannerResponse.json() as { symbols?: string[] }).symbols || [];
       }
-      const response = await fetch(`${base}/api/advisor/opportunities`, {
+      const response = await advisorRequest("/api/advisor/opportunities", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ capital, current_positions: positions, bridge_symbols: bridgeSymbols }),
-      });
+      }, tokenOverride);
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         throw new Error(body.detail || `Opportunity service returned ${response.status}`);
@@ -422,9 +436,8 @@ export default function Home() {
     setStockTrades(null);
     setScanError("");
     try {
-      const response = await fetch(`${apiBase.replace(/\/$/, "")}/api/advisor/recommend`, {
+      const response = await advisorRequest("/api/advisor/recommend", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           capital,
           buying_power: capital,
@@ -524,10 +537,12 @@ export default function Home() {
           <button disabled={loading}>{loading ? "Reading market…" : "Run Brain analysis"}</button>
         </form>
         <details>
-          <summary>Advisor API address</summary>
+          <summary>Advisor API address and token</summary>
           <input className="api" value={apiBase} onChange={(event) => setApiBase(event.target.value)} aria-label="Local Brain address" />
-          <p>Use your Railway service URL here for live analysis. Your IBKR paper-trading Bridge remains local to your trading computer.</p>
+          <input className="api" type="password" value={advisorToken} onChange={(event) => setAdvisorToken(event.target.value)} aria-label="Advisor API token" placeholder="Advisor API token — current session only" />
+          <p>Use your Railway service URL here for live analysis. The token must match <code>ADVISOR_API_TOKEN</code> on that service; it is held for this browser session only. Your IBKR paper-trading Bridge remains local to your trading computer.</p>
         </details>
+        {!advisorToken && <p className="error">Enter your Advisor API token to load market analysis.</p>}
         {error && <p className="error">{error}. Check the Railway Advisor URL, then try again.</p>}
       </section>
 

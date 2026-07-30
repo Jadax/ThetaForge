@@ -1,5 +1,48 @@
 # ThetaForge Changelog
 
+## v0.6.4 — 2026-07-30
+
+- Required a shared `ADVISOR_API_TOKEN` on every hosted Advisor endpoint. CORS
+  restricts browsers only, so the public Railway URL previously allowed any
+  client to trigger full market scans and to mutate the watchlist, alert rules,
+  and notification queue that drive the dashboard. Only the health probe
+  remains public. The dashboard carries the token per browser session.
+- Added rate limits to the endpoints that fan out to public market-data
+  sources, so a scan cannot be triggered faster than the data providers or the
+  Advisor can serve it.
+- Removed the Bridge's `/orders/stage` and `/orders/{id}/submit` endpoints.
+  They placed orders without live-quote verification, defined-risk proof,
+  capital-limit enforcement, or covered/cash-secured checks, and never reached
+  the ledger — so a naked short option was submittable and its risk was
+  invisible to weekly capital reservation. `/orders/submit-combo` applies all
+  of those controls and is now the only order path.
+- Made Bridge and Advisor authentication fail closed. An unset token previously
+  disabled authentication silently instead of refusing to serve. Token
+  comparison is now constant-time.
+- Fixed background scanner discovery, which had silently degraded to the static
+  67-symbol seed list since v0.6.0: the Yahoo screener call was missing an
+  `await`, and the IBKR Bridge calls sent the wrong authentication header name.
+  Both failures were swallowed by bare exception handlers. A local scan now
+  builds ~130 symbols instead of 68.
+- Fixed a connection-pool leak that created and abandoned two HTTP clients on
+  every five-minute scan.
+- Logged background scan failures instead of discarding them.
+- Removed a second, unused scoring engine (`scanner`, `scorer`, `sizer`,
+  `selector`, `validator`, `edge_calculator` and the pipeline dataclasses they
+  consumed). Nothing outside those files imported them; the production path has
+  always been `recommender` + `strategy_scorer` + `roi_calculator`. Two
+  independent engines with divergent thresholds made it impossible to tell
+  which one was authoritative.
+- Removed unreferenced modules: `llm_reasoner`, `notifier`, `order_manager`,
+  `portfolio_optimizer`, `advanced_models`, and `models/pydantic_schemas`.
+- Removed `get_market_breadth`, which returned hardcoded zeros regardless of
+  input, and dropped the `finvizfinance` dependency it existed to justify.
+- Stopped tracking runtime state under `data/`; it is recreated on first use.
+- Corrected the README: removed the LLM circuit breaker, which described a
+  component that is not part of the running system, documented the actual
+  paper-order controls, and marked the queue/database architecture as not
+  deployed.
+
 ## v0.6.3 — 2026-07-29
 
 - Raised background candidate alerts to the same 75-point high-conviction

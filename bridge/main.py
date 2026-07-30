@@ -1,6 +1,7 @@
 """Personal, localhost-only bridge between ThetaForge and IBKR paper trading."""
 import os
 import asyncio
+import hmac
 import json
 import math
 from contextlib import asynccontextmanager
@@ -26,7 +27,6 @@ PAPER_ORDER_LEDGER_FILE = os.path.join(DATA_DIR, "paper_order_ledger.json")
 # asyncio loop after importing this module; an IB instance created too early can
 # retain a Future from that old loop ("attached to a different loop").
 ib: IB | None = None
-staged_orders: dict[str, "PaperOrder"] = {}
 
 
 @asynccontextmanager
@@ -70,16 +70,6 @@ async def allow_private_network_dashboard(request, call_next):
     response = await call_next(request)
     response.headers["Access-Control-Allow-Private-Network"] = "true"
     return response
-
-
-class PaperOrder(BaseModel):
-    symbol: str
-    expiry: str
-    strike: float = Field(gt=0)
-    right: Literal["C", "P"]
-    action: Literal["BUY", "SELL"]
-    quantity: int = Field(gt=0, le=100)
-    limit_price: float = Field(gt=0)
 
 
 class OptionQuoteLeg(BaseModel):
@@ -185,8 +175,19 @@ def _sync_order_ledger() -> list[dict[str, Any]]:
 
 
 async def require_access_token(x_thetaforge_bridge_token: str | None = Header(default=None)) -> None:
-    """Require a token whenever one is configured for remote/private-network use."""
-    if ACCESS_TOKEN and x_thetaforge_bridge_token != ACCESS_TOKEN:
+    """Authenticate a Bridge request.
+
+    This fails closed. An unset token previously disabled authentication
+    silently, which left the order endpoints reachable by anything able to
+    address loopback. The comparison is constant-time so that a token cannot be
+    recovered by measuring response latency.
+    """
+    if not ACCESS_TOKEN:
+        raise HTTPException(
+            status_code=503,
+            detail="BRIDGE_ACCESS_TOKEN is not configured. Set it in .env and restart the Bridge.",
+        )
+    if not hmac.compare_digest(x_thetaforge_bridge_token or "", ACCESS_TOKEN):
         raise HTTPException(status_code=401, detail="Invalid or missing Bridge access token")
 
 
@@ -518,25 +519,8 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
     }
 
 
-@app.post("/orders/stage")
-async def stage_order(order: PaperOrder, _: None = Depends(require_access_token)):
-    order_id = str(uuid4())
-    staged_orders[order_id] = order
-    return {"order_id": order_id, "mode": "paper_only", "order": order, "requires_confirmation": True}
-
-
-@app.post("/orders/{order_id}/submit")
-async def submit_paper_order(order_id: str, confirm_paper_order: bool = False, _: None = Depends(require_access_token)):
-    if not confirm_paper_order:
-        raise HTTPException(status_code=400, detail="Set confirm_paper_order=true to submit this PAPER order")
-    order = staged_orders.pop(order_id, None)
-    if not order:
-        raise HTTPException(status_code=404, detail="Staged order not found")
-    await ensure_connected()
-    assert ib is not None
-    contract = Option(order.symbol.upper(), order.expiry.replace("-", ""), order.strike, order.right, "SMART")
-    qualified = ib.qualifyContracts(contract)
-    if not qualified:
-        raise HTTPException(status_code=422, detail="IBKR could not qualify this option contract")
-    trade = ib.placeOrder(contract, LimitOrder(order.action, order.quantity, order.limit_price))
-    return {"mode": "paper_only", "status": str(trade.orderStatus.status), "order_id": order_id}
+# The former /orders/stage and /orders/{id}/submit pair was removed. It placed
+# orders without live-quote verification, defined-risk proof, capital-limit
+# enforcement, or covered/cash-secured checks, and it never reached the ledger,
+# so its risk was invisible to weekly capital reservation. Every paper order now
+# goes through /orders/submit-combo, which applies all of those controls.

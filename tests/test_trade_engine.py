@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.trade_engine.models import (
     AccountInfo, RiskTolerance, MarketRegime, Direction, GEXRegime,
     StrategyType, OptionContract, StrategyLeg,
-    SymbolData, MarketConditions, CurrentPosition, StrategyScore,
 )
 from agents.trade_engine.roi_calculator import ROICalculator
 from agents.trade_engine.analytics import OptionsAnalytics
@@ -462,35 +461,8 @@ def test_credit_spreads_use_executable_bid_ask_not_stale_last_trade():
 
 
 # ============================================================
-# Pipeline Model Tests
+# Model Tests
 # ============================================================
-
-def test_symbol_data_defaults():
-    data = SymbolData()
-    assert data.symbol == ""
-    assert data.price == 0.0
-    assert data.trend == "NEUTRAL"
-    assert data.iv_rank == 50.0
-
-
-def test_strategy_score_defaults():
-    score = StrategyScore()
-    assert score.composite_score == 0.0
-    assert score.direction == Direction.NEUTRAL
-
-
-def test_current_position_defaults():
-    pos = CurrentPosition()
-    assert pos.symbol == ""
-    assert pos.quantity == 0
-    assert pos.delta == 0.0
-
-
-def test_market_conditions_defaults():
-    mc = MarketConditions()
-    assert mc.vix == 20.0
-    assert mc.trend == "neutral"
-
 
 def test_enum_values():
     assert StrategyType.IRON_CONDOR.value == "iron_condor"

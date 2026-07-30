@@ -3,12 +3,18 @@ Advisor API Routes.
 The main API that takes account info and returns specific trade recommendations.
 Wired to the AI Brain for unified signal analysis.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import asyncio
 import math
 import statistics
+
+from orchestrator.security import (
+    analysis_rate_limit,
+    require_advisor_token,
+    scan_rate_limit,
+)
 
 from agents.trade_engine.recommender import TradeRecommender
 from agents.trade_engine.ai_brain import AIBrain, TimeHorizon
@@ -23,7 +29,13 @@ from agents.trade_engine.alerts import AlertEngine, AlertPriority, AlertType
 from agents.trade_engine.signal_tracker import SignalTracker
 from agents.trade_engine.background_scanner import get_background_scanner, LIQUID_OPTIONS_UNIVERSE
 
-router = APIRouter(prefix="/api/advisor", tags=["advisor"])
+# Every Advisor route reads or mutates one shared, single-user state set, so
+# authentication is applied at the router rather than per endpoint.
+router = APIRouter(
+    prefix="/api/advisor",
+    tags=["advisor"],
+    dependencies=[Depends(require_advisor_token)],
+)
 
 provider = FreeDataProvider()
 recommender = TradeRecommender()
@@ -217,7 +229,7 @@ class SignalOutcomeRequest(BaseModel):
 
 # === AI Brain Endpoints ===
 
-@router.post("/brain/analyze")
+@router.post("/brain/analyze", dependencies=[Depends(analysis_rate_limit)])
 async def brain_analyze(request: BrainAnalysisRequest):
     """
     AI Brain analysis for a single symbol.
@@ -330,7 +342,7 @@ async def record_signal_outcome(request: SignalOutcomeRequest):
     return {"symbol": request.symbol.upper(), "outcomes_recorded": updated}
 
 
-@router.post("/brain/analyze-watchlist")
+@router.post("/brain/analyze-watchlist", dependencies=[Depends(scan_rate_limit)])
 async def brain_analyze_watchlist(request: AdvisoryRequest):
     """
     AI Brain analysis for the full watchlist.
@@ -413,7 +425,7 @@ async def _screen_liquid_universe(symbols: List[str]) -> List[Dict[str, Any]]:
     return ranked
 
 
-@router.post("/opportunities")
+@router.post("/opportunities", dependencies=[Depends(scan_rate_limit)])
 async def automatic_opportunities(request: OpportunityScanRequest):
     """Find the best current paper-trade candidates without user-picked symbols."""
     active_symbols = await provider.get_active_stock_universe(limit=180)
@@ -508,15 +520,13 @@ class DashboardRequest(BaseModel):
     current_positions: List[Dict[str, Any]] = Field(default_factory=list)
 
 
-@router.post("/dashboard")
+@router.post("/dashboard", dependencies=[Depends(scan_rate_limit)])
 async def get_dashboard(request: DashboardRequest):
     """
     One-call full portfolio dashboard.
     Returns: VIX, regime, watchlist rankings, top opportunities,
     portfolio risk summary, and time-horizon breakdowns.
     """
-    import math
-
     # Load watchlist
     items = watchlist_store.list_symbols()
     symbols = [item.symbol for item in items]
@@ -588,7 +598,7 @@ async def get_dashboard(request: DashboardRequest):
 
 # === Legacy Endpoints ===
 
-@router.post("/recommend")
+@router.post("/recommend", dependencies=[Depends(scan_rate_limit)])
 async def get_recommendations(request: AdvisoryRequest):
     """
     MAIN ENDPOINT: Capital In -> Specific Trade Recommendations Out.
@@ -700,7 +710,7 @@ async def get_recommendations(request: AdvisoryRequest):
     }
 
 
-@router.post("/compare")
+@router.post("/compare", dependencies=[Depends(scan_rate_limit)])
 async def compare_opportunities(request: AdvisoryRequest):
     """Compare ROI across all available options chains."""
     from agents.trade_engine.roi_calculator import ROICalculator
@@ -830,7 +840,7 @@ async def scanner_status():
     return await scanner.get_status()
 
 
-@router.post("/scanner/trigger")
+@router.post("/scanner/trigger", dependencies=[Depends(scan_rate_limit)])
 async def trigger_scan():
     """Manually trigger an immediate background Brain scan."""
     scanner = await get_background_scanner()

@@ -7,10 +7,11 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from orchestrator.routes import health, strategies, positions, toggle_live, scanner, advisor
+from orchestrator.security import require_advisor_token
 from agents.trade_engine.background_scanner import get_background_scanner
 
 logging.basicConfig(level=logging.INFO)
@@ -42,7 +43,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="ThetaForge Orchestrator",
     description="Multi-agent AI-augmented options trading intelligence system.",
-    version="0.6.3",
+    version="0.6.4",
     lifespan=lifespan
 )
 
@@ -61,12 +62,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# Include routers. Only the health probe is public; it carries no account,
+# market, or configuration data and the platform healthcheck depends on it.
+# The advisor router applies the same dependency itself, alongside its own
+# per-endpoint rate limits.
+authenticated = [Depends(require_advisor_token)]
 app.include_router(health.router, prefix="/health", tags=["health"])
-app.include_router(strategies.router, prefix="/strategies", tags=["strategies"])
-app.include_router(positions.router, prefix="/positions", tags=["positions"])
-app.include_router(toggle_live.router, prefix="/admin", tags=["admin"])
-app.include_router(scanner.router, prefix="/api", tags=["scanner"])
+app.include_router(strategies.router, prefix="/strategies", tags=["strategies"], dependencies=authenticated)
+app.include_router(positions.router, prefix="/positions", tags=["positions"], dependencies=authenticated)
+app.include_router(toggle_live.router, prefix="/admin", tags=["admin"], dependencies=authenticated)
+app.include_router(scanner.router, prefix="/api", tags=["scanner"], dependencies=authenticated)
 app.include_router(advisor.router, tags=["advisor"])
 
 @app.get("/")

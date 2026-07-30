@@ -40,8 +40,11 @@
 1. Install Python 3.12 and Node.js 22 or newer.
 2. Install Python dependencies with `pip install -r requirements.txt`.
 3. Run `npm install` inside `dashboard`.
-4. Copy `.env.example` to `.env`, set a long random Bridge token, and keep the
-   Bridge locked to the paper port.
+4. Copy `.env.example` to `.env`, set a long random `BRIDGE_ACCESS_TOKEN` and a
+   long random `ADVISOR_API_TOKEN`, and keep the Bridge locked to the paper
+   port. Both tokens are required: the Bridge and the Advisor refuse requests
+   without them. Set `ADVISOR_API_TOKEN` on the hosted Advisor too, then enter
+   the same value in the dashboard's Advisor panel.
 5. Start and sign in to IBKR Paper TWS or IB Gateway.
 6. Double-click `Start-ThetaForge.cmd`.
 
@@ -137,7 +140,6 @@ and execution tests.
 |----------------|-----------|--------|
 | Daily Loss | -15% | Halt all trading |
 | Max Drawdown | -50% | Permanent halt |
-| LLM Failures | 3 consecutive | Shutdown LLM path |
 | Net Delta | >20% | Reject new positions |
 | Net Vega | >5% | Reject new positions |
 | Position Risk | >2% per trade | Reject trade |
@@ -161,6 +163,12 @@ The personal Bridge is intentionally paper-only and accepts only IBKR paper
 ports `4002` or `7497` plus a `DU` paper account. Live-account execution is not
 enabled by the dashboard or the Bridge.
 
+Every paper order goes through a single endpoint that requires live executable
+IBKR bid/ask data, proves the structure is defined-risk, checks the order
+against the weekly capital reservation in the ledger, and verifies available
+funds for cash-secured puts and share ownership for covered calls. Structures
+it cannot prove defined-risk — including naked short options — are rejected.
+
 ## Project Structure
 
 ```
@@ -170,26 +178,31 @@ thetaforge/
 ├── requirements.txt
 ├── .env.example
 ├── architecture_diagram.mermaid
-├── orchestrator/              # FastAPI + Celery
+├── orchestrator/              # FastAPI app, routes, access control
+├── bridge/                    # Local paper-only IBKR order Bridge
+├── dashboard/                 # Next.js dashboard
 ├── agents/
+│   ├── trade_engine/          # Production path: Brain, recommender, scanner
 │   ├── data_ingestion/        # IBKR, yfinance, Alpaca
-│   ├── scanner/               # Go concurrent scanner
-│   ├── volatility/            # IV Rank/Percentile, GEX, Greeks
+│   ├── volatility/            # IV Rank/Percentile, Greeks, term structure
 │   ├── flow_analysis/         # Unusual activity, dark pool, GEX engine
 │   ├── technical/             # RSI, MACD, Bollinger, trend
-│   ├── strategies/            # 13 strategy implementations
+│   ├── strategies/            # 13 strategy modules (research)
 │   ├── sentiment/             # Reddit sentiment (8 subreddits)
-│   ├── llm_reasoning/         # LLM + circuit breaker
 │   ├── risk_management/       # Kelly + portfolio limits
-│   ├── execution/             # Order management
-│   ├── performance/           # Kinfo-style PnL tracking
+│   ├── performance/           # PnL tracking
 │   ├── backtest/              # Backtesting framework
-│   └── alerts/                # Discord/Telegram/Slack
-├── models/                    # Pydantic schemas
+│   ├── scanner/               # Go concurrent scanner (not deployed)
+│   └── execution/             # Celery task stubs (not deployed)
 ├── tests/                     # Unit tests
 ├── deployment/                # Panic button, setup scripts
 └── docs/                      # API docs, strategy guide
 ```
+
+`docker-compose.yml`, `orchestrator/celery_app.py`, the `tasks.py` modules, and
+the Go scanner describe a queue-and-database architecture that is not part of
+the running system. The deployed Advisor is a single FastAPI process using
+JSON files in `data/` for state.
 
 ## Testing
 

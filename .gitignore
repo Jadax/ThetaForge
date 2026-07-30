@@ -35,7 +35,9 @@ celerybeat.pid
 logs/
 .next/
 *.tsbuildinfo
-data/paper_order_ledger.json
+# Runtime state. These are per-installation, are rewritten continuously, and
+# are recreated on first use; committing them makes deploys fight the app.
+data/*.json
 .validation-dashboard-*/
 
 # Redis

@@ -20,7 +20,6 @@ alpaca-py>=0.21.0
 
 # Free Data Sources
 yfinance>=0.2.31
-finvizfinance>=1.0.4
 praw>=7.7.0
 
 # Data & Analytics

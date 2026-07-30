@@ -7,14 +7,19 @@ persistent notifications that the dashboard can surface.
 Data flows: IBKR bridge (live) -> FreeDataProvider (yfinance fallback).
 """
 import json
+import logging
 import os
 import asyncio
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 
+import httpx
+
 from agents.data_ingestion.free_data import FreeDataProvider
 
+logger = logging.getLogger(__name__)
 
+BRIDGE_URL = os.getenv("BRIDGE_URL", "http://127.0.0.1:8002")
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 SCAN_RESULTS_FILE = os.path.join(DATA_DIR, "brain_scan_results.json")
 SCAN_NOTIFICATIONS_FILE = os.path.join(DATA_DIR, "brain_notifications.json")
@@ -65,50 +70,50 @@ async def build_scan_universe(max_symbols: int = 300) -> List[str]:
     for sym in LIQUID_OPTIONS_UNIVERSE:
         _add(sym)
 
-    # IBKR bridge — current positions
-    try:
-        import httpx
-        token = os.getenv("BRIDGE_ACCESS_TOKEN", "")
-        headers = {"X-Access-Token": token} if token else {}
-        resp = await asyncio.wait_for(
-            httpx.AsyncClient().get(
-                "http://127.0.0.1:8002/positions", headers=headers, timeout=5
-            ),
-            timeout=8,
-        )
-        if resp.status_code == 200:
-            for pos in resp.json():
-                _add(pos.get("symbol", ""))
-    except Exception:
-        pass
-
-    # IBKR bridge — TWS scanner (live market discovery)
-    try:
-        import httpx
-        token = os.getenv("BRIDGE_ACCESS_TOKEN", "")
-        headers = {"X-Access-Token": token} if token else {}
-        resp = await asyncio.wait_for(
-            httpx.AsyncClient().get(
-                "http://127.0.0.1:8002/scanner/universe", headers=headers, timeout=8
-            ),
-            timeout=10,
-        )
-        if resp.status_code == 200:
-            for sym in resp.json().get("symbols", []):
-                _add(sym)
-    except Exception:
-        pass
+    # IBKR bridge — current positions and live TWS market discovery. A hosted
+    # deployment cannot reach a Bridge on a personal machine, so both calls are
+    # expected to fail there; the failure is logged, never raised.
+    bridge_symbols = await _bridge_discoveries()
+    for sym in bridge_symbols:
+        _add(sym)
 
     # Yahoo Finance screeners (fallback discovery)
     try:
-        prov = FreeDataProvider()
-        active = prov.get_active_stock_universe(limit=80) or []
-        for sym in active:
+        active = await FreeDataProvider().get_active_stock_universe(limit=80)
+        for sym in active or []:
             _add(sym)
-    except Exception:
-        pass
+    except Exception as error:
+        logger.warning("Yahoo screener discovery failed: %s", error)
 
     return universe[:max_symbols]
+
+
+async def _bridge_discoveries() -> List[str]:
+    """Collect position and TWS-scanner symbols from the local paper Bridge."""
+    token = os.getenv("BRIDGE_ACCESS_TOKEN", "")
+    # The Bridge authenticates on X-ThetaForge-Bridge-Token. Sending any other
+    # header name silently returns 401 and yields no discoveries.
+    headers = {"X-ThetaForge-Bridge-Token": token} if token else {}
+    symbols: List[str] = []
+    try:
+        # One client for both calls, closed on exit. Creating a client per
+        # request leaked a connection pool on every five-minute scan.
+        async with httpx.AsyncClient(base_url=BRIDGE_URL, headers=headers) as client:
+            try:
+                response = await client.get("/positions", timeout=5)
+                if response.status_code == 200:
+                    symbols.extend(str(item.get("symbol", "")) for item in response.json())
+            except Exception as error:
+                logger.debug("Bridge positions unavailable: %s", error)
+            try:
+                response = await client.get("/scanner/universe", timeout=8)
+                if response.status_code == 200:
+                    symbols.extend(str(sym) for sym in response.json().get("symbols", []))
+            except Exception as error:
+                logger.debug("Bridge TWS scanner unavailable: %s", error)
+    except Exception as error:
+        logger.debug("Bridge is not reachable: %s", error)
+    return symbols
 
 
 # ── Scanner ─────────────────────────────────────────────────────────────
@@ -322,7 +327,10 @@ class BackgroundBrainScanner:
             try:
                 await self.scan_once()
             except Exception:
-                pass
+                # A failed pass must not kill the loop, but it must be visible:
+                # silent failures here previously hid broken discovery for
+                # several releases.
+                logger.exception("Background scan pass failed")
             try:
                 await asyncio.wait_for(self._stop_event.wait(), timeout=self.interval)
                 break

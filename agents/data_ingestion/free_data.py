@@ -134,15 +134,6 @@ class FreeDataProvider:
             logger.warning(f"CBOE put/call ratio fetch failed: {e}")
         return None
 
-    async def get_market_breadth(self) -> Dict[str, Any]:
-        """Get market advance/decline data from finviz (free)."""
-        try:
-            from finvizfinance.screener.overview import finvizfinance_overview
-            # Simplified breadth check
-            return {"advancers": 0, "decliners": 0, "unchanged": 0}
-        except Exception:
-            return {"advancers": 0, "decliners": 0, "unchanged": 0}
-
     async def get_active_stock_universe(self, limit: int = 80) -> List[str]:
         """Discover actively traded US equities from free Yahoo screeners.
 
