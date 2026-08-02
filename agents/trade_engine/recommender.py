@@ -27,6 +27,8 @@ from agents.trade_engine.models import (
 from agents.trade_engine.roi_calculator import ROICalculator
 from agents.trade_engine.analytics import OptionsAnalytics
 from agents.trade_engine.strategy_scorer import StrategyScorer
+from agents.risk_management.kelly_calculator import calculate_kelly
+from agents.risk_management.portfolio_limits import RiskManager
 
 
 # Risk parameters (non-negotiable)
@@ -45,6 +47,18 @@ MIN_EDGE_SCORE = 60.0
 MIN_PROBABILITY_OF_PROFIT = 55.0
 MIN_LIQUIDITY_VOLUME = 10
 MIN_LIQUIDITY_OI = 100
+# TastyTrade / ORATS professional volatility gates. These mirror the
+# market-maker playbook: only sell premium when it is expensive (elevated IV
+# Rank, IV above realized volatility) and the market is not in a crash regime
+# (VIX spike). Only buy premium when it is cheap. The Brain's strategy
+# selection uses stricter per-strategy IVR bands; these gates apply uniformly
+# to every scored candidate so no structure slips through on rank alone.
+MIN_IV_RANK_SELL = 30
+MIN_IV_RANK_BUY = 25
+MAX_VIX_SELL = 35
+# An iron condor collecting less than a third of its wing width is a
+# lottery-ticket structure with a huge max-loss tail — not a core book trade.
+MIN_IRON_CONDOR_CREDIT_TO_WIDTH = 0.33
 
 
 class TradeRecommender:
@@ -57,6 +71,7 @@ class TradeRecommender:
         self.roi_calc = ROICalculator()
         self.analytics = OptionsAnalytics()
         self.scorer = StrategyScorer()
+        self.risk_manager = RiskManager()
 
     def generate_recommendations(
         self,
@@ -327,14 +342,48 @@ class TradeRecommender:
             return None
         return short_bid - long_ask
 
-    @staticmethod
-    def _passes_quality_gate(score: Dict[str, Any], roi: Dict[str, Any]) -> bool:
+    @classmethod
+    def _passes_quality_gate(
+        cls,
+        score: Dict[str, Any],
+        roi: Dict[str, Any],
+        strategy: Optional[str] = None,
+        nvrp: Optional[Dict[str, Any]] = None,
+    ) -> bool:
         """Reject mediocre candidates even when they rank highest in a scan."""
-        return (
+        if not (
             score.get("composite_score", 0) >= MIN_COMPOSITE_SCORE
             and score.get("edge_score", 0) >= MIN_EDGE_SCORE
             and roi.get("probability_of_profit", 0) >= MIN_PROBABILITY_OF_PROFIT
-        )
+        ):
+            return False
+        return cls._passes_volatility_gate(strategy, nvrp or {})
+
+    @staticmethod
+    def _passes_volatility_gate(
+        strategy: Optional[str], nvrp: Dict[str, Any]
+    ) -> bool:
+        """TastyTrade-style volatility regime gates for a scored strategy.
+
+        Selling premium is only authorized when IV Rank is elevated, VIX is not
+        spiking, and IV exceeds realized volatility (positive NVRP). Buying
+        premium is only authorized when IV Rank is depressed. Missing
+        volatility context defaults are permissive so the gate never invents a
+        rejection, but the professional thresholds still apply to real data.
+        """
+        if strategy in ("csp", "cc", "bull_put", "bear_call", "iron_condor"):
+            if float(nvrp.get("vix", 0) or 0) > MAX_VIX_SELL:
+                return False
+            if float(nvrp.get("iv_rank", 30) or 0) < MIN_IV_RANK_SELL:
+                return False
+            iv = nvrp.get("iv")
+            hv_20 = nvrp.get("hv_20")
+            if iv is not None and hv_20 is not None and float(iv) <= float(hv_20):
+                return False
+        elif strategy in ("call_debit", "put_debit"):
+            if float(nvrp.get("iv_rank", 30) or 0) > MIN_IV_RANK_BUY:
+                return False
+        return True
 
     def _score_csp(
         self, symbol, stock_price, put, dte, regime, tech, flow, nvrp, risk, max_cap
@@ -367,7 +416,7 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.CASH_SECURED_PUT, market_ctx, opt_ctx, tech, flow)
 
-        if not self._passes_quality_gate(score, roi):
+        if not self._passes_quality_gate(score, roi, "csp", nvrp):
             return None
 
         return {
@@ -413,7 +462,7 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.COVERED_CALL, market_ctx, opt_ctx, tech, flow)
 
-        if not self._passes_quality_gate(score, roi):
+        if not self._passes_quality_gate(score, roi, "cc", nvrp):
             return None
 
         return {
@@ -447,6 +496,10 @@ class TradeRecommender:
         if credit is None or credit <= 0:
             return None
 
+        # The short leg is the executed side — it must be liquid.
+        if short_put.get("volume", 0) < MIN_LIQUIDITY_VOLUME and short_put.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+            return None
+
         width = short_strike - long_strike
         capital_needed = (width - credit) * 100
 
@@ -464,7 +517,7 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.BULL_PUT_CREDIT, market_ctx, opt_ctx, tech, flow)
 
-        if not self._passes_quality_gate(score, roi):
+        if not self._passes_quality_gate(score, roi, "bull_put", nvrp):
             return None
 
         return {
@@ -499,6 +552,10 @@ class TradeRecommender:
         if credit is None or credit <= 0:
             return None
 
+        # The short leg is the executed side — it must be liquid.
+        if short_call.get("volume", 0) < MIN_LIQUIDITY_VOLUME and short_call.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+            return None
+
         width = long_strike - short_strike
         capital_needed = (width - credit) * 100
 
@@ -516,7 +573,7 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.BEAR_CALL_CREDIT, market_ctx, opt_ctx, tech, flow)
 
-        if not self._passes_quality_gate(score, roi):
+        if not self._passes_quality_gate(score, roi, "bear_call", nvrp):
             return None
 
         return {
@@ -570,6 +627,12 @@ class TradeRecommender:
         if not all([put_short, put_long, call_short, call_long]):
             return None
 
+        # Both executed short wings must be liquid.
+        if put_short.get("volume", 0) < MIN_LIQUIDITY_VOLUME and put_short.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+            return None
+        if call_short.get("volume", 0) < MIN_LIQUIDITY_VOLUME and call_short.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+            return None
+
         # Calculate credit
         put_credit = self._executable_credit(put_short, put_long)
         call_credit = self._executable_credit(call_short, call_long)
@@ -583,6 +646,12 @@ class TradeRecommender:
         put_width = put_short.get("strike", 0) - put_long.get("strike", 0)
         call_width = call_long.get("strike", 0) - call_short.get("strike", 0)
         wing_width = max(put_width, call_width)
+
+        # Thin-credit condors are low-probability lottery tickets: the credit
+        # must represent a real share of the defined risk.
+        if wing_width <= 0 or total_credit / wing_width < MIN_IRON_CONDOR_CREDIT_TO_WIDTH:
+            return None
+
         max_loss = (wing_width - total_credit) * 100
         capital_needed = max_loss
 
@@ -604,7 +673,7 @@ class TradeRecommender:
         }
         score = self.scorer.score_strategy(StrategyType.IRON_CONDOR, market_ctx, opt_ctx, tech, flow)
 
-        if not self._passes_quality_gate(score, roi):
+        if not self._passes_quality_gate(score, roi, "iron_condor", nvrp):
             return None
 
         return {
@@ -640,6 +709,10 @@ class TradeRecommender:
         if long_strike >= short_strike or long_strike < stock_price * 0.97:
             return None
 
+        # The short leg is the executed side — it must be liquid.
+        if short_call.get("volume", 0) < MIN_LIQUIDITY_VOLUME and short_call.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+            return None
+
         long_prem = long_call.get("ask", 0)
         short_prem = short_call.get("bid", 0)
         debit = long_prem - short_prem
@@ -669,7 +742,7 @@ class TradeRecommender:
             "max_profit": max_profit, "max_loss": capital_needed,
             "probability_of_profit": self.roi_calc._approx_pop_otm(stock_price, long_strike, dte, "call", nvrp.get("iv", 0.20)),
         }
-        if not self._passes_quality_gate(score, roi):
+        if not self._passes_quality_gate(score, roi, "call_debit", nvrp):
             return None
 
         return {
@@ -702,6 +775,10 @@ class TradeRecommender:
         if long_strike <= short_strike or long_strike > stock_price * 1.03:
             return None
 
+        # The short leg is the executed side — it must be liquid.
+        if short_put.get("volume", 0) < MIN_LIQUIDITY_VOLUME and short_put.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+            return None
+
         long_prem = long_put.get("ask", 0)
         short_prem = short_put.get("bid", 0)
         debit = long_prem - short_prem
@@ -731,7 +808,7 @@ class TradeRecommender:
             "max_profit": max_profit, "max_loss": capital_needed,
             "probability_of_profit": self.roi_calc._approx_pop_otm(stock_price, long_strike, dte, "put", nvrp.get("iv", 0.20)),
         }
-        if not self._passes_quality_gate(score, roi):
+        if not self._passes_quality_gate(score, roi, "put_debit", nvrp):
             return None
 
         return {
@@ -771,7 +848,12 @@ class TradeRecommender:
     def _calculate_risk_per_trade(self, account: AccountInfo) -> float:
         """Calculate max risk per trade based on tolerance."""
         max_risk_pct = MAX_RISK_PCT.get(account.risk_tolerance, 0.02)
-        return account.total_equity * max_risk_pct
+        # RiskManager enforces its own hard ceiling (2% of equity by default)
+        # regardless of the tolerance profile.
+        return min(
+            account.total_equity * max_risk_pct,
+            account.total_equity * self.risk_manager.max_position_risk_pct / 100,
+        )
 
     def _analyze_portfolio_greeks(self, positions: List[Dict]) -> Dict[str, float]:
         """Analyze current portfolio Greeks."""
@@ -822,12 +904,33 @@ class TradeRecommender:
             if capital_needed > remaining_capital:
                 continue
 
-            if capital_needed > risk_per_trade:
+            # The risk budget binds the maximum amount this position can LOSE,
+            # not its capital outlay (which is reserved by buying power above).
+            max_loss = (
+                cand.get("max_loss")
+                or cand.get("roi", {}).get("max_loss")
+                or capital_needed
+            )
+            if max_loss > risk_per_trade:
                 continue
 
-            # Check Greeks limits
-            est_delta = cand.get("delta_impact", 0)
-            est_vega = cand.get("vega_impact", 0)
+            # Check Greeks limits. Position delta/vega come from the short
+            # leg(s) when the provider supplied them; a candidate that carries
+            # explicit impacts (e.g. from a caller) keeps those values.
+            est_delta = cand.get("delta_impact")
+            est_vega = cand.get("vega_impact")
+            if est_delta is None:
+                est_delta = sum(
+                    -float(leg.get("delta", 0) or 0) * 100
+                    for leg in cand.get("legs", [])
+                    if leg.get("action") == "SELL"
+                )
+            if est_vega is None:
+                est_vega = sum(
+                    -float(leg.get("vega", 0) or 0) * 100
+                    for leg in cand.get("legs", [])
+                    if leg.get("action") == "SELL"
+                )
             if abs(current_delta + est_delta) > MAX_PORTFOLIO_DELTA:
                 continue
             if abs(current_vega + est_vega) > MAX_PORTFOLIO_VEGA:
@@ -836,7 +939,7 @@ class TradeRecommender:
             selected.append(cand)
             selected_symbols.add(cand.get("symbol", "").upper())
             remaining_capital -= capital_needed
-            remaining_risk -= capital_needed
+            remaining_risk -= max_loss
             current_delta += est_delta
             current_vega += est_vega
 
@@ -915,7 +1018,7 @@ class TradeRecommender:
             risk_reward_ratio=roi_data.get("return_on_risk_pct", 0),
             probability_of_profit=roi_data.get("probability_of_profit", 0),
             expected_value=(max_profit * roi_data.get("probability_of_profit", 50) / 100) - (max_loss * (100 - roi_data.get("probability_of_profit", 50)) / 100),
-            kelly_fraction=score_data.get("adjusted_win_rate", 0.5),
+            kelly_fraction=self._calculate_kelly(candidate, roi_data),
             capital_required=capital_required,
             capital_at_risk=max_loss,
             return_on_capital_pct=roi_data.get("premium_yield_pct", 0),
@@ -932,6 +1035,27 @@ class TradeRecommender:
             data_sources=["IBKR", "yfinance", "CBOE"],
             layers_passed=candidate.get("layers_passed", ["scoring", "selection"]),
         )
+
+    @staticmethod
+    def _calculate_kelly(candidate: Dict, roi_data: Dict) -> float:
+        """True half-Kelly fraction from POP and the win/loss payoff ratio.
+
+        f = (p*b - q) / b, halved for conservatism, clamped to [0, 0.5].
+        A structure whose max loss dwarfs its max profit legitimately sizes to
+        zero — the win rate alone was never a valid position-size input.
+        """
+        prob_win = float(roi_data.get("probability_of_profit", 0) or 0) / 100.0
+        max_profit = roi_data.get("max_profit")
+        if max_profit is None:
+            max_profit = (candidate.get("credit") or candidate.get("premium") or 0) * 100
+        max_loss = float(roi_data.get("max_loss", 0) or 0)
+        if max_loss <= 0:
+            max_loss = max(float(candidate.get("capital_required", 0) or 0), 1e-6)
+        win_loss_ratio = float(max_profit or 0) / max_loss
+        try:
+            return round(max(0.0, min(calculate_kelly(prob_win, win_loss_ratio), 0.5)), 4)
+        except (ValueError, ZeroDivisionError):
+            return 0.0
 
     def _generate_entry_rules(self, strategy_type: StrategyType, candidate: Dict) -> Dict:
         """Generate specific entry rules for the trade."""

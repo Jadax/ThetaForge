@@ -1,5 +1,33 @@
 # ThetaForge Changelog
 
+## v0.6.5 — 2026-08-03
+
+- Applied the professional (TastyTrade/ORATS) volatility playbook to the trade
+  recommender so only high-probability structures can reach the dashboard:
+  - Selling premium (CSP, covered call, bull put, bear call, iron condor) now
+    requires IV Rank >= 30, a VIX below 35 (no crash-regime selling), and IV
+    above realized volatility (positive NVRP).
+  - Buying premium (call/put debit spreads) is now only authorized when IV
+    Rank <= 25.
+  - The same gates run inside the existing score/POP/edge quality floor, so a
+    top-ranked candidate can no longer slip through on rank alone.
+- Spreads now require a liquid short (executed) leg, matching the singles
+  gate. Iron condors additionally must collect at least 1/3 of the wing width
+  in credit, rejecting lottery-ticket thin-credit structures.
+- Fixed `kelly_fraction`: it carried the strategy's win rate, never a Kelly
+  number. It is now true half-Kelly from POP and the max-profit/max-loss
+  payoff ratio, clamped to [0, 0.5].
+- Fixed the dead portfolio-Greeks gate in candidate selection: `delta_impact`
+  and `vega_impact` were always zero, so the delta/vega limits never filtered
+  anything. They are now computed from the short leg(s) when the provider
+  supplies Greeks (a 0.16–0.20 delta short is the comfortable band).
+- The per-trade risk budget now binds the position's max loss instead of its
+  capital outlay (buying power still reserves the outlay separately).
+- Wired `RiskManager` into sizing: its 2% of equity ceiling caps the per-trade
+  risk regardless of the account's risk-tolerance profile.
+- Background scanner notifications now carry IV Rank and the IV/HV ratio and
+  signal, and the dashboard alert cards display them.
+
 ## v0.6.4 — 2026-07-30
 
 - Required a shared `ADVISOR_API_TOKEN` on every hosted Advisor endpoint. CORS

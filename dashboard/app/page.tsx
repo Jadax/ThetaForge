@@ -65,6 +65,9 @@ type BrainNotification = {
   regime: string;
   best_strategy: string;
   strategy_reasoning: string;
+  iv_rank?: number | null;
+  iv_hv_ratio?: number | null;
+  iv_hv_signal?: string | null;
   top_signal: string;
   timestamp: string;
   acknowledged: boolean;
@@ -107,7 +110,7 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v0.6.4";
+const VERSION = "v0.6.5";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -516,7 +519,7 @@ export default function Home() {
           <div className={`bridge ${status.includes("connected") ? "online" : ""}`}><i /> {status}</div>
         </div>
       </nav>
-      {showNotifications && <section className="notif-panel"><div className="notif-header"><div><h3>High-conviction alerts</h3><p>Click an alert to run the final contract and execution checks.</p></div>{notifications.length > 0 && <button onClick={acknowledgeAll}>Acknowledge all</button>}</div>{notifications.length === 0 ? <p className="notif-empty">No new trade opportunities.</p> : notifications.map((n) => <div className="notif-card" key={n.id} role="button" tabIndex={0} onClick={() => openNotification(n)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") void openNotification(n); }}><div className="notif-symbol">{n.symbol}</div><div className="notif-score" data-direction={n.score >= 0 ? "bull" : "bear"}>{n.score >= 0 ? "+" : ""}{n.score.toFixed(0)}</div><div className="notif-body"><b>{signalLabel(n.signal)}</b> · {signalLabel(n.regime)} · {signalLabel(n.best_strategy)}<p>{n.strategy_reasoning}</p></div><button className="notif-open" type="button" onClick={(event) => { event.stopPropagation(); void openNotification(n); }}>Review</button><button className="notif-ack" aria-label={`Acknowledge ${n.symbol} alert`} onClick={(event) => { event.stopPropagation(); void acknowledgeOne(n.id); }}>✓</button></div>)}</section>}
+      {showNotifications && <section className="notif-panel"><div className="notif-header"><div><h3>High-conviction alerts</h3><p>Click an alert to run the final contract and execution checks.</p></div>{notifications.length > 0 && <button onClick={acknowledgeAll}>Acknowledge all</button>}</div>{notifications.length === 0 ? <p className="notif-empty">No new trade opportunities.</p> : notifications.map((n) => <div className="notif-card" key={n.id} role="button" tabIndex={0} onClick={() => openNotification(n)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") void openNotification(n); }}><div className="notif-symbol">{n.symbol}</div><div className="notif-score" data-direction={n.score >= 0 ? "bull" : "bear"}>{n.score >= 0 ? "+" : ""}{n.score.toFixed(0)}</div><div className="notif-body"><b>{signalLabel(n.signal)}</b> · {signalLabel(n.regime)} · {signalLabel(n.best_strategy)}<p>{n.strategy_reasoning}</p>{n.iv_rank != null && <p>IVR {Math.round(n.iv_rank)} · {n.iv_hv_signal ? signalLabel(n.iv_hv_signal) : "no vol data"}</p>}</div><button className="notif-open" type="button" onClick={(event) => { event.stopPropagation(); void openNotification(n); }}>Review</button><button className="notif-ack" aria-label={`Acknowledge ${n.symbol} alert`} onClick={(event) => { event.stopPropagation(); void acknowledgeOne(n.id); }}>✓</button></div>)}</section>}
       {alertDetailOpen && <div className="trade-modal-backdrop" role="presentation" onClick={() => setAlertDetailOpen(false)}><section className="trade-modal" role="dialog" aria-modal="true" aria-labelledby="alert-trade-title" onClick={(event) => event.stopPropagation()}>
         <div className="trade-modal-head"><div><p className="eyebrow">FINAL ADVISOR VALIDATION</p><h2 id="alert-trade-title">{alertDetailSymbol} trade structures</h2></div><button type="button" aria-label="Close trade details" onClick={() => setAlertDetailOpen(false)}>×</button></div>
         {stockLoading ? <p className="modal-message">Running the full option-chain, quality-gate, portfolio, and IBKR quote checks…</p> : stockTrades?.recommendations.length ? <div className="modal-trades">{stockTrades.recommendations.slice(0, 3).map((trade) => <article key={`modal-${trade.id}`}>

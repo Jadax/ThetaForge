@@ -16,7 +16,10 @@ from agents.trade_engine.models import (
 from agents.trade_engine.roi_calculator import ROICalculator
 from agents.trade_engine.analytics import OptionsAnalytics
 from agents.trade_engine.strategy_scorer import StrategyScorer
-from agents.trade_engine.recommender import TradeRecommender, MIN_COMPOSITE_SCORE
+from agents.trade_engine.recommender import (
+    TradeRecommender, MIN_COMPOSITE_SCORE, MIN_IV_RANK_SELL,
+    MIN_IV_RANK_BUY, MAX_VIX_SELL, MIN_IRON_CONDOR_CREDIT_TO_WIDTH,
+)
 from agents.flow_analysis.unusual_activity import UnusualActivityDetector
 from agents.trade_engine import alerts as alerts_module
 from agents.trade_engine import signal_tracker as tracker_module
@@ -458,6 +461,144 @@ def test_credit_spreads_use_executable_bid_ask_not_stale_last_trade():
     long_call = {"bid": 0.08, "ask": 0.10, "last": 0.08}
     assert recommender._executable_credit(short_call, long_call) == 0.10
     assert recommender._executable_credit({"bid": 0, "last": 0.95}, long_call) is None
+
+
+# ============================================================
+# TastyTrade / ORATS Professional Volatility Gates
+# ============================================================
+
+def test_volatility_gate_blocks_selling_when_iv_cheap():
+    """Selling premium requires an elevated IV Rank (>= MIN_IV_RANK_SELL)."""
+    recommender = TradeRecommender()
+    for strategy in ("csp", "cc", "bull_put", "bear_call", "iron_condor"):
+        assert not recommender._passes_volatility_gate(
+            strategy, {"iv_rank": MIN_IV_RANK_SELL - 1, "vix": 20, "iv": 0.30, "hv_20": 0.20}
+        )
+        assert recommender._passes_volatility_gate(
+            strategy, {"iv_rank": MIN_IV_RANK_SELL, "vix": 20, "iv": 0.30, "hv_20": 0.20}
+        )
+
+
+def test_volatility_gate_blocks_selling_in_vix_spike():
+    """No premium selling above the crash-regime VIX ceiling."""
+    recommender = TradeRecommender()
+    assert not recommender._passes_volatility_gate(
+        "csp", {"iv_rank": 80, "vix": MAX_VIX_SELL + 1, "iv": 0.40, "hv_20": 0.30}
+    )
+    assert recommender._passes_volatility_gate(
+        "csp", {"iv_rank": 80, "vix": MAX_VIX_SELL, "iv": 0.40, "hv_20": 0.30}
+    )
+
+
+def test_volatility_gate_requires_iv_above_hv_for_selling():
+    """Selling requires a positive volatility risk premium (IV > HV)."""
+    recommender = TradeRecommender()
+    assert not recommender._passes_volatility_gate(
+        "bull_put", {"iv_rank": 70, "vix": 20, "iv": 0.15, "hv_20": 0.20}
+    )
+    assert recommender._passes_volatility_gate(
+        "bull_put", {"iv_rank": 70, "vix": 20, "iv": 0.21, "hv_20": 0.20}
+    )
+
+
+def test_volatility_gate_only_buys_when_iv_cheap():
+    """Debit spreads are only authorized when IV Rank is depressed."""
+    recommender = TradeRecommender()
+    assert not recommender._passes_volatility_gate(
+        "call_debit", {"iv_rank": MIN_IV_RANK_BUY + 1, "vix": 20}
+    )
+    assert recommender._passes_volatility_gate(
+        "call_debit", {"iv_rank": MIN_IV_RANK_BUY, "vix": 20}
+    )
+
+
+def test_quality_gate_applies_volatility_to_sell_structures():
+    recommender = TradeRecommender()
+    strong = {"composite_score": 80, "edge_score": 80}
+    high_pop = {"probability_of_profit": 70}
+    # Score passes but IV Rank is too low to sell premium.
+    assert not recommender._passes_quality_gate(
+        strong, high_pop, "csp", {"iv_rank": 10, "vix": 20, "iv": 0.30, "hv_20": 0.20}
+    )
+    assert recommender._passes_quality_gate(
+        strong, high_pop, "csp", {"iv_rank": 60, "vix": 20, "iv": 0.30, "hv_20": 0.20}
+    )
+
+
+def test_spread_requires_liquid_short_leg():
+    """Spreads must have a liquid short (executed) leg like singles do."""
+    recommender = TradeRecommender()
+    illiquid = {"strike": 90, "bid": 2, "ask": 2.1, "volume": 0, "open_interest": 0}
+    long_put = {"strike": 85, "bid": 0.5, "ask": 0.6, "volume": 500, "open_interest": 1000}
+    assert recommender._score_bull_put(
+        "TEST", 100, illiquid, long_put, 30, MarketRegime.NEUTRAL,
+        {"trend": "neutral"}, {}, {"iv": 0.30, "hv_20": 0.20, "iv_rank": 70, "vix": 20},
+        2000, 10000,
+    ) is None
+
+
+def test_iron_condor_requires_credit_to_width():
+    """Iron condors must collect at least 1/3 of the wing width."""
+    recommender = TradeRecommender()
+    def make_option(strike, bid, ask, delta=0.2):
+        return {"strike": strike, "bid": bid, "ask": ask, "volume": 1000,
+                "open_interest": 5000, "delta": delta}
+    # Wings are 5 wide on each side but the combined credit is only 0.90
+    # (0.18 of width) — far below the 1/3 threshold.
+    thin_puts = [make_option(85, 0.25, 0.30, -0.1), make_option(90, 0.75, 0.80, -0.2), make_option(95, 1.75, 1.80, -0.35)]
+    thin_calls = [make_option(105, 1.75, 1.80, 0.35), make_option(110, 0.75, 0.80, 0.2), make_option(115, 0.25, 0.30, 0.1)]
+    assert recommender._score_iron_condor(
+        "TEST", 100, thin_puts, thin_calls, 30, MarketRegime.NEUTRAL,
+        {"trend": "neutral"}, {}, {"iv": 0.30, "hv_20": 0.20, "iv_rank": 70, "vix": 20},
+        2000, 10000,
+    ) is None
+
+
+def test_kelly_uses_payoff_ratio_not_win_rate():
+    """kelly_fraction is real half-Kelly, not a raw win-rate estimate."""
+    recommender = TradeRecommender()
+    # 80% POP with a 150/350 payoff: positive half-Kelly.
+    kelly = recommender._calculate_kelly(
+        {"credit": 1.5}, {"max_profit": 150, "max_loss": 350, "probability_of_profit": 80}
+    )
+    assert 0 < kelly <= 0.5
+    # A CSP-like payoff (max profit << max loss) sizes to zero Kelly.
+    assert recommender._calculate_kelly(
+        {"premium": 3.0}, {"max_loss": 9700, "probability_of_profit": 85}
+    ) == 0.0
+
+
+def test_selection_respects_leg_greeks():
+    """The portfolio Greeks gate uses short-leg delta/vega, not zeros."""
+    recommender = TradeRecommender()
+    account = AccountInfo(
+        total_equity=100000, buying_power=200000, cash_available=100000,
+        risk_tolerance=RiskTolerance.MODERATE, max_positions=3,
+    )
+    near_atm = {"symbol": "AAPL", "capital_required": 500,
+                "legs": [{"action": "SELL", "delta": -0.60, "vega": -0.05}]}
+    far_otm = {"symbol": "MSFT", "capital_required": 500,
+               "legs": [{"action": "SELL", "delta": -0.15, "vega": -0.02}]}
+    portfolio = {"net_delta": 0, "net_vega": 0}
+    selected = recommender._select_recommendations([near_atm, far_otm], account, portfolio, 2000)
+    assert len(selected) == 1
+    assert selected[0]["symbol"] == "MSFT"
+
+
+def test_risk_budget_binds_max_loss_not_capital_outlay():
+    """The per-trade risk budget compares what the position can lose."""
+    recommender = TradeRecommender()
+    account = AccountInfo(
+        total_equity=100000, buying_power=200000, cash_available=100000,
+        risk_tolerance=RiskTolerance.MODERATE, max_positions=3,
+    )
+    candidate = {"symbol": "AAPL", "capital_required": 100000,
+                 "max_loss": 1500, "delta_impact": 0.1, "vega_impact": 0.01}
+    selected = recommender._select_recommendations([candidate], account, {"net_delta": 0, "net_vega": 0}, 2000)
+    assert len(selected) == 1
+    # A candidate whose max loss exceeds the budget is rejected.
+    too_big = dict(candidate, max_loss=2500)
+    assert recommender._select_recommendations([too_big], account, {"net_delta": 0, "net_vega": 0}, 2000) == []
 
 
 # ============================================================

@@ -231,6 +231,9 @@ class BackgroundBrainScanner:
                 "regime": result.regime,
                 "strategy": result.best_strategy,
                 "strategy_reasoning": result.best_strategy_reasoning,
+                "iv_rank": (result.iv_signal or {}).get("iv_rank"),
+                "iv_hv_ratio": (result.iv_signal or {}).get("ratio"),
+                "iv_hv_signal": (result.iv_signal or {}).get("signal"),
                 "top_signal": "",
             }
         except Exception:
@@ -282,6 +285,9 @@ class BackgroundBrainScanner:
                     "regime": data["regime"],
                     "best_strategy": data["strategy"],
                     "strategy_reasoning": data.get("strategy_reasoning", ""),
+                    "iv_rank": data.get("iv_rank"),
+                    "iv_hv_ratio": data.get("iv_hv_ratio"),
+                    "iv_hv_signal": data.get("iv_hv_signal"),
                     "top_signal": data.get("top_signal", ""),
                     "timestamp": datetime.utcnow().isoformat(),
                     "acknowledged": False,
