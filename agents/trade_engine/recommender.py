@@ -59,6 +59,13 @@ MAX_VIX_SELL = 35
 # An iron condor collecting less than a third of its wing width is a
 # lottery-ticket structure with a huge max-loss tail — not a core book trade.
 MIN_IRON_CONDOR_CREDIT_TO_WIDTH = 0.33
+# A tested short strike is where premium sellers lose money: the probability of
+# touch (POT) accounts for the path, not just the expiry. Short strikes likely
+# to be touched are rejected even when their expiry POP looks fine.
+MAX_PROBABILITY_OF_TOUCH_SELL = 70
+# A spread credit so small it barely covers the round-trip costs is a zero- or
+# negative-EV trade after commissions regardless of its win rate. Skip it.
+MIN_SPREAD_CREDIT = 0.15
 
 
 class TradeRecommender:
@@ -140,6 +147,14 @@ class TradeRecommender:
                 shares_owned=shares_owned,
             )
             all_candidates.extend(candidates)
+
+        # Step 4b: A tested short strike is where premium sellers lose money.
+        # Reject sell structures whose short legs are likely to be touched
+        # before expiry even when their expiry POP clears the quality floor.
+        all_candidates = [
+            candidate for candidate in all_candidates
+            if self._passes_touch_gate(candidate)
+        ]
 
         # Step 5: Rank all candidates
         ranked = self.scorer.rank_strategies(all_candidates)
@@ -385,6 +400,95 @@ class TradeRecommender:
                 return False
         return True
 
+    def _passes_touch_gate(self, candidate: Dict[str, Any]) -> bool:
+        """Reject sell structures whose short legs are likely to be touched.
+
+        Probability of touch is higher than probability of profit at the same
+        strike because it counts *any* visit to the level before expiry, not
+        just finishing through it. A short strike with a high touch probability
+        is a position that is frequently tested — and tested shorts are where
+        premium sellers give the edge back. Debit spreads' short (hedge) legs
+        are not sell decisions and are deliberately excluded.
+        """
+        if candidate.get("type") not in ("csp", "cc", "bull_put", "bear_call", "iron_condor"):
+            return True
+        stock_price = float(candidate.get("stock_price", 0) or 0)
+        if stock_price <= 0:
+            return True
+        iv = float((candidate.get("nvrp") or {}).get("iv", 0.20) or 0.20)
+        dte = int(candidate.get("dte", 30) or 30)
+        for leg in candidate.get("legs", []):
+            if leg.get("action") != "SELL":
+                continue
+            strike = float(leg.get("strike", 0) or 0)
+            if strike <= 0:
+                continue
+            probability_of_touch = self.analytics.probability_of_touch(
+                stock_price, strike, iv, dte
+            )
+            if probability_of_touch > MAX_PROBABILITY_OF_TOUCH_SELL:
+                return False
+        return True
+
+    def _structure_expected_value(self, candidate: Dict[str, Any], roi_data: Dict[str, Any]) -> float:
+        """Option Alpha-style expected value over three outcome zones.
+
+        Unlike the naive ``P(max profit) - (1 - P) * max loss`` two-outcome
+        model, this splits the spread into max-profit, partial-profit, and
+        max-loss regions using the actual strike boundaries. The partial zone
+        is valued at the midpoint of max profit and max loss, per Option
+        Alpha's published approximation. Debit spreads and singles without a
+        defined max loss fall back to the two-outcome model.
+        """
+        strategy = candidate.get("type")
+        stock_price = float(candidate.get("stock_price", 0) or 0)
+        nvrp = candidate.get("nvrp", {}) or {}
+        iv = float(nvrp.get("iv", 0.20) or 0.20)
+        dte = int(candidate.get("dte", 30) or 30)
+        pop = float(roi_data.get("probability_of_profit", 0) or 0) / 100.0
+
+        if strategy == "csp":
+            max_profit = roi_data.get("max_profit") or (candidate.get("premium", 0) or 0) * 100
+            max_loss = roi_data.get("max_loss") or 0
+        else:
+            max_profit = roi_data.get("max_profit") or candidate.get("max_profit") or 0
+            max_loss = roi_data.get("max_loss") or candidate.get("max_loss") or 0
+
+        max_profit = float(max_profit or 0)
+        max_loss = float(max_loss or 0)
+        if max_profit <= 0 or max_loss <= 0:
+            # No defined-risk boundary set — the two-outcome model is the best
+            # available reading (matches the pre-existing expected_value).
+            return round(max_profit * pop - max_loss * (1.0 - pop), 4)
+
+        if strategy == "bull_put":
+            p_profit = self.roi_calc._approx_pop_otm(stock_price, candidate["short_strike"], dte, "put", iv) / 100
+            p_loss = 1 - self.roi_calc._approx_pop_otm(stock_price, candidate["long_strike"], dte, "put", iv) / 100
+        elif strategy == "bear_call":
+            p_profit = self.roi_calc._approx_pop_otm(stock_price, candidate["short_strike"], dte, "call", iv) / 100
+            p_loss = 1 - self.roi_calc._approx_pop_otm(stock_price, candidate["long_strike"], dte, "call", iv) / 100
+        elif strategy == "iron_condor":
+            p_profit = pop
+            p_loss = (
+                1 - self.roi_calc._approx_pop_otm(stock_price, candidate["put_long"], dte, "put", iv) / 100
+                + 1 - self.roi_calc._approx_pop_otm(stock_price, candidate["call_long"], dte, "call", iv) / 100
+            )
+        elif strategy == "csp":
+            breakeven = (candidate.get("strike", 0) or 0) - (candidate.get("premium", 0) or 0)
+            p_profit = pop
+            p_loss = 1 - self.roi_calc._approx_pop_otm(stock_price, breakeven, dte, "put", iv) / 100
+        else:
+            p_profit = pop
+            p_loss = max(0.0, 1.0 - pop)
+
+        p_profit = max(0.0, min(1.0, p_profit))
+        p_loss = max(0.0, min(1.0, p_loss))
+        p_partial = max(0.0, 1.0 - p_profit - p_loss)
+        partial_pnl = (max_profit - max_loss) / 2.0
+        return round(
+            max_profit * p_profit + partial_pnl * p_partial - max_loss * p_loss, 4
+        )
+
     def _score_csp(
         self, symbol, stock_price, put, dte, regime, tech, flow, nvrp, risk, max_cap
     ) -> Optional[Dict]:
@@ -496,6 +600,11 @@ class TradeRecommender:
         if credit is None or credit <= 0:
             return None
 
+        # A credit smaller than the round-trip spread costs is negative EV
+        # after commissions no matter how high its win rate looks.
+        if credit < MIN_SPREAD_CREDIT:
+            return None
+
         # The short leg is the executed side — it must be liquid.
         if short_put.get("volume", 0) < MIN_LIQUIDITY_VOLUME and short_put.get("open_interest", 0) < MIN_LIQUIDITY_OI:
             return None
@@ -550,6 +659,10 @@ class TradeRecommender:
             return None
 
         if credit is None or credit <= 0:
+            return None
+
+        # Round-trip cost floor: tiny credits are negative EV after commissions.
+        if credit < MIN_SPREAD_CREDIT:
             return None
 
         # The short leg is the executed side — it must be liquid.
@@ -1002,6 +1115,9 @@ class TradeRecommender:
         max_profit = candidate.get("max_profit", roi_data.get("max_profit", 0))
         max_loss = candidate.get("max_loss", roi_data.get("max_loss", 0))
         annualized = roi_data.get("annualized_return_pct", 0)
+        expected_value = self._structure_expected_value(candidate, roi_data)
+        # Option Alpha's Alpha: expected value per dollar of defined risk.
+        alpha = round(expected_value / max_loss, 4) if max_loss and max_loss > 0 else 0.0
 
         return TradeRecommendation(
             recommendation_id=rec_id,
@@ -1017,7 +1133,8 @@ class TradeRecommender:
             breakeven=roi_data.get("breakeven", 0),
             risk_reward_ratio=roi_data.get("return_on_risk_pct", 0),
             probability_of_profit=roi_data.get("probability_of_profit", 0),
-            expected_value=(max_profit * roi_data.get("probability_of_profit", 50) / 100) - (max_loss * (100 - roi_data.get("probability_of_profit", 50)) / 100),
+            expected_value=expected_value,
+            alpha=alpha,
             kelly_fraction=self._calculate_kelly(candidate, roi_data),
             capital_required=capital_required,
             capital_at_risk=max_loss,
@@ -1069,15 +1186,45 @@ class TradeRecommender:
         }
 
     def _generate_exit_rules(self, strategy_type: StrategyType, candidate: Dict) -> Dict:
-        """Generate specific exit rules - stolen from TastyTrade mechanical rules."""
+        """Specific exit rules - stolen from TastyTrade mechanical rules.
+
+        The professional playbook: close at 50% of max profit OR at 21 DTE,
+        whichever comes first; hard stop at 2-3x the credit received. The
+        thresholds are strategy- and regime-aware: iron condors stop per-wing
+        at 200-300% of that wing's credit and target 25-50% profit depending
+        on how much room the structure keeps; an elevated IV Rank (expensive
+        premium) justifies holding toward 75% before the 21-DTE close.
+        """
         dte = candidate.get("dte", 30)
-        profit_target = candidate.get("credit", 0) * 0.50 if candidate.get("credit", 0) > 0 else 0
+        credit = candidate.get("credit", 0) or 0
+        iv_rank = float((candidate.get("nvrp") or {}).get("iv_rank", 50) or 50)
+
+        # 50% is the standard profit target; expensive premium (IVR > 60)
+        # justifies holding toward 75% of the credit before the DTE close.
+        if strategy_type == StrategyType.IRON_CONDOR:
+            wing_width = float(candidate.get("wing_width", 0) or 0)
+            thin = wing_width > 0 and (credit / wing_width) < 0.5
+            target_pct = 25 if thin else 50
+            profit_target = (
+                f"Close at {target_pct}% of max profit (${credit * target_pct / 100:.2f} credit collected)"
+                if credit > 0 else "N/A"
+            )
+            stop_loss = "Close the condor if either wing reaches 2-3x its wing credit"
+        else:
+            target_pct = 75 if iv_rank > 60 else 50
+            profit_target = (
+                f"Close at {target_pct}% of max profit (${credit * target_pct / 100:.2f} credit collected)"
+                if credit > 0 else "N/A"
+            )
+            stop_loss = "Close at 2-3x credit received" if credit > 0 else "Close at 2x debit paid"
 
         rules = {
-            "profit_target": f"Close at 50% of max profit (${profit_target:.2f} credit collected)" if profit_target > 0 else "N/A",
-            "stop_loss": f"Close at 2x credit received" if candidate.get("credit", 0) > 0 else "Close at 2x debit paid",
+            "profit_target": profit_target,
+            "stop_loss": stop_loss,
             "time_exit": f"Close at {max(dte - 21, 1)} DTE remaining" if dte > 21 else f"Close at {max(dte - 7, 1)} DTE",
+            "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
             "max_loss_exit": "Close immediately if max loss hit",
+            "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
             "roll_rules": "Roll out in time if tested, never roll for a loss",
         }
 
@@ -1085,6 +1232,8 @@ class TradeRecommender:
             rules["adjustment"] = "If short strike tested, roll up/down the tested side"
         elif strategy_type in [StrategyType.CALL_DEBIT_SPREAD, StrategyType.PUT_DEBIT_SPREAD]:
             rules["trailing_stop"] = "Consider selling at 50-100% profit"
+        elif strategy_type == StrategyType.CASH_SECURED_PUT:
+            rules["assignment"] = "If assigned, own the shares and sell covered calls against them"
 
         return rules
 

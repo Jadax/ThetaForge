@@ -190,19 +190,17 @@ thetaforge/
 │   ├── strategies/            # 13 strategy modules (research)
 │   ├── sentiment/             # Reddit sentiment (8 subreddits)
 │   ├── risk_management/       # Kelly + portfolio limits
-│   ├── performance/           # PnL tracking
 │   ├── backtest/              # Backtesting framework
-│   ├── scanner/               # Go concurrent scanner (not deployed)
 │   └── execution/             # Celery task stubs (not deployed)
 ├── tests/                     # Unit tests
 ├── deployment/                # Panic button, setup scripts
 └── docs/                      # API docs, strategy guide
 ```
 
-`docker-compose.yml`, `orchestrator/celery_app.py`, the `tasks.py` modules, and
-the Go scanner describe a queue-and-database architecture that is not part of
-the running system. The deployed Advisor is a single FastAPI process using
-JSON files in `data/` for state.
+`docker-compose.yml`, `orchestrator/celery_app.py`, and the `tasks.py` modules
+describe a queue-and-database architecture that is not part of the running
+system. The deployed Advisor is a single FastAPI process using JSON files in
+`data/` for state.
 
 ## Testing
 

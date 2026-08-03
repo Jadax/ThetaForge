@@ -14,7 +14,6 @@ app = Celery(
     backend=REDIS_URL,
     include=[
         "agents.data_ingestion.tasks",
-        "agents.scanner.tasks",
         "agents.strategies.tasks",
         "agents.execution.tasks",
         "agents.volatility.tasks",
@@ -35,11 +34,6 @@ app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     beat_schedule={
-        # Scanner: Every 30 minutes during market hours
-        "run-scanner-every-30-mins": {
-            "task": "agents.scanner.tasks.run_full_scan",
-            "schedule": 1800.0,
-        },
         # GEX Update: Every 15 minutes (intraday dealer positioning changes)
         "update-gex-15-mins": {
             "task": "agents.flow_analysis.tasks.update_gex",
@@ -64,11 +58,6 @@ app.conf.update(
         "update-technical-daily": {
             "task": "agents.technical.tasks.update_technical_indicators",
             "schedule": 86400.0,
-        },
-        # Full Multi-Layer Scan: 9:35 AM ET (after market open settlement)
-        "full-scan-market-open": {
-            "task": "agents.scanner.tasks.run_full_scan",
-            "schedule": "35 13 * * 1-5",  # 13:35 UTC = 9:35 AM ET
         },
         # Trade Advisor: Generate recommendations every 30 min during market hours
         "advisor-recommendations": {

@@ -196,6 +196,57 @@ class ROICalculator:
         """
         return sorted(opportunities, key=lambda x: x.get(sort_by, 0), reverse=True)
 
+    def expected_value(
+        self,
+        max_profit: float,
+        max_loss: float,
+        probability_of_profit: float,
+        probability_of_loss: Optional[float] = None,
+    ) -> float:
+        """Expected value across three outcome zones (Option Alpha method).
+
+        The naive two-outcome model (``max_profit * P - max_loss * (1 - P)``)
+        ignores the real outcome where the underlying expires *between* the
+        strikes and only partial profit or loss is realized. This version
+        splits the trade into max-profit, partial, and max-loss regions and
+        values the partial zone at the midpoint of max profit and max loss.
+
+        Probabilities are fractions in [0, 1]. When *probability_of_loss* is
+        omitted it defaults to ``1 - probability_of_profit`` (pure two-outcome).
+        """
+        if max_profit <= 0 or max_loss <= 0:
+            return 0.0
+        prob_profit = max(0.0, min(1.0, float(probability_of_profit)))
+        if probability_of_loss is None:
+            prob_loss = max(0.0, 1.0 - prob_profit)
+        else:
+            prob_loss = max(0.0, min(1.0, float(probability_of_loss)))
+        prob_partial = max(0.0, 1.0 - prob_profit - prob_loss)
+        partial_pnl = (max_profit - max_loss) / 2.0
+        return round(
+            max_profit * prob_profit
+            + partial_pnl * prob_partial
+            - max_loss * prob_loss,
+            4,
+        )
+
+    def alpha_score(
+        self,
+        max_profit: float,
+        max_loss: float,
+        probability_of_profit: float,
+        probability_of_loss: Optional[float] = None,
+    ) -> float:
+        """Alpha: expected value per dollar of defined risk (EV / max loss).
+
+        Option Alpha's Trade Ideas 2.0 metric. Only meaningful for
+        defined-risk structures, so an undefined max loss scores zero.
+        """
+        if max_loss <= 0:
+            return 0.0
+        ev = self.expected_value(max_profit, max_loss, probability_of_profit, probability_of_loss)
+        return round(ev / max_loss, 4)
+
     def scan_all_strikes_csp(
         self,
         chain: List[Dict[str, Any]],

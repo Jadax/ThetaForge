@@ -141,6 +141,8 @@ class TradeRecommendation:
     risk_reward_ratio: float = 0.0
     probability_of_profit: float = 0.0
     expected_value: float = 0.0
+    # Option Alpha metric: expected value per dollar of defined risk (EV / max loss).
+    alpha: float = 0.0
     kelly_fraction: float = 0.0
     capital_required: float = 0.0
     capital_at_risk: float = 0.0

@@ -1,5 +1,40 @@
 # ThetaForge Changelog
 
+## v0.6.6 — 2026-08-03
+
+- Added the Option Alpha probability/EV playbook to the recommender:
+  - Sell structures (CSP, covered call, bull put, bear call, iron condor) are
+    now rejected when any short leg's probability of touch exceeds 70% — the
+    option is very likely to be exercised against the seller before expiry.
+    Debit spreads are exempt because their short leg is a hedge, not a sell
+    decision.
+  - Bull puts and bear calls must collect at least $0.15 of credit so the
+    round-trip fill can cover transaction costs; thinner spreads are skipped.
+  - Recommendations now carry a true expected value computed across three
+    outcome zones (max-profit, partial at the midpoint of max profit/loss,
+    max-loss) instead of the naive two-outcome model, plus an `alpha` score
+    (EV per dollar of defined risk) — the Option Alpha metric. Both are
+    returned by the advisor API.
+- Made exit rules strategy- and regime-aware per the Tastytrade playbook:
+  - Close at 50% of max profit or at 21 DTE, whichever comes first; hard stop
+    at 2-3x the credit received.
+  - IV Rank above 60 (expensive premium) raises the profit target to 75%.
+  - Iron condors target 25% when the credit is thin (< 50% of wing width) and
+    50% otherwise, with per-wing stops at 2-3x that wing's credit.
+- Removed dead code:
+  - Deleted `agents/scanner/` (unused Go concurrent scanner) and
+    `agents/performance/` (zero live consumers); pruned their Celery wiring
+    from `orchestrator/celery_app.py`.
+  - Renamed `orchestrator/routes/scanner.py` to `backtest.py` and removed the
+    dead `/scan/*` and `/gex/*` routes and the redundant `/api/strategies`
+    list; GEX flows internally, not over HTTP.
+  - Deleted the stale starter-template dashboard test
+    (`dashboard/tests/rendered-html.test.mjs`) and `app/_sites-preview/`;
+    `npm run test` is now the production build.
+- Added `docs/HANDOVER.md`, a complete map of the running system for a new
+  LLM/engineer: architecture, pipeline, gates, version constants, data files,
+  and known quirks.
+
 ## v0.6.5 — 2026-08-03
 
 - Applied the professional (TastyTrade/ORATS) volatility playbook to the trade

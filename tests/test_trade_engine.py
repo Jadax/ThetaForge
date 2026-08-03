@@ -6,6 +6,7 @@ and unusual activity detector.
 import math
 import sys
 import os
+import pytest
 from datetime import datetime, timedelta, timezone
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -599,6 +600,158 @@ def test_risk_budget_binds_max_loss_not_capital_outlay():
     # A candidate whose max loss exceeds the budget is rejected.
     too_big = dict(candidate, max_loss=2500)
     assert recommender._select_recommendations([too_big], account, {"net_delta": 0, "net_vega": 0}, 2000) == []
+
+
+# ============================================================
+# Probability-of-Touch & Round-Trip Cost Entry Gates
+# ============================================================
+
+def test_touch_gate_rejects_short_strikes_likely_to_be_tested():
+    """Sell structures whose short legs are likely to be touched are rejected."""
+    recommender = TradeRecommender()
+    far_otm = {"type": "bull_put", "stock_price": 100, "dte": 45,
+               "nvrp": {"iv": 0.25}, "legs": [{"action": "SELL", "strike": 90}]}
+    assert recommender._passes_touch_gate(far_otm)
+    # Near-the-money short strike is almost certain to be touched before expiry.
+    atm = {"type": "bull_put", "stock_price": 100, "dte": 45,
+           "nvrp": {"iv": 0.25}, "legs": [{"action": "SELL", "strike": 100}]}
+    assert not recommender._passes_touch_gate(atm)
+    # A debit spread's short leg is a hedge, not a sell decision: not gated.
+    debit = {"type": "call_debit", "stock_price": 100, "dte": 45,
+             "nvrp": {"iv": 0.25}, "legs": [{"action": "SELL", "strike": 100}]}
+    assert recommender._passes_touch_gate(debit)
+
+
+def test_touch_gate_applies_to_every_short_wing():
+    """Iron condors gate both short wings."""
+    recommender = TradeRecommender()
+    clean = {"type": "iron_condor", "stock_price": 100, "dte": 45,
+             "nvrp": {"iv": 0.25},
+             "legs": [{"action": "SELL", "strike": 85}, {"action": "SELL", "strike": 115}]}
+    assert recommender._passes_touch_gate(clean)
+    tested = {"type": "iron_condor", "stock_price": 100, "dte": 45,
+              "nvrp": {"iv": 0.25},
+              "legs": [{"action": "SELL", "strike": 85}, {"action": "SELL", "strike": 100}]}
+    assert not recommender._passes_touch_gate(tested)
+
+
+def test_credit_spreads_require_round_trip_credit_floor():
+    """Spreads whose credit cannot cover round-trip costs are skipped."""
+    recommender = TradeRecommender()
+    tiny_short = {"strike": 100, "bid": 0.10, "ask": 0.11, "volume": 1000,
+                  "open_interest": 5000, "delta": -0.2}
+    tiny_long = {"strike": 95, "bid": 0.01, "ask": 0.02, "volume": 1000,
+                 "open_interest": 5000}
+    # Credit = 0.10 - 0.02 = 0.08, below MIN_SPREAD_CREDIT (0.15).
+    assert recommender._score_bull_put(
+        "TEST", 100, tiny_short, tiny_long, 30, MarketRegime.NEUTRAL,
+        {"trend": "neutral"}, {}, {"iv": 0.30, "hv_20": 0.20, "iv_rank": 70, "vix": 20},
+        2000, 10000,
+    ) is None
+
+
+# ============================================================
+# Option Alpha EV / Alpha Metric
+# ============================================================
+
+def test_expected_value_uses_partial_zone():
+    """The three-outcome EV matches Option Alpha's published example ($1.00)."""
+    calc = ROICalculator()
+    ev = calc.expected_value(max_profit=2, max_loss=3, probability_of_profit=0.7, probability_of_loss=0.1)
+    # 2*0.7 + (2-3)/2*0.2 - 3*0.1 = 1.00
+    assert ev == pytest.approx(1.0, abs=1e-4)
+
+
+def test_expected_value_two_outcome_defaults_to_complement():
+    calc = ROICalculator()
+    ev = calc.expected_value(max_profit=2, max_loss=3, probability_of_profit=0.7)
+    # Pure two-outcome: 2*0.7 - 3*0.3 = 0.50
+    assert ev == pytest.approx(0.5, abs=1e-4)
+
+
+def test_alpha_scores_ev_per_dollar_of_risk():
+    calc = ROICalculator()
+    alpha = calc.alpha_score(max_profit=2, max_loss=3, probability_of_profit=0.7, probability_of_loss=0.1)
+    assert alpha == pytest.approx(1.0 / 3.0, abs=1e-4)
+    assert calc.alpha_score(max_profit=2, max_loss=0, probability_of_profit=0.7) == 0.0
+
+
+def test_structure_expected_value_defines_risk_boundaries():
+    """Credit structures value the partial-profit zone, not just two outcomes."""
+    recommender = TradeRecommender()
+    roi = {"max_profit": 200, "max_loss": 300, "probability_of_profit": 70}
+    cand = {"type": "bull_put", "stock_price": 100, "dte": 30, "nvrp": {"iv": 0.25},
+            "short_strike": 95, "long_strike": 90}
+    assert recommender._structure_expected_value(cand, roi) > 0
+    # Structures without a defined max loss fall back to the two-outcome model.
+    cc_roi = {"max_profit": 500, "probability_of_profit": 80}
+    cc_cand = {"type": "cc", "stock_price": 100, "dte": 30, "nvrp": {"iv": 0.25}}
+    assert recommender._structure_expected_value(cc_cand, cc_roi) == pytest.approx(400.0, abs=1e-4)
+
+
+def test_alpha_wired_into_recommendation():
+    """The recommendation carries the three-outcome EV and Alpha, not the naive EV."""
+    recommender = TradeRecommender()
+    candidate = {
+        "type": "bull_put", "symbol": "TEST", "stock_price": 100, "dte": 30,
+        "credit": 1.5, "short_strike": 95, "long_strike": 90, "expiry": "2026-09-15",
+        "capital_required": 350, "max_profit": 150, "max_loss": 350,
+        "nvrp": {"iv": 0.25, "hv_20": 0.20, "iv_rank": 60, "vix": 20},
+        "score": {"composite_score": 80, "edge_score": 70},
+        "roi": {"max_profit": 150, "max_loss": 350, "probability_of_profit": 75,
+                "annualized_return_pct": 30},
+        "legs": [
+            {"symbol": "TEST", "strike": 95, "expiry": "2026-09-15", "option_type": "PUT",
+             "bid": 1.6, "ask": 1.7, "volume": 100, "open_interest": 500,
+             "iv": 0.25, "delta": -0.2, "dte": 30, "action": "SELL"},
+            {"symbol": "TEST", "strike": 90, "expiry": "2026-09-15", "option_type": "PUT",
+             "bid": 0.1, "ask": 0.11, "volume": 100, "open_interest": 500,
+             "iv": 0.25, "delta": -0.1, "dte": 30, "action": "BUY"},
+        ],
+    }
+    rec = recommender._build_recommendation(
+        candidate, MarketRegime.NEUTRAL, {"vix": 20}, {"iv": 0.25, "iv_rank": 60}
+    )
+    naive_ev = rec.max_profit * rec.probability_of_profit / 100 - rec.max_loss * (100 - rec.probability_of_profit) / 100
+    assert rec.expected_value > 0
+    assert rec.alpha > 0
+    assert rec.alpha == pytest.approx(rec.expected_value / rec.max_loss, abs=1e-4)
+    assert rec.expected_value != naive_ev
+
+
+# ============================================================
+# Strategy- and Regime-Aware Exit Rules
+# ============================================================
+
+def test_exit_rules_are_strategy_and_regime_aware():
+    recommender = TradeRecommender()
+    thin_condor = recommender._generate_exit_rules(
+        StrategyType.IRON_CONDOR,
+        {"credit": 1.20, "wing_width": 5, "dte": 45, "nvrp": {"iv_rank": 55}},
+    )
+    assert "Close at 25%" in thin_condor["profit_target"]
+    assert "2-3x its wing credit" in thin_condor["stop_loss"]
+    assert thin_condor["close_rule"] == "Whichever comes first: profit target, 21 DTE, or hard stop"
+
+    wide_condor = recommender._generate_exit_rules(
+        StrategyType.IRON_CONDOR,
+        {"credit": 2.50, "wing_width": 5, "dte": 45, "nvrp": {"iv_rank": 55}},
+    )
+    assert "Close at 50%" in wide_condor["profit_target"]
+
+    high_iv = recommender._generate_exit_rules(
+        StrategyType.BULL_PUT_CREDIT,
+        {"credit": 1.50, "dte": 45, "nvrp": {"iv_rank": 65}},
+    )
+    assert "Close at 75%" in high_iv["profit_target"]
+
+    normal = recommender._generate_exit_rules(
+        StrategyType.BULL_PUT_CREDIT,
+        {"credit": 1.50, "dte": 45, "nvrp": {"iv_rank": 40}},
+    )
+    assert "Close at 50%" in normal["profit_target"]
+    assert "2-3x credit received" in normal["stop_loss"]
+    assert "hold_to_expiry" in normal
 
 
 # ============================================================

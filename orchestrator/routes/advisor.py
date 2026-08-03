@@ -692,6 +692,8 @@ async def get_recommendations(request: AdvisoryRequest):
                 "max_loss": r.max_loss,
                 "breakeven": r.breakeven,
                 "probability_of_profit": r.probability_of_profit,
+                "expected_value": r.expected_value,
+                "alpha": r.alpha,
                 "return_on_capital_pct": r.return_on_capital_pct,
                 "annualized_return_pct": r.annualized_return_pct,
                 "composite_score": r.composite_score,
