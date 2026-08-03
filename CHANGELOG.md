@@ -1,5 +1,14 @@
 # ThetaForge Changelog
 
+## v0.6.8 - 2026-08-03
+
+- Made the background scanner fail closed when price, option-chain, VIX, or
+  sufficient price history is unavailable. It records skip diagnostics in
+  scanner status instead of treating missing data as neutral placeholders.
+- Clarified dashboard signal language: a background signal is a discovery
+  candidate, not an order instruction. Opening it runs the final contract,
+  portfolio, and local IBKR quote checks before paper submission is possible.
+
 ## v0.6.7 - 2026-08-03
 
 - Removed inactive, misleading API routes (fake positions, strategy settings,

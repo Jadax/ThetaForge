@@ -10,8 +10,8 @@ import json
 import logging
 import os
 import asyncio
-from typing import Dict, Optional, List
-from datetime import datetime, timedelta
+from typing import Dict, Optional, List, Tuple
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -146,7 +146,7 @@ class BackgroundBrainScanner:
             (SCAN_STATE_FILE,
              {"last_run": None, "next_run": None, "interval_seconds": self.interval,
               "is_running": False, "symbols_scanned": 0,
-              "symbols_with_trades": 0, "errors": []}),
+              "symbols_with_trades": 0, "scan_diagnostics": {}, "errors": []}),
         ]:
             if not os.path.exists(path):
                 with open(path, "w") as f:
@@ -178,41 +178,43 @@ class BackgroundBrainScanner:
 
     # ── scan logic ───────────────────────────────────────────────────
 
-    async def _analyze_one(self, symbol: str) -> Optional[dict]:
-        """Run the Brain on a single symbol and return a result dict, or None."""
+    async def _analyze_one(self, symbol: str) -> Tuple[Optional[dict], Optional[str]]:
+        """Run the Brain only when the data needed for a decision is present.
+
+        Missing price, option-chain, VIX, or history data must never become a
+        trade signal through a placeholder value. The caller persists the skip
+        reason so a quiet market is distinguishable from unavailable data.
+        """
         try:
             price = await self._provider.get_stock_price(symbol)
             if not price or price <= 0:
-                return None
+                return None, "price_unavailable"
         except Exception:
-            return None
+            return None, "price_unavailable"
 
         try:
             chain = await self._provider.get_option_chain(symbol) or []
         except Exception:
-            chain = []
+            return None, "option_chain_unavailable"
+        if not chain:
+            return None, "option_chain_unavailable"
 
         try:
             vix = await self._provider.get_vix()
             if vix is None:
-                vix = 20
+                return None, "vix_unavailable"
         except Exception:
-            vix = 20
+            return None, "vix_unavailable"
 
         try:
             hist = await self._provider.get_historical_prices(symbol, period="1y")
-            if hist is not None and len(hist):
-                closes = hist["Close"].tolist() if hasattr(hist, "tolist") else list(hist["Close"])
-                high_prices = hist["High"].tolist() if "High" in hist.columns else closes
-                low_prices = hist["Low"].tolist() if "Low" in hist.columns else closes
-            else:
-                closes = [price]
-                high_prices = [price * 1.01]
-                low_prices = [price * 0.99]
+            if hist is None or len(hist) < 50:
+                return None, "history_unavailable"
+            closes = hist["Close"].tolist() if hasattr(hist, "tolist") else list(hist["Close"])
+            high_prices = hist["High"].tolist() if "High" in hist.columns else closes
+            low_prices = hist["Low"].tolist() if "Low" in hist.columns else closes
         except Exception:
-            closes = [price]
-            high_prices = [price * 1.01]
-            low_prices = [price * 0.99]
+            return None, "history_unavailable"
 
         try:
             brain = await self._lazy_brain()
@@ -235,9 +237,10 @@ class BackgroundBrainScanner:
                 "iv_hv_ratio": (result.iv_signal or {}).get("ratio"),
                 "iv_hv_signal": (result.iv_signal or {}).get("signal"),
                 "top_signal": "",
-            }
+            }, None
         except Exception:
-            return None
+            logger.exception("Brain analysis failed for %s", symbol)
+            return None, "brain_error"
 
     async def scan_once(self, symbols: Optional[List[str]] = None) -> int:
         """Run one full scan pass over *symbols* (or the auto-built universe).
@@ -249,6 +252,7 @@ class BackgroundBrainScanner:
 
         new_count = 0
         results: Dict[str, dict] = {}
+        skipped: Dict[str, int] = {}
 
         # Clean old no_trade notifications so stale entries don't linger
         old_notifs = self._read_json(SCAN_NOTIFICATIONS_FILE)
@@ -261,8 +265,10 @@ class BackgroundBrainScanner:
             self._write_json(SCAN_NOTIFICATIONS_FILE, clean)
 
         for symbol in symbols:
-            data = await self._analyze_one(symbol)
+            data, skip_reason = await self._analyze_one(symbol)
             if data is None:
+                reason = skip_reason or "unknown"
+                skipped[reason] = skipped.get(reason, 0) + 1
                 continue
 
             # Only alert on tradeable signals — skip no_trade
@@ -278,7 +284,7 @@ class BackgroundBrainScanner:
             if self._is_new_trade(symbol, data["score"], data["signal"],
                                    data["strategy"], data["regime"]):
                 notif = {
-                    "id": f"NTF-{symbol}-{int(datetime.utcnow().timestamp())}",
+                    "id": f"NTF-{symbol}-{int(datetime.now(timezone.utc).timestamp())}",
                     "symbol": symbol,
                     "score": data["score"],
                     "signal": data["signal"],
@@ -289,7 +295,7 @@ class BackgroundBrainScanner:
                     "iv_hv_ratio": data.get("iv_hv_ratio"),
                     "iv_hv_signal": data.get("iv_hv_signal"),
                     "top_signal": data.get("top_signal", ""),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "acknowledged": False,
                 }
                 self._last_results[symbol] = self._result_signature(
@@ -311,19 +317,28 @@ class BackgroundBrainScanner:
 
         self._write_json(SCAN_RESULTS_FILE, {
             "symbols": results,
-            "last_full_run": datetime.utcnow().isoformat(),
+            "last_full_run": datetime.now(timezone.utc).isoformat(),
         })
 
         state = self._read_json(SCAN_STATE_FILE)
-        state["last_run"] = datetime.utcnow().isoformat()
-        state["next_run"] = (datetime.utcnow() + timedelta(seconds=self.interval)).isoformat()
+        now = datetime.now(timezone.utc)
+        state["last_run"] = now.isoformat()
+        state["next_run"] = (now + timedelta(seconds=self.interval)).isoformat()
         state["symbols_scanned"] = len(results)
         state["symbols_with_trades"] = sum(
             1 for result in results.values()
             if result.get("strategy") not in NON_ACTIONABLE_STRATEGIES
             and abs(result["score"]) >= NOTIFICATION_SCORE_FLOOR
         )
-        state["errors"] = []
+        state["scan_diagnostics"] = {
+            "input_symbols": len(symbols),
+            "analyzed_symbols": len(results),
+            "skipped_symbols": skipped,
+        }
+        state["errors"] = [
+            f"{count} symbols skipped: {reason.replace('_', ' ')}"
+            for reason, count in sorted(skipped.items())
+        ]
         self._write_json(SCAN_STATE_FILE, state)
 
         return new_count
