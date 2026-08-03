@@ -94,43 +94,20 @@ and execution tests.
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     USER INTERFACE LAYER                        │
-│              React Dashboard + Discord/Telegram Alerts          │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────────────┐
-│               ORCHESTRATOR (FastAPI + Celery)                   │
-│         Manages all agents, scheduling, state management        │
-└────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────────┘
-     │      │      │      │      │      │      │      │
-┌────▼──┐┌──▼───┐┌─▼──┐┌──▼───┐┌─▼──┐┌──▼──┐┌──▼──┐┌─▼────┐
-│  Data ││Scan  ││Vol  ││Flow  ││Tech││GEX  ││Dark ││Reddit│
-│  Inj. ││(Go)  ││Eng. ││Anly. ││Ind.││Eng. ││Pool ││Senti.│
-└───────┘└──────┘└─────┘└──────┘└────┘└─────┘└─────┘└──────┘
-                         │
-┌────────────────────────▼────────────────────────────────────────┐
-│                         DATA LAYER                              │
-│     TimescaleDB (tick/OHLC) + PostgreSQL (trades) + Redis       │
-└─────────────────────────────────────────────────────────────────┘
+Dashboard (GitHub Pages or localhost)
+        │ authenticated HTTPS requests
+Advisor on Railway (FastAPI + background scanner)
+        │ authenticated local request when an order is requested
+Paper-only IBKR Bridge on your computer
+        │
+Paper TWS or IB Gateway
 ```
 
-### 12 Agent System
-
-| Agent | Purpose | Data Source |
-|-------|---------|-------------|
-| Data Ingestion | Real-time + historical data | IBKR, yfinance, Alpaca |
-| Scanner | 7000+ securities scan | IBKR, yfinance |
-| Volatility Engine | IV Rank, IV Percentile, Greeks | IBKR, yfinance |
-| Flow Analysis | Unusual activity, sweep detection | IBKR, volume analysis |
-| GEX Engine | Dealer positioning, gamma levels | Option chain calculation |
-| Dark Pool | Institutional activity detection | Volume anomalies, OI |
-| Technical | Trend, RSI, MACD, Bollinger | yfinance |
-| Sentiment | Reddit community sentiment | Reddit API |
-| Risk Management | Kelly sizing, portfolio limits | Internal |
-| Execution | Order management with stop-losses | IBKR |
-| Performance | Kinfo-style PnL tracking | Internal |
-| Alerts | Discord/Telegram/Slack notifications | Webhooks |
+The production system is a single FastAPI Advisor and a local paper-only
+Bridge. `agents/trade_engine/` is the authoritative recommendation path: it
+uses the AI brain, option-chain data, strategy scoring, probability, liquidity,
+volatility and risk gates before surfacing a candidate. The dashboard is a
+client; it never receives IBKR credentials.
 
 ## Risk Management
 
@@ -173,7 +150,6 @@ it cannot prove defined-risk — including naked short options — are rejected.
 
 ```
 thetaforge/
-├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
 ├── .env.example
@@ -191,16 +167,16 @@ thetaforge/
 │   ├── sentiment/             # Reddit sentiment (8 subreddits)
 │   ├── risk_management/       # Kelly + portfolio limits
 │   ├── backtest/              # Backtesting framework
-│   └── execution/             # Celery task stubs (not deployed)
+│   └── execution/             # IBKR execution integration helpers
 ├── tests/                     # Unit tests
 ├── deployment/                # Panic button, setup scripts
-└── docs/                      # API docs, strategy guide
+└── docs/                      # Strategy guide and engineering handover
 ```
 
-`docker-compose.yml`, `orchestrator/celery_app.py`, and the `tasks.py` modules
-describe a queue-and-database architecture that is not part of the running
-system. The deployed Advisor is a single FastAPI process using JSON files in
-`data/` for state.
+The deployed Advisor is a single FastAPI process using JSON files in `data/`
+for state. It does not use a database, Celery worker, Docker Compose, or a
+separate Go scanner. The Dockerfile remains because Railway uses it to build
+the service.
 
 ## Testing
 

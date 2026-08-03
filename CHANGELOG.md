@@ -1,5 +1,16 @@
 # ThetaForge Changelog
 
+## v0.6.7 - 2026-08-03
+
+- Removed inactive, misleading API routes (fake positions, strategy settings,
+  backtest and live-toggle) so every remaining API route corresponds to the
+  production Advisor or its health probe.
+- Removed unreferenced Celery/task-worker scaffolding, Docker Compose, and
+  database/queue dependencies. Railway continues to use the retained Dockerfile
+  to run the single hardened FastAPI service.
+- Updated the project map and dashboard version so operating instructions match
+  the deployed paper-only architecture.
+
 ## v0.6.6 — 2026-08-03
 
 - Added the Option Alpha probability/EV playbook to the recommender:

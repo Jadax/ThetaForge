@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://jadax.github.io/ThetaForge/"),
   title: "ThetaForge Personal Terminal",
   description: "A personal options intelligence dashboard for an IBKR workflow.",
   openGraph: {
