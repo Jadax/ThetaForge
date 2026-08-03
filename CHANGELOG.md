@@ -1,5 +1,14 @@
 # ThetaForge Changelog
 
+## v0.6.9 - 2026-08-03
+
+- Added the compatible OpScanBot execution references to the recommender:
+  single-leg premium sellers require 500 OI; both legs of vertical credit
+  spreads require 250 OI; and verticals must collect at least 25% of width.
+- Kept ThetaForge's stricter 33%-of-width iron-condor requirement and did not
+  invent a delta or timestamp rule from delayed/free data. POP, probability of
+  touch, and the final live IBKR executable-quote validation remain in force.
+
 ## v0.6.8 - 2026-08-03
 
 - Made the background scanner fail closed when price, option-chain, VIX, or

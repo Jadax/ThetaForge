@@ -20,6 +20,8 @@ from agents.trade_engine.strategy_scorer import StrategyScorer
 from agents.trade_engine.recommender import (
     TradeRecommender, MIN_COMPOSITE_SCORE, MIN_IV_RANK_SELL,
     MIN_IV_RANK_BUY, MAX_VIX_SELL, MIN_IRON_CONDOR_CREDIT_TO_WIDTH,
+    MIN_CREDIT_SPREAD_CREDIT_TO_WIDTH, MIN_CREDIT_SPREAD_LEG_OI,
+    MIN_SINGLE_LEG_OI,
 )
 from agents.flow_analysis.unusual_activity import UnusualActivityDetector
 from agents.trade_engine import alerts as alerts_module
@@ -536,6 +538,25 @@ def test_spread_requires_liquid_short_leg():
         {"trend": "neutral"}, {}, {"iv": 0.30, "hv_20": 0.20, "iv_rank": 70, "vix": 20},
         2000, 10000,
     ) is None
+
+
+def test_opscanbot_execution_floors_require_open_interest_and_credit_to_width():
+    """Verticals require liquid legs and meaningful credit, not just a high score."""
+    recommender = TradeRecommender()
+    liquid = {"open_interest": MIN_CREDIT_SPREAD_LEG_OI}
+    assert recommender._passes_credit_spread_execution_gate(
+        liquid, liquid, MIN_CREDIT_SPREAD_CREDIT_TO_WIDTH * 5, 5
+    )
+    assert not recommender._passes_credit_spread_execution_gate(
+        {"open_interest": MIN_CREDIT_SPREAD_LEG_OI - 1}, liquid, 1.5, 5
+    )
+    assert not recommender._passes_credit_spread_execution_gate(liquid, liquid, 1.24, 5)
+    assert recommender._has_minimum_open_interest(
+        {"open_interest": MIN_SINGLE_LEG_OI}, MIN_SINGLE_LEG_OI
+    )
+    assert not recommender._has_minimum_open_interest(
+        {"open_interest": MIN_SINGLE_LEG_OI - 1}, MIN_SINGLE_LEG_OI
+    )
 
 
 def test_iron_condor_requires_credit_to_width():

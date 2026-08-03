@@ -47,6 +47,11 @@ MIN_EDGE_SCORE = 60.0
 MIN_PROBABILITY_OF_PROFIT = 55.0
 MIN_LIQUIDITY_VOLUME = 10
 MIN_LIQUIDITY_OI = 100
+# OpScanBot-compatible execution floors. These are deliberately stricter than
+# the generic liquidity fallback because opening and later closing a premium
+# selling structure both depend on dependable open interest.
+MIN_SINGLE_LEG_OI = 500
+MIN_CREDIT_SPREAD_LEG_OI = 250
 # TastyTrade / ORATS professional volatility gates. These mirror the
 # market-maker playbook: only sell premium when it is expensive (elevated IV
 # Rank, IV above realized volatility) and the market is not in a crash regime
@@ -66,6 +71,10 @@ MAX_PROBABILITY_OF_TOUCH_SELL = 70
 # A spread credit so small it barely covers the round-trip costs is a zero- or
 # negative-EV trade after commissions regardless of its win rate. Skip it.
 MIN_SPREAD_CREDIT = 0.15
+# A flat dollar credit is not comparable across $1 and $10-wide spreads. This
+# execution-quality floor complements (rather than replaces) the commission
+# floor above.
+MIN_CREDIT_SPREAD_CREDIT_TO_WIDTH = 0.25
 
 
 class TradeRecommender:
@@ -357,6 +366,31 @@ class TradeRecommender:
             return None
         return short_bid - long_ask
 
+    @staticmethod
+    def _has_liquidity(contract: Dict[str, Any], minimum_oi: int = MIN_LIQUIDITY_OI) -> bool:
+        """Require either current participation or sufficient open interest."""
+        return (
+            float(contract.get("volume", 0) or 0) >= MIN_LIQUIDITY_VOLUME
+            or float(contract.get("open_interest", 0) or 0) >= minimum_oi
+        )
+
+    @staticmethod
+    def _has_minimum_open_interest(contract: Dict[str, Any], minimum_oi: int) -> bool:
+        """Use an OI-only floor when a strategy must remain readily closable."""
+        return float(contract.get("open_interest", 0) or 0) >= minimum_oi
+
+    @classmethod
+    def _passes_credit_spread_execution_gate(
+        cls, short_leg: Dict[str, Any], long_leg: Dict[str, Any], credit: float, width: float
+    ) -> bool:
+        """Shared OpScanBot-compatible execution gate for vertical spreads."""
+        return (
+            width > 0
+            and credit / width >= MIN_CREDIT_SPREAD_CREDIT_TO_WIDTH
+            and cls._has_minimum_open_interest(short_leg, MIN_CREDIT_SPREAD_LEG_OI)
+            and cls._has_minimum_open_interest(long_leg, MIN_CREDIT_SPREAD_LEG_OI)
+        )
+
     @classmethod
     def _passes_quality_gate(
         cls,
@@ -501,7 +535,7 @@ class TradeRecommender:
             return None
 
         # Liquidity check
-        if put.get("volume", 0) < MIN_LIQUIDITY_VOLUME and put.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+        if not self._has_minimum_open_interest(put, MIN_SINGLE_LEG_OI):
             return None
 
         roi = self.roi_calc.csp_roi(strike, premium, dte, stock_price, nvrp.get("iv", 0.20))
@@ -548,7 +582,7 @@ class TradeRecommender:
         if premium <= 0 or strike <= stock_price:
             return None
 
-        if call.get("volume", 0) < MIN_LIQUIDITY_VOLUME and call.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+        if not self._has_minimum_open_interest(call, MIN_SINGLE_LEG_OI):
             return None
 
         roi = self.roi_calc.covered_call_roi(strike, premium, dte, stock_price, iv=nvrp.get("iv", 0.20))
@@ -606,10 +640,9 @@ class TradeRecommender:
             return None
 
         # The short leg is the executed side — it must be liquid.
-        if short_put.get("volume", 0) < MIN_LIQUIDITY_VOLUME and short_put.get("open_interest", 0) < MIN_LIQUIDITY_OI:
-            return None
-
         width = short_strike - long_strike
+        if not self._passes_credit_spread_execution_gate(short_put, long_put, credit, width):
+            return None
         capital_needed = (width - credit) * 100
 
         if capital_needed > max_cap or capital_needed <= 0:
@@ -666,10 +699,9 @@ class TradeRecommender:
             return None
 
         # The short leg is the executed side — it must be liquid.
-        if short_call.get("volume", 0) < MIN_LIQUIDITY_VOLUME and short_call.get("open_interest", 0) < MIN_LIQUIDITY_OI:
-            return None
-
         width = long_strike - short_strike
+        if not self._passes_credit_spread_execution_gate(short_call, long_call, credit, width):
+            return None
         capital_needed = (width - credit) * 100
 
         if capital_needed > max_cap or capital_needed <= 0:
@@ -741,9 +773,9 @@ class TradeRecommender:
             return None
 
         # Both executed short wings must be liquid.
-        if put_short.get("volume", 0) < MIN_LIQUIDITY_VOLUME and put_short.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+        if not self._has_minimum_open_interest(put_short, MIN_SINGLE_LEG_OI):
             return None
-        if call_short.get("volume", 0) < MIN_LIQUIDITY_VOLUME and call_short.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+        if not self._has_minimum_open_interest(call_short, MIN_SINGLE_LEG_OI):
             return None
 
         # Calculate credit
@@ -823,7 +855,7 @@ class TradeRecommender:
             return None
 
         # The short leg is the executed side — it must be liquid.
-        if short_call.get("volume", 0) < MIN_LIQUIDITY_VOLUME and short_call.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+        if not self._has_liquidity(short_call):
             return None
 
         long_prem = long_call.get("ask", 0)
@@ -889,7 +921,7 @@ class TradeRecommender:
             return None
 
         # The short leg is the executed side — it must be liquid.
-        if short_put.get("volume", 0) < MIN_LIQUIDITY_VOLUME and short_put.get("open_interest", 0) < MIN_LIQUIDITY_OI:
+        if not self._has_liquidity(short_put):
             return None
 
         long_prem = long_put.get("ask", 0)
