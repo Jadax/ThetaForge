@@ -54,6 +54,10 @@ reimplementations on the free, no-paid-data stack; no proprietary code or feeds.
   scan results (Option Samurai/Barchart pattern), ready for the dashboard.
 
 ### Ops
+- Removed `.github/workflows/dashboard.yml` — the auto-publish job that rebuilt the
+  terminal and force-pushed it to `gh-pages` on every `main` push was overwriting
+  the journal-only Pages site. The terminal is now confirmed local-only; Pages
+  serves only the public journal (`journal/`), as documented.
 - Full suite at 145 passing. Journal smoke-tested (populated + empty + Learn)
   with 0 console errors.
 
