@@ -26,6 +26,12 @@ Dashboard (GitHub Pages or localhost)
   trade journal: an influencer-style, static showcase page. It is the only
   intentionally public dashboard surface; every position is labeled PAPER and
   all metrics are computed from the journal, never hardcoded.
+- `scripts/add_trade.py` is the journal input path: it appends a validated
+  trade to `dashboard/trades.json`, recomputes the metric strip with the same
+  math as the page, and prints a preview. `--from-ledger <id>` pre-fills
+  symbol/strategy/legs/capital from the paper-order ledger
+  (`data/paper_order_ledger.json`). Run it, commit, push — GitHub Pages
+  redeploys the journal.
 
 State is JSON under `data/`; the directory is ignored by Git. There is no
 database, task queue, Docker Compose setup, Go scanner, or live-order path.

@@ -86,6 +86,11 @@ showcase page. Rules that protect the user's credibility:
 - Metrics (win rate, profit factor, max drawdown, streak) are COMPUTED from the
   journal entries, never hardcoded — no 100%-win claims, ever. Losing trades
   stay in the journal.
+- Trades are entered via `scripts/add_trade.py` (validates the entry, recomputes
+  metrics, prints a preview). `--from-ledger <id>` pulls legs/strategy/capital
+  straight from the paper-order ledger so journal legs match the simulator
+  fills. Never hand-edit the file for a trade you want counted — the script is
+  the single validated input path.
 - Trade cards must carry the thesis, the legs, and the outcome (what actually
   happened) plus a timestamped receipt. This is the AfterHour/TradingView
   trust pattern, not marketing.

@@ -41,6 +41,7 @@ Dashboard (Next.js, GitHub Pages/localhost)
 | `orchestrator/routes/advisor.py` | Authenticated dashboard API |
 | `bridge/main.py` | Paper-only IBKR order checks and submission |
 | `dashboard/app/trades/page.tsx` + `dashboard/trades.json` | Public trade journal (static, PAPER-only, computed metrics) — the only intentionally public dashboard surface |
+| `scripts/add_trade.py` | Validated journal input CLI; appends to `dashboard/trades.json`, recomputes metrics, `--from-ledger` pre-fill |
 | `tests/` | Backend regression suite |
 
 ## Volatility Model (keep intact)
