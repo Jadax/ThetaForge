@@ -196,11 +196,17 @@ class AIBrain:
         pcr_data: Dict = None,
         days_to_earnings: int = None,
         portfolio_context: Dict = None,
+        vix_term_structure: Dict = None,
+        expected_move_pct: float = None,
+        iv_percentile: float = None,
     ) -> BrainOutput:
         """
         MAIN ENTRY POINT: Analyze a symbol and produce comprehensive recommendation.
         
         portfolio_context: {"existing_positions": [...], "symbols_held": [...], "net_delta": float, "net_vega": float}
+        vix_term_structure: {"VIX9D": float, "VIX3M": float, "VIX6M": float, "VIX1Y": float}
+        expected_move_pct: 1-SD expected move over the trade horizon, as a percent of spot.
+        iv_percentile: IV percentile (0-100) from the symbol's own IV history.
         """
         closes = historical_prices or [stock_price]
         highs = high_prices or [stock_price * 1.01]
@@ -243,25 +249,56 @@ class AIBrain:
             iv_ratio = self.tv.iv_hv_ratio(current_iv, hv_20)
             iv_signal = {"iv_rank": ivr, **iv_ratio}
 
-            if ivr >= 50 and iv_ratio["signal"] == "sell_premium":
+            # IV percentile is the stronger dual filter (56.8% premium-selling
+            # win rate vs 48.2% for IVR alone) — MarketChameleon's methodology.
+            if iv_percentile is not None:
+                iv_signal["iv_percentile"] = iv_percentile
+                eff_iv_rank = max(ivr, iv_percentile)
+            else:
+                iv_signal["iv_percentile"] = None
+                eff_iv_rank = ivr
+
+            # Expected move (1-SD) is the trader's map for strike selection.
+            if expected_move_pct is not None:
+                iv_signal["expected_move_pct"] = expected_move_pct
+
+            # VIX term-structure contango/inversion regime (Option Alpha's
+            # volatility-scenario framework; Tastytrade halts selling on
+            # inversion). Missing data keeps the edge neutral, never bullish.
+            if vix_term_structure:
+                vix9d = vix_term_structure.get("VIX9D")
+                vix3m = vix_term_structure.get("VIX3M")
+                if vix9d is not None and vix3m is not None:
+                    if vix9d < vix3m:
+                        iv_signal["term_structure"] = "contango"
+                    elif vix9d > vix3m:
+                        iv_signal["term_structure"] = "inverted"
+                    else:
+                        iv_signal["term_structure"] = "flat"
+                else:
+                    iv_signal["term_structure"] = None
+            else:
+                iv_signal["term_structure"] = None
+
+            if eff_iv_rank >= 50 and iv_ratio["signal"] == "sell_premium":
                 signals.append(SignalResult(
                     source="iv", signal="sell_premium",
-                    strength=0.8, confidence=min(ivr, 90),
-                    reasoning=f"IVR {ivr:.0f} + IV>HV → strong premium selling edge",
+                    strength=0.8, confidence=min(eff_iv_rank, 90),
+                    reasoning=f"IVR {ivr:.0f}" + (f"/Percentile {iv_percentile:.0f}" if iv_percentile is not None else "") + " + IV>HV → strong premium selling edge",
                 ))
-            elif 40 <= ivr < 50 and iv_ratio["signal"] == "sell_premium":
+            elif 40 <= eff_iv_rank < 50 and iv_ratio["signal"] == "sell_premium":
                 signals.append(SignalResult(
                     source="iv", signal="moderate_sell_premium",
                     strength=0.3, confidence=55,
                     reasoning=f"IVR {ivr:.0f} and IV>HV → moderate premium selling edge",
                 ))
-            elif ivr <= 30 and iv_ratio["signal"] == "buy_premium":
+            elif eff_iv_rank <= 30 and iv_ratio["signal"] == "buy_premium":
                 signals.append(SignalResult(
                     source="iv", signal="buy_premium",
-                    strength=-0.5, confidence=min(100 - ivr, 80),
+                    strength=-0.5, confidence=min(100 - eff_iv_rank, 80),
                     reasoning=f"IVR {ivr:.0f} + IV<HV → premium buying edge",
                 ))
-            elif 30 < ivr <= 40 and iv_ratio["signal"] == "buy_premium":
+            elif 30 < eff_iv_rank <= 40 and iv_ratio["signal"] == "buy_premium":
                 signals.append(SignalResult(
                     source="iv", signal="moderate_buy_premium",
                     strength=-0.2, confidence=55,
@@ -273,6 +310,16 @@ class AIBrain:
                     strength=0, confidence=50,
                     reasoning=f"IVR {ivr:.0f} → no clear vol edge",
                 ))
+
+            # Inverted VIX term structure overrides any premium-selling edge:
+            # front-month fear makes the short side structurally toxic
+            # regardless of symbol-level IVR.
+            if iv_signal.get("term_structure") == "inverted" and iv_signal.get("signal") == "sell_premium":
+                signals[-1] = SignalResult(
+                    source="iv", signal="neutral",
+                    strength=0, confidence=50,
+                    reasoning=f"IVR {ivr:.0f} but VIX term structure inverted → pause premium selling",
+                )
         else:
             iv_signal = {"iv_rank": 50}
 
@@ -540,6 +587,15 @@ class AIBrain:
             return {
                 "strategy": "avoid_new_positions",
                 "reasoning": f"Earnings in {days_to_earnings} days → too close, avoid new positions",
+            }
+
+        # Inverted VIX term structure = front-month fear. Selling premium into
+        # an inverted curve is the classic premium-capture mistake; pause all
+        # short-vega strategies until the curve re-steepens (Option Alpha).
+        if iv_signal.get("term_structure") == "inverted":
+            return {
+                "strategy": "no_trade",
+                "reasoning": "VIX term structure inverted → pause new premium selling until curve re-steepens",
             }
 
         if confidence < 55:

@@ -31,12 +31,19 @@ it.
 ## Recommendation Pipeline
 
 1. The scanner loads market and option-chain data for each liquid symbol.
-2. `AIBrain` derives regime and qualitative signal context.
-3. `TradeRecommender` evaluates cash-secured puts, covered calls, credit
+2. Volatility context is assembled per symbol: current IV and 20-day realized
+   volatility, IV percentile from the symbol's own per-symbol IV history store
+   (`data/iv_history.json`), expected move, VIX term structure
+   (contango/inversion), and earnings proximity.
+3. `AIBrain` derives regime and qualitative signal context. Its `iv_signal`
+   carries `iv_rank`, `iv_percentile`, `expected_move_pct`, `term_structure`,
+   and the `iv_hv_ratio` fields. An inverted VIX curve downgrades sell-premium
+   to neutral and blocks premium-selling strategies.
+4. `TradeRecommender` evaluates cash-secured puts, covered calls, credit
    spreads, iron condors, and debit spreads.
-4. Candidates must pass composite/edge/POP, liquidity, IV-rank, volatility,
+5. Candidates must pass composite/edge/POP, liquidity, IV-rank, volatility,
    probability-of-touch, defined-risk, position-size and portfolio-risk gates.
-5. Passing candidates carry max profit/loss, POP, expected value, alpha,
+6. Passing candidates carry max profit/loss, POP, expected value, alpha,
    Greeks where available, and strategy-aware exit rules.
 
 The system intentionally permits an empty result. It must not manufacture a
@@ -46,6 +53,10 @@ trade to fill a dashboard card, and it cannot promise profitable outcomes.
 
 | Path | Purpose |
 | --- | --- |
+| `agents/data_ingestion/cboe_data.py` | Free no-key CBOE chains (Greeks+IV), quotes, VIX term structure |
+| `agents/data_ingestion/free_data.py` | IBKR > CBOE > yfinance chain, VIX term structure, contango, earnings date |
+| `agents/volatility/iv_history.py` | Per-symbol daily IV snapshots → real IV rank/percentile |
+| `agents/volatility/iv_metrics.py` | `calculate_iv_rank`, `calculate_iv_percentile`, realized vol |
 | `agents/trade_engine/recommender.py` | Authoritative candidate scoring and quality gates. |
 | `agents/trade_engine/background_scanner.py` | Discovery, scan cadence, notifications. |
 | `agents/trade_engine/ai_brain.py` | Regime and signal aggregation. |
@@ -54,6 +65,7 @@ trade to fill a dashboard card, and it cannot promise profitable outcomes.
 | `bridge/main.py` | Paper-only IBKR order checks and submission. |
 | `dashboard/app/page.tsx` | Dashboard, alert-to-trade modal, token entry. |
 | `tests/` | Backend regression suite. |
+| `docs/STEALING_POLICY.md` | Provenance of the free feeds and volatility gates — read before removing anything that looks unused. |
 
 ## Versioning and Validation
 
@@ -88,6 +100,13 @@ npm run build -- --webpack
 ## Removed Surface
 
 The fake positions, strategy-settings, backtest and live-toggle endpoints,
-Celery/task-worker scaffolding, unused Go scanner, and unused performance
-tracker were removed. Do not reintroduce a separate scoring or order path:
-the recommender and `bridge/main.py` are the respective sources of truth.
+Celery/task-worker scaffolding, unused Go scanner, unused performance tracker,
+the legacy `agents/strategies/` and `agents/sentiment/` packages, the unused
+execution/LLM scaffolding, the standalone backtester, and the unused dark-pool
+and scanner-pipeline modules were removed. Do not reintroduce a separate
+scoring or order path: the recommender and `bridge/main.py` are the respective
+sources of truth.
+
+`agents/backtest/advanced_backtest.py` is deliberately retained: `SignalEngine`
+(macd/rsi/adx helpers) is imported by `ai_brain.py` and `tv_indicators.py`. See
+`docs/STEALING_POLICY.md` before removing anything that looks unused.

@@ -1,5 +1,36 @@
 # ThetaForge Changelog
 
+## v0.7.0 - 2026-08-04
+
+- Added the free, no-key CBOE delayed-quotes provider
+  (`agents/data_ingestion/cboe_data.py`): full option chains with Greeks and
+  IV, underlying quotes, and VIX term-structure indices. Feeds the scanner via
+  the IBKR > CBOE > yfinance fallback chain in `free_data.py`.
+- Added a persistent per-symbol IV history store
+  (`agents/volatility/iv_history.py`) so IV Rank and IV Percentile are computed
+  against a real 52-week history, not spot IV. IV percentile is used as the
+  dual filter with IVR for the premium-selling edge (MarketChameleon
+  methodology).
+- Enriched the Brain's `iv_signal` with `iv_percentile`, `expected_move_pct`,
+  and `term_structure`. Inverted VIX term structure now downgrades
+  sell-premium signals to neutral and blocks new premium-selling strategies
+  (Option Alpha / Tastytrade playbook).
+- Wired the background scanner to feed `current_iv`, `hv_20`, `iv_percentile`,
+  `expected_move_pct`, `vix_term_structure`, and `days_to_earnings` into the
+  Brain; each enrichment degrades to neutral on failure, preserving the
+  fail-closed scanner contract.
+- Added free earnings-date lookups (yfinance) driving the existing earnings
+  avoidance gate, plus `realized_volatility` / `realized_volatility_series`
+  helpers in `iv_metrics.py`.
+- Removed verified-dead code: legacy `agents/strategies/`, `agents/sentiment/`,
+  `agents/execution/`, `agents/llm_reasoning/`, the standalone backtester,
+  dark-pool and multi-layer scanner modules, and `data_ingestion/market_data.py`.
+  Kept `advanced_backtest.py` — `SignalEngine` is imported by `ai_brain.py` and
+  `tv_indicators.py`.
+- Documented the provenance of every free feed and volatility gate in
+  `docs/STEALING_POLICY.md` and added `AGENTS.md` so the additions are
+  protected from future removal.
+
 ## v0.6.9 - 2026-08-03
 
 - Added the compatible OpScanBot execution references to the recommender:

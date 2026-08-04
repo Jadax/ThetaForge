@@ -1,7 +1,8 @@
 """
 Free Multi-Source Data Provider.
-Aggregates data from IBKR (primary), Alpaca (secondary), and yfinance (fallback).
-All sources are FREE with a brokerage account or no account at all.
+Aggregates data from IBKR (primary), CBOE delayed quotes (no key), Alpaca
+(secondary), and yfinance (fallback). All sources are FREE with a brokerage
+account or no account at all.
 Adapted from IBKRTools and general market data aggregation patterns.
 """
 import asyncio
@@ -13,18 +14,21 @@ from datetime import datetime, timedelta, date
 import yfinance as yf
 import pandas as pd
 
+from agents.data_ingestion.cboe_data import CBOEDataProvider
+
 logger = logging.getLogger(__name__)
 
 
 class FreeDataProvider:
     """
     Multi-source data provider using only free APIs.
-    Priority: IBKR > Alpaca > yfinance
+    Priority: IBKR > CBOE (options) > Alpaca > yfinance
     """
 
     def __init__(self, ibkr_client=None, alpaca_client=None):
         self.ibkr = ibkr_client
         self.alpaca = alpaca_client
+        self.cboe = CBOEDataProvider()
 
     async def get_stock_price(self, symbol: str) -> Optional[float]:
         """Get current stock price from any available source."""
@@ -51,9 +55,20 @@ class FreeDataProvider:
         return None
 
     async def get_option_chain(self, symbol: str) -> List[Dict[str, Any]]:
-        """Get full option chain. IBKR provides free real-time data with account."""
+        """Get full option chain. IBKR provides free real-time data with account.
+
+        Falls back to the free CBOE delayed-quotes feed (full Greeks, no API
+        key, 15-minute delayed NBBO) and then to yfinance.
+        """
         if self.ibkr and self.ibkr._connected:
             return await self.ibkr.get_option_chain(symbol)
+
+        try:
+            chain = await self.cboe.get_option_chain(symbol)
+            if chain:
+                return chain
+        except Exception as error:
+            logger.debug("CBOE chain unavailable for %s: %s", symbol, error)
 
         try:
             def fetch_chain() -> List[Dict[str, Any]]:
@@ -107,6 +122,79 @@ class FreeDataProvider:
             vix = yf.Ticker("^VIX")
             return float(vix.fast_info.last_price)
         except Exception:
+            return None
+
+    async def get_vix_term_structure(self) -> Dict[str, Optional[float]]:
+        """Latest closes of VIX9D / VIX3M / VIX6M / VIX1Y.
+
+        Primary source is Yahoo's VIX index tickers; the CBOE daily-history
+        feed is the fallback. A missing index stays None rather than being
+        replaced with a placeholder.
+        """
+        structure: Dict[str, Optional[float]] = {
+            index: None for index in ("VIX9D", "VIX3M", "VIX6M", "VIX1Y")
+        }
+        yahoo_map = {"VIX9D": "^VIX9D", "VIX3M": "^VIX3M", "VIX6M": "^VIX6M", "VIX1Y": "^VIX1Y"}
+        for index, ticker_symbol in yahoo_map.items():
+            try:
+                ticker = yf.Ticker(ticker_symbol)
+                price = float(ticker.fast_info.last_price)
+                if price > 0:
+                    structure[index] = round(price, 2)
+            except Exception:
+                continue
+        if all(value is not None for value in structure.values()):
+            return structure
+        # Fill any gaps from the CBOE daily-history feed (no key required).
+        try:
+            cboe_structure = await self.cboe.get_vix_term_structure()
+            for index, value in cboe_structure.items():
+                if structure.get(index) is None:
+                    structure[index] = value
+        except Exception as error:
+            logger.debug("CBOE VIX term structure unavailable: %s", error)
+        return structure
+
+    def is_vix_contango(self, term_structure: Dict[str, Optional[float]]) -> Optional[bool]:
+        """True when the VIX term structure is in healthy contango
+        (VIX9D < VIX3M < VIX6M), False when inverted, None when data is missing.
+
+        Inversion means front-month fear is elevated — the worst regime for
+        selling premium (Tastytrade pauses sellers on inverted structure).
+        """
+        vix9d = term_structure.get("VIX9D")
+        vix3m = term_structure.get("VIX3M")
+        vix6m = term_structure.get("VIX6M")
+        if vix9d is None or vix3m is None:
+            return None
+        if vix9d >= vix3m:
+            return False
+        # Contango also fails when the mid part of the curve is already
+        # dipping below the front (partial inversion).
+        if vix6m is not None and vix6m < vix3m:
+            return False
+        return True
+
+    async def get_next_earnings_date(self, symbol: str) -> Optional[date]:
+        """Next scheduled earnings date via yfinance (ETFs return None)."""
+        try:
+            def fetch_next() -> Optional[date]:
+                ticker = yf.Ticker(symbol)
+                frame = ticker.get_earnings_dates(limit=4)
+                if frame is None or frame.empty:
+                    return None
+                today = pd.Timestamp.today().normalize()
+                for index in frame.index:
+                    candidate = index
+                    if hasattr(index, "tzinfo") and getattr(index, "tzinfo", None) is not None:
+                        candidate = index.tz_convert(None)
+                    candidate = pd.Timestamp(candidate).normalize()
+                    if candidate >= today:
+                        return candidate.date()
+                return None
+            return await asyncio.to_thread(fetch_next)
+        except Exception as error:
+            logger.debug("Earnings date unavailable for %s: %s", symbol, error)
             return None
 
     async def get_vix_history(self, period: str = "1y") -> pd.DataFrame:

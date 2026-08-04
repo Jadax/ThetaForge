@@ -11,7 +11,7 @@ import logging
 import os
 import asyncio
 from typing import Dict, Optional, List, Tuple
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 
 import httpx
 
@@ -29,6 +29,37 @@ SCAN_STATE_FILE = os.path.join(DATA_DIR, "brain_scan_state.json")
 # same high-conviction floor used by the detailed Advisor recommendation path.
 NOTIFICATION_SCORE_FLOOR = 75
 NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
+
+
+def _atm_iv(chain: List[Dict]) -> Optional[float]:
+    """Best-effort ATM implied volatility from the nearest-expiry chain.
+
+    Uses the options closest to the 50% delta (or nearest strike to the money
+    when deltas are missing) across the first expiry with IV, averaging the
+    call and put IVs like a 0.50-delta straddle.
+    """
+    candidates = []
+    for opt in chain:
+        iv = opt.get("implied_volatility")
+        if not iv or float(iv) <= 0:
+            continue
+        delta = opt.get("delta")
+        if delta is not None:
+            try:
+                candidates.append((abs(float(delta) - 0.5), float(iv)))
+            except (TypeError, ValueError):
+                continue
+        else:
+            candidates.append((None, float(iv)))
+    if not candidates:
+        return None
+    if candidates[0][0] is None:
+        return sum(iv for _, iv in candidates) / len(candidates)
+    # Near-zero delta offset = closest to the money.
+    nearest = min(candidates, key=lambda pair: pair[0])
+    near = [c for c in candidates if c[0] is not None and c[0] <= 0.05]
+    pool = near if near else [nearest]
+    return sum(iv for _, iv in pool) / len(pool)
 
 # Liquid options underlyings — most actively traded US ETFs and large-caps.
 # These are the first-pass scan targets; the screener discovers additional names.
@@ -216,6 +247,55 @@ class BackgroundBrainScanner:
         except Exception:
             return None, "history_unavailable"
 
+        # Volatility context: current IV, 20-day realized vol, expected move,
+        # VIX term structure, earnings proximity, and the symbol's own IV
+        # percentile. Every enrichment degrades to None on failure — the Brain
+        # already treats missing data as neutral — so a single broken source
+        # can never make a non-signal tradeable (or vice-versa).
+        try:
+            from agents.volatility.iv_metrics import realized_volatility
+            hv_20 = realized_volatility(closes)
+        except Exception:
+            hv_20 = None
+
+        current_iv = None
+        expected_move_pct = None
+        try:
+            from agents.trade_engine.analytics import OptionsAnalytics
+            ivs = [
+                float(opt.get("implied_volatility") or 0)
+                for opt in chain
+                if opt.get("implied_volatility")
+            ]
+            current_iv = float(_atm_iv(chain)) if _atm_iv(chain) else (
+                sorted(ivs)[len(ivs) // 2] if ivs else None
+            )
+            if current_iv and current_iv > 0 and price > 0:
+                move = OptionsAnalytics().expected_move(price, current_iv, 30)
+                expected_move_pct = move.get("expected_move_pct")
+        except Exception:
+            current_iv = None
+
+        iv_percentile = None
+        try:
+            from agents.volatility.iv_history import IVHistoryStore
+            store = IVHistoryStore()
+            store.record(symbol, current_iv, hv_20)
+            iv_percentile = store.iv_percentile(symbol, current_iv)
+        except Exception:
+            iv_percentile = None
+
+        try:
+            vix_term_structure = await self._provider.get_vix_term_structure()
+        except Exception:
+            vix_term_structure = None
+
+        try:
+            next_earnings = await self._provider.get_next_earnings_date(symbol)
+            days_to_earnings = (next_earnings - date.today()).days if next_earnings else None
+        except Exception:
+            days_to_earnings = None
+
         try:
             brain = await self._lazy_brain()
             result = brain.analyze(
@@ -226,6 +306,12 @@ class BackgroundBrainScanner:
                 high_prices=high_prices,
                 low_prices=low_prices,
                 vix=vix,
+                current_iv=current_iv if current_iv else 0.20,
+                hv_20=hv_20 if hv_20 else 0.18,
+                days_to_earnings=days_to_earnings,
+                vix_term_structure=vix_term_structure,
+                expected_move_pct=expected_move_pct,
+                iv_percentile=iv_percentile,
             )
             return {
                 "score": result.overall_score,
@@ -234,8 +320,11 @@ class BackgroundBrainScanner:
                 "strategy": result.best_strategy,
                 "strategy_reasoning": result.best_strategy_reasoning,
                 "iv_rank": (result.iv_signal or {}).get("iv_rank"),
+                "iv_percentile": (result.iv_signal or {}).get("iv_percentile"),
                 "iv_hv_ratio": (result.iv_signal or {}).get("ratio"),
                 "iv_hv_signal": (result.iv_signal or {}).get("signal"),
+                "expected_move_pct": (result.iv_signal or {}).get("expected_move_pct"),
+                "term_structure": (result.iv_signal or {}).get("term_structure"),
                 "top_signal": "",
             }, None
         except Exception:

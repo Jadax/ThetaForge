@@ -28,12 +28,12 @@
 
 | Source | Data | Cost |
 |--------|------|------|
+| CBOE delayed quotes (no key) | Option chains with full Greeks + IV, quotes, VIX term structure (15-min delayed) | Free |
 | IBKR API | Real-time options, Greeks, execution | Account and relevant market-data entitlements required |
 | Alpaca Markets | Stocks, options (backup) | Free tier |
-| yfinance | Historical data, option chains, VIX | Free |
-| Reddit API | Community sentiment (8 subreddits) | Free |
-| CBOE | Put/call ratio, VIX data | Free |
-| FINRA | Dark pool volume data (weekly) | Free |
+| yfinance | Historical prices, option chains, VIX indices, earnings calendar | Free |
+
+Every feed in the production path is free. There is no paid API dependency.
 
 ## Quick Start
 
@@ -56,12 +56,20 @@ personal dashboard and paper Bridge.
 ```
 Liquid core + public screeners + optional local IBKR discoveries
   → up to 300 first-pass underlyings
+  → free CBOE chain/quote + VIX term structure per symbol
   → price/volume liquidity and movement screen
   → top 10 full option-chain analyses
   → composite + edge + modeled POP quality gates
   → diversified Advisor-selected stocks
   → live IBKR verification before paper submission
 ```
+
+Each analyzed symbol feeds the Brain a real volatility context: current IV,
+20-day realized volatility, IV percentile from the symbol's own per-symbol IV
+history, expected move, VIX term structure (contango/inversion), and earnings
+proximity. Selling premium is gated on elevated IV rank/percentile **and** a
+healthy VIX curve; an inverted curve or earnings inside 7 days blocks new
+positions.
 
 The hosted Railway scanner cannot directly reach a Bridge running on a personal
 computer. Local IBKR discoveries are sent by the dashboard when the Bridge is
@@ -159,18 +167,15 @@ thetaforge/
 ├── dashboard/                 # Next.js dashboard
 ├── agents/
 │   ├── trade_engine/          # Production path: Brain, recommender, scanner
-│   ├── data_ingestion/        # IBKR, yfinance, Alpaca
-│   ├── volatility/            # IV Rank/Percentile, Greeks, term structure
-│   ├── flow_analysis/         # Unusual activity, dark pool, GEX engine
+│   ├── data_ingestion/        # CBOE (free no-key), IBKR, yfinance, Alpaca
+│   ├── volatility/            # IV history store, IV Rank/Percentile, realized vol, Greeks
+│   ├── flow_analysis/         # Unusual activity, GEX engine
 │   ├── technical/             # RSI, MACD, Bollinger, trend
-│   ├── strategies/            # 13 strategy modules (research)
-│   ├── sentiment/             # Reddit sentiment (8 subreddits)
 │   ├── risk_management/       # Kelly + portfolio limits
-│   ├── backtest/              # Backtesting framework
-│   └── execution/             # IBKR execution integration helpers
+│   └── backtest/              # SignalEngine indicators (macd/rsi/adx) for the Brain
 ├── tests/                     # Unit tests
 ├── deployment/                # Panic button, setup scripts
-└── docs/                      # Strategy guide and engineering handover
+└── docs/                      # Handover, paper bridge, stealing policy
 ```
 
 The deployed Advisor is a single FastAPI process using JSON files in `data/`

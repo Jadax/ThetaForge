@@ -3,12 +3,42 @@ IV Rank and IV Percentile Calculation.
 Adapted from Wheel Screener for dual-view volatility analysis.
 IV Rank: (Current IV - 52-week Low) / (52-week High - 52-week Low)
 IV Percentile: % of days with lower IV over the past year.
+Also provides annualized realized-volatility helpers shared by the scanner
+and the advisor route (single source of truth).
 """
 import logging
-import numpy as np
-from typing import List, Dict, Any
+import math
+import statistics
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def realized_volatility(closes: List[float], window: int = 20) -> Optional[float]:
+    """Annualized realized volatility over the trailing *window* log returns."""
+    if len(closes) < window + 1:
+        return None
+    returns = [
+        math.log(closes[index] / closes[index - 1])
+        for index in range(len(closes) - window, len(closes))
+    ]
+    if len(returns) < 2 or all(value == returns[0] for value in returns):
+        return None
+    return statistics.stdev(returns) * math.sqrt(252)
+
+
+def realized_volatility_series(closes: List[float], window: int = 20) -> List[float]:
+    """Rolling annualized realized-vol series (one value per closing day)."""
+    series: List[float] = []
+    for end in range(window + 1, len(closes) + 1):
+        windowed = closes[end - window - 1:end]
+        returns = [
+            math.log(windowed[index] / windowed[index - 1])
+            for index in range(1, len(windowed))
+        ]
+        if len(returns) >= 2 and any(value != returns[0] for value in returns):
+            series.append(statistics.stdev(returns) * math.sqrt(252))
+    return series
 
 def calculate_iv_rank(current_iv: float, iv_history: List[float]) -> float:
     """Calculate IV Rank (0-100)."""
