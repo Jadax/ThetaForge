@@ -27,6 +27,7 @@ from agents.trade_engine.models import (
 from agents.trade_engine.roi_calculator import ROICalculator
 from agents.trade_engine.analytics import OptionsAnalytics
 from agents.trade_engine.strategy_scorer import StrategyScorer
+from agents.trade_engine.theoretical_edge import estimate_structure_value
 from agents.risk_management.kelly_calculator import calculate_kelly
 from agents.risk_management.portfolio_limits import RiskManager
 
@@ -1142,6 +1143,33 @@ class TradeRecommender:
         entry_rules = self._generate_entry_rules(strategy_type, candidate)
         exit_rules = self._generate_exit_rules(strategy_type, candidate)
 
+        # Theoretical edge: market value vs our own Black-Scholes model value
+        # (Market Chameleon pattern). Fail-closed to 0 when unpriced.
+        edge_read = estimate_structure_value(
+            legs=[
+                {
+                    "action": "SELL" if leg.action == "SELL" else "BUY",
+                    "option_type": (leg.contract.option_type or "put").lower(),
+                    "strike": leg.contract.strike,
+                    "dte": leg.contract.dte or candidate.get("dte", 30),
+                    "iv": leg.contract.iv,
+                    "mid": leg.contract.mid,
+                }
+                for leg in legs
+                if leg.contract.strike and leg.contract.dte
+            ],
+            stock_price=candidate.get("stock_price"),
+        )
+        theoretical_edge_pct = (edge_read or {}).get("theoretical_edge_pct", 0.0) or 0.0
+        model_value = (edge_read or {}).get("model_net", 0.0) or 0.0
+
+        # 1-SD expected move over the trade horizon from ATM IV (sqrt-dte scaling).
+        stock_px = candidate.get("stock_price") or 0
+        ivs = [leg.contract.iv for leg in legs if leg.contract.iv]
+        em_dte = candidate.get("dte", 30)
+        atm_iv = (sum(ivs) / len(ivs)) if ivs else 0.0
+        expected_move_pct = round((atm_iv * math.sqrt(em_dte / 365.0) * 100), 2) if stock_px and atm_iv else 0.0
+
         # ROI calculations
         capital_required = candidate.get("capital_required", 0)
         max_profit = candidate.get("max_profit", roi_data.get("max_profit", 0))
@@ -1167,6 +1195,9 @@ class TradeRecommender:
             probability_of_profit=roi_data.get("probability_of_profit", 0),
             expected_value=expected_value,
             alpha=alpha,
+            theoretical_edge_pct=theoretical_edge_pct,
+            model_value=model_value,
+            expected_move_pct=expected_move_pct,
             kelly_fraction=self._calculate_kelly(candidate, roi_data),
             capital_required=capital_required,
             capital_at_risk=max_loss,

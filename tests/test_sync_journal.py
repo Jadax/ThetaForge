@@ -77,6 +77,14 @@ def test_rebuilds_from_ledger(tmp_path):
          "expiry": "2026-08-21", "dte": 20},
     ]
     assert "TWS" in trade["reason"]
+    assert trade["source"] == "ledger"
+    assert trade["ledger_ref"] == "rec-1"
+    assert trade["order"]["status"] == "Filled"
+    assert trade["order"]["net_credit"] == 300
+    assert trade["management_plan"]["target"]
+    assert "verification" in data
+    assert data["verification"]["entries_from_ledger"] == 1
+    assert len(data["verification"]["ledger_sha"]) == 64
 
 
 def test_excludes_cancelled_and_unrecommended(tmp_path):
@@ -200,3 +208,27 @@ def test_empty_ledger_yields_empty_journal(tmp_path):
                        "--ledger", str(ledger_path)])
     data = json.loads(journal_path.read_text(encoding="utf-8"))
     assert data["trades"] == []
+    assert data["verification"]["entries_from_ledger"] == 0
+
+
+def test_manual_entries_marked_manual_and_sha_changes(tmp_path):
+    ledger = [_record("rec-1")]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    manual = [{
+        "id": "TF-2026-099", "symbol": "AAPL", "opened": "2026-07-01",
+        "closed": None, "status": "open", "strategy": "covered_call",
+        "legs": [], "entry_ivr": 33, "dte_at_entry": 22,
+        "capital_at_risk": 25800, "max_profit": 1400, "net_pnl": 0.0,
+        "net_pnl_pct": 0.0, "reason": "Manual entry.", "research": [],
+        "tags": [], "exit_note": "Open.", "timestamp": "2026-07-01T00:00:00Z",
+    }]
+    journal_path = _journal(tmp_path, manual)
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    manual_entry = next(t for t in data["trades"] if t["id"] == "TF-2026-099")
+    ledger_entry = next(t for t in data["trades"] if t["id"] == "rec-1")
+    assert manual_entry["source"] == "manual"
+    assert ledger_entry["source"] == "ledger"

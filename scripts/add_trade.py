@@ -214,6 +214,8 @@ def build_trade(args: argparse.Namespace, ledger: list[dict]) -> dict:
             ).strip()])[0])
 
     entry_ivr = _float(pick(args.entry_ivr, None, "Entry IVR", 0))
+    expected_move_pct = _float(
+        pick(args.expected_move_pct, None, "Expected move % at entry", None))
     dte_at_entry = _int(pick(args.dte_at_entry, None, "DTE at entry", None))
     capital = _float(pick(args.capital_at_risk, prefill.get("capital_at_risk"),
                           "Capital at risk", None))
@@ -231,11 +233,15 @@ def build_trade(args: argparse.Namespace, ledger: list[dict]) -> dict:
         raise CliError("A closed trade requires --exit-note")
     tags = list(args.tag) if args.tag else []
     research = parse_research(args.research) if args.research else []
+    management_plan = None
+    if args.management_plan:
+        management_plan = json.loads(args.management_plan)
     timestamp = args.timestamp or datetime.now().astimezone().isoformat(
         timespec="seconds")
 
     trade = {
         "id": next_trade_id(args.journal_trades),
+        "source": "manual" if not args.from_ledger else "ledger",
         "symbol": symbol,
         "opened": opened,
         "closed": closed,
@@ -243,11 +249,13 @@ def build_trade(args: argparse.Namespace, ledger: list[dict]) -> dict:
         "strategy": strategy,
         "legs": legs,
         "entry_ivr": entry_ivr,
+        "expected_move_pct": expected_move_pct,
         "dte_at_entry": dte_at_entry,
         "capital_at_risk": capital,
         "max_profit": max_profit,
         "net_pnl": net_pnl,
         "net_pnl_pct": net_pnl_pct,
+        "management_plan": management_plan,
         "reason": reason,
         "research": research,
         "tags": tags,
@@ -282,6 +290,7 @@ def compute_metrics(trades: list[dict]) -> dict:
     avg_win = gross_win / len(winners) if winners else 0
     avg_loss = gross_loss / len(losers) if losers else 0
     net_pnl = sum(trade["net_pnl"] for trade in trades)
+    expectancy = net_pnl / len(closed) if closed else 0
 
     ordered = sorted(trades, key=lambda trade: trade["opened"])
     running = 0
@@ -294,6 +303,9 @@ def compute_metrics(trades: list[dict]) -> dict:
     for value in cumulative:
         peak = max(peak, value)
         max_drawdown = max(max_drawdown, peak - value)
+    drawdown_from_peak = 0.0 if cumulative and peak > 0 else 0.0
+    if cumulative:
+        drawdown_from_peak = max(peak - cumulative[-1], 0)
 
     streak = 0
     for index in range(len(closed) - 1, -1, -1):
@@ -308,7 +320,9 @@ def compute_metrics(trades: list[dict]) -> dict:
         "profit_factor": profit_factor,
         "avg_win": avg_win,
         "avg_loss": avg_loss,
+        "expectancy": expectancy,
         "max_drawdown": max_drawdown,
+        "drawdown_from_peak": drawdown_from_peak,
         "streak": streak,
     }
 
@@ -318,9 +332,11 @@ def print_metrics(metrics: dict, count: int) -> None:
     print(f"  net P&L:        +${metrics['net_pnl']:,.0f}")
     print(f"  win rate:       {metrics['win_rate']:.1f}%")
     print(f"  profit factor:  {pf}")
+    print(f"  expectancy:     {metrics['expectancy']:+.0f} per closed trade")
     print(f"  avg win:        +${metrics['avg_win']:,.0f}")
     print(f"  avg loss:       -${metrics['avg_loss']:,.0f}")
     print(f"  max drawdown:   -${metrics['max_drawdown']:,.0f}")
+    print(f"  drawdown/peak:  -${metrics['drawdown_from_peak']:,.0f}")
     print(f"  current streak: {metrics['streak']} "
           f"({count} trades logged)")
 
@@ -328,7 +344,7 @@ def print_metrics(metrics: dict, count: int) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--journal", type=Path, default=DEFAULT_JOURNAL,
-                        help="Path to dashboard/trades.json")
+                        help="Path to journal/trades.json")
     parser.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER,
                         help="Path to the paper-order ledger JSON")
     parser.add_argument("--from-ledger", metavar="ID", default=None,
@@ -341,11 +357,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--leg", action="append",
                         help="Leg as 'ACTION TYPE STRIKE EXPIRY DTE' (repeatable)")
     parser.add_argument("--entry-ivr", type=float)
+    parser.add_argument("--expected-move-pct", type=float,
+                        help="1-SD expected move (%% of spot) at entry")
     parser.add_argument("--dte-at-entry", type=int)
     parser.add_argument("--capital-at-risk", type=float)
     parser.add_argument("--max-profit", type=float)
     parser.add_argument("--net-pnl", type=float)
     parser.add_argument("--net-pnl-pct", type=float)
+    parser.add_argument("--management-plan", help="JSON object of exit rules")
     parser.add_argument("--reason")
     parser.add_argument("--exit-note")
     parser.add_argument("--tag", action="append")

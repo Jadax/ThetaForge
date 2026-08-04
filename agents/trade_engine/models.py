@@ -143,6 +143,11 @@ class TradeRecommendation:
     expected_value: float = 0.0
     # Option Alpha metric: expected value per dollar of defined risk (EV / max loss).
     alpha: float = 0.0
+    # Market Chameleon-style: how far market value sits from our BS model value.
+    theoretical_edge_pct: float = 0.0
+    model_value: float = 0.0
+    # 1-SD expected move (% of underlying) over the trade horizon, from ATM IV.
+    expected_move_pct: float = 0.0
     kelly_fraction: float = 0.0
     capital_required: float = 0.0
     capital_at_risk: float = 0.0

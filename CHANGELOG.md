@@ -1,5 +1,62 @@
 # ThetaForge Changelog
 
+## v1.0.0 - 2026-08-04
+
+Credibility, journaling, and edge hardening — built from a competitive review of
+Option Alpha, Market Chameleon, ORATS, OptionStrat, Options AI, Option Samurai,
+Barchart, tastylive, TradeZella, and Tradervue. All ideas are original
+reimplementations on the free, no-paid-data stack; no proprietary code or feeds.
+
+### Public journal (credibility + journaling)
+- Every ledger entry now carries a `source` (`TWS LEDGER` vs `MANUAL`) badge and
+  a `ledger_ref`, and `journal/trades.json` publishes a `verification` block with
+  a `ledger_sha` over the exact ledger records it was built from — recomputable,
+  FTMO/Myfxbook-style "not hand-edited" proof.
+- Raw order receipts render on every card: status, filled/quantity, average fill,
+  net credit, and the ledger submit/update timestamps.
+- New honest-metric pills: **expectancy** (avg per closed trade), **draw
+  down / peak** (current below peak), plus per-trade **R-multiple** and
+  **% of account at risk** and **expected move ±% at entry** on each card.
+- "No cherry-picking" guarantee strip: every placed trade appears, winners and
+  losers, nothing filtered.
+- **Management plan** (50% profit target, 2-3x stop, 21-DTE exit, pre-earnings
+  close, roll rules) rendered on each card — already encoded in the recommender's
+  entry/exit rules, now surfaced publicly.
+- Monthly/weekly recap blocks below the journal, and a new static **Learn** section
+  (`journal/learn/`) teaching IV rank/percentile, expected move, POP & delta, and
+  the risk/expectancy math — anchored to real journaled trades.
+- New `scripts/recap.py` CLI exports a ready-to-post weekly/monthly recap from
+  `journal/trades.json`. `scripts/add_trade.py` gains `--expected-move-pct` and
+  `--management-plan` and stamps `source`; `compute_metrics()` now returns
+  `expectancy` and `drawdown_from_peak`. `sync_journal.py` emits the ledger SHA
+  and order blocks, and caps risk-per-trade via the existing kelly/portfolio rules.
+
+### Edge (Track B)
+- New `agents/volatility/flow_metrics.py`: relative-volatility bands (IV/HV),
+  unusual-volume tiers, OI-divergence (opening vs closing), OI center-of-mass /
+  pin price, and IV-mover classification — all fail-closed. The background
+  scanner tags each candidate with an `rv_band` and a `flow_signals` block
+  (hottest strike, unusual volume, OI center of mass).
+- New `agents/trade_engine/theoretical_edge.py`: ranks each structure by how far
+  the CBOE mid sits from our own Black-Scholes model value
+  (Market Chameleon/ORATS pattern). `TradeRecommendation` now carries
+  `theoretical_edge_pct` + `model_value`, serialized to the dashboard and shown
+  as a THEO EDGE pill.
+- New `agents/trade_engine/historical_backtest.py`: empirical win rate /
+  expectancy / profit factor / drawdown over realized credit-spread outcomes.
+- Every `TradeRecommendation` now carries a 1-SD `expected_move_pct` (from ATM
+  IV & DTE); the terminal renders an **expected-move price-band visualizer**
+  per trade card showing the underlying, the ±expected-move band, the short
+  wings, and whether any short is inside the move (Options AI/OptionStrat
+  pattern).
+- Named **scan galleries** (`wheel_candidates`, `premium_flow`,
+  `earnings_window`, `high_iv_movers`) with a `gallery_symbols()` filter over
+  scan results (Option Samurai/Barchart pattern), ready for the dashboard.
+
+### Ops
+- Full suite at 145 passing. Journal smoke-tested (populated + empty + Learn)
+  with 0 console errors.
+
 ## v0.9.0 - 2026-08-04
 
 - Split the public surface from the private one. The dashboard/terminal is now

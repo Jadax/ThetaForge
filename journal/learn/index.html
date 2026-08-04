@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ThetaForge · The Playbook</title>
+    <meta name="description" content="ThetaForge playbook: IV rank, expected move, probability of profit — explained with real journaled trades." />
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="stylesheet" href="../styles.css" />
+    <style>
+      .learn-hero{padding:48px 0 30px;max-width:760px}.learn-hero h1{font-size:clamp(30px,4.6vw,48px);letter-spacing:-2px;line-height:1;margin:0}
+      .lesson{margin-top:26px;border:1px solid var(--line);background:#111a16;padding:26px}.lesson h2{margin:0 0 8px;font-size:22px;letter-spacing:-.8px}
+      .lesson p{color:#b7c1bc;line-height:1.6;font-size:13px}.lesson .num{color:var(--lime);font-weight:800}
+      .lesson table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}.lesson th,.lesson td{border:1px solid var(--line);padding:9px 11px;text-align:left;color:#b7c1bc}.lesson th{color:var(--lime);font-size:10px;letter-spacing:1px}
+      .back{margin-top:34px;display:inline-block;color:var(--lime);font-size:13px;text-decoration:none;border-bottom:1px solid #4c6754;padding-bottom:2px}
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav>
+        <div class="brand"><span>θ</span> ThetaForge <small>THE PLAYBOOK</small></div>
+        <div class="nav-right">
+          <a class="ghost-button" href="../" rel="noreferrer">Trade journal ←</a>
+        </div>
+      </nav>
+
+      <section class="learn-hero">
+        <p class="eyebrow">FREE EDUCATION · ANCHORED TO REAL TRADES</p>
+        <h1>The playbook behind every journaled trade.</h1>
+        <p class="journal-sub">Every concept below is used in the trades on this page. No paid courses, no hype — just the four ideas that drive defined-risk premium selling.</p>
+      </section>
+
+      <section class="lesson">
+        <h2><span class="num">01</span> IV Rank &amp; IV Percentile — "is vol cheap or rich?"</h2>
+        <p>Implied volatility rank (IVR) tells you where today's IV sits within its own 52-week range (0-100); IV percentile (IVP) is the cleaner 0-100 stat that answers "the market is pricing options as if the price will move 21% of the last 100 days." <b>The single most important number for a premium seller.</b></p>
+        <table>
+          <tr><th>IVP band</th><th>Read</th><th>ThetaForge action</th></tr>
+          <tr><td>70-100</td><td>Extreme</td><td>Rich premium — strong sell-premium edge</td></tr>
+          <tr><td>40-70</td><td>Elevated</td><td>Sell premium with normal sizing</td></tr>
+          <tr><td>20-40</td><td>Subdued</td><td>Slim edge — consider debit (long) structures</td></tr>
+          <tr><td>0-20</td><td>Cheap</td><td>Premium buying (debit spreads) window</td></tr>
+        </table>
+      </section>
+
+      <section class="lesson">
+        <h2><span class="num">02</span> Expected Move — "where will it land?"</h2>
+        <p>The expected move is the 1-standard-deviation range the market itself is pricing, ~68% probability, derived from ATM straddle + IV over the trade horizon. If you sell a credit spread whose short strike sits <b>outside</b> the expected move, you're selling insurance for a move the market already priced as unlikely — that's the core of a high-probability trade.</p>
+        <p style="color:var(--muted)">Each journal card shows the expected move at entry (e.g. <b>exp move ±2.4%</b>) next to the strikes, so you can see whether the short wing was outside the move.</p>
+      </section>
+
+      <section class="lesson">
+        <h2><span class="num">03</span> Probability of Profit (POP) &amp; Delta</h2>
+        <p>Delta approximates the probability a leg finishes in the money. A 16-delta short wing roughly means ~84% odds the option expires worthless. Option selling isn't about being right every time — it's about <b>high POP with defined risk</b> so a 16% loss streak is survivable and expectancy stays positive.</p>
+        <table>
+          <tr><th>Short delta</th><th>~OTM probability</th><th>Typical use</th></tr>
+          <tr><td>30</td><td>70%</td><td>Aggressive credit</td></tr>
+          <tr><td>16</td><td>84%</td><td>Sweet spot (Tastytrade)</td></tr>
+          <tr><td>10</td><td>90%</td><td>Defensive / large size</td></tr>
+        </table>
+      </section>
+
+      <section class="lesson">
+        <h2><span class="num">04</span> Risk, Expectancy &amp; Drawdown — the honesty math</h2>
+        <p>Win rate alone lies. What matters is <b>expectancy</b> (average net P&amp;L per closed trade) and <b>R-multiple</b> (net P&amp;L ÷ capital at risk). A 90% win rate with 3R losses is a losing system; a 55% win rate with 2R winners compounds. The journal shows both, plus drawdown from peak — because a trader who hides drawdowns is hiding the truth.</p>
+      </section>
+
+      <a class="back" href="../" rel="noreferrer">← Back to the trade journal</a>
+    </main>
+  </body>
+</html>

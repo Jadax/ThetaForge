@@ -61,6 +61,46 @@ def _atm_iv(chain: List[Dict]) -> Optional[float]:
     pool = near if near else [nearest]
     return sum(iv for _, iv in pool) / len(pool)
 
+
+def _rv_band(iv: Optional[float], hv: Optional[float]) -> Optional[str]:
+    """Relative-volatility band (rich/cheap vol) for the scan payload."""
+    try:
+        from agents.volatility.flow_metrics import relative_volatility_band
+    except ImportError:
+        return None
+    read = relative_volatility_band(
+        float(iv) if iv is not None else None,
+        float(hv) if hv is not None else None,
+    )
+    return (read or {}).get("band")
+
+
+def _flow_signals(chain: List[Dict]) -> Optional[Dict]:
+    """Unusual-volume / OI-divergence / pin-price signals from the free chain."""
+    try:
+        from agents.volatility.flow_metrics import (
+            unusual_volume, oi_divergence, oi_center_of_mass,
+        )
+    except ImportError:
+        return None
+    if not chain:
+        return None
+    # "Normal" volume reference: the median strike volume (robust to the hot
+    # strike itself, unlike a mean which a single dominant strike inflates).
+    volumes = sorted(float(o.get("volume") or o.get("volume_o") or 0) for o in chain)
+    n = len(volumes)
+    baseline = volumes[n // 2] if n % 2 else (volumes[n // 2 - 1] + volumes[n // 2]) / 2
+    hottest = max(chain, key=lambda o: float(o.get("volume") or 0), default=None)
+    unusual = None
+    if hottest and baseline > 0:
+        unusual = unusual_volume(hottest.get("volume"), baseline)
+    center = oi_center_of_mass([o for o in chain if o.get("open_interest")])
+    return {
+        "hottest_strike": hottest.get("strike") if hottest else None,
+        "unusual_volume": unusual,
+        "oi_center_of_mass": center,
+    }
+
 # Liquid options underlyings — most actively traded US ETFs and large-caps.
 # These are the first-pass scan targets; the screener discovers additional names.
 LIQUID_OPTIONS_UNIVERSE = [
@@ -73,6 +113,49 @@ LIQUID_OPTIONS_UNIVERSE = [
     "LMT", "NKE", "COST", "WMT", "HD", "MCD", "SBUX", "DIS", "UBER",
     "PLTR", "SMCI",
 ]
+
+
+# ── Nominal scan galleries (Option Samurai / Barchart pattern) ─────────────
+# Named, one-click screen ideas. Each maps a name to a filter predicate over a
+# scan result payload (or a symbol subset) so the dashboard can present curated
+# "theses" without inventing a new scoring path. A missing payload field never
+# passes a gallery filter (fail-closed).
+SCAN_GALLERIES = {
+    "wheel_candidates": {
+        "label": "Wheel candidates",
+        "thesis": "High-IVR underlyings for cash-secured puts / covered calls",
+        "match": lambda r: (r.get("iv_rank") or 0) >= 50 and r.get("strategy") in {"cash_secured_put", "covered_call"},
+    },
+    "premium_flow": {
+        "label": "Premium flow (rich vol)",
+        "thesis": "Rich relative volatility and elevated unusual volume",
+        "match": lambda r: r.get("rv_band") in {"rich", "very_rich"}
+        and (r.get("flow_signals") or {}).get("unusual_volume", {}).get("tier") in {"elevated", "high", "extreme"},
+    },
+    "earnings_window": {
+        "label": "Earnings window",
+        "thesis": "Upcoming earnings; selling premium into rich event IV",
+        "match": lambda r: (r.get("expected_move_pct") or 0) >= 2.0
+        and r.get("strategy") not in {"no_trade", "avoid_new_positions"},
+    },
+    "high_iv_movers": {
+        "label": "Rapid IV movers",
+        "thesis": "Underlyings where IV is spiking fast (regime shifts)",
+        "match": lambda r: (r.get("flow_signals") or {}).get("oi_center_of_mass") is not None
+        and r.get("rv_band") in {"rich", "very_rich"},
+    },
+}
+
+
+def gallery_symbols(gallery_name: str, results: Dict[str, dict]) -> List[str]:
+    """Return symbols in *results* matching a named gallery's predicate."""
+    gallery = SCAN_GALLERIES.get(gallery_name)
+    if not gallery:
+        return []
+    return [
+        symbol for symbol, result in results.items()
+        if gallery["match"](result)
+    ]
 
 
 # ── Universe builder ────────────────────────────────────────────────────
@@ -359,6 +442,8 @@ class BackgroundBrainScanner:
                 "iv_percentile": (result.iv_signal or {}).get("iv_percentile"),
                 "iv_hv_ratio": (result.iv_signal or {}).get("ratio"),
                 "iv_hv_signal": (result.iv_signal or {}).get("signal"),
+                "rv_band": _rv_band(current_iv, hv_20),
+                "flow_signals": _flow_signals(chain),
                 "expected_move_pct": (result.iv_signal or {}).get("expected_move_pct"),
                 "term_structure": (result.iv_signal or {}).get("term_structure"),
                 "iv_skew": (result.iv_signal or {}).get("iv_skew"),

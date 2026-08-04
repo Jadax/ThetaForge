@@ -35,15 +35,20 @@ Dashboard (Next.js, GitHub Pages/localhost)
 | `agents/trade_engine/background_scanner.py` | Universe discovery + `_analyze_one` (feeds all vol inputs to Brain) |
 | `agents/trade_engine/ai_brain.py` | Regime, signal aggregation, `iv_signal` (rank/percentile/term-structure/iv_skew/short_interest/earnings_move), strategy selection gates |
 | `agents/trade_engine/recommender.py` | Authoritative candidate scoring and quality gates |
+| `agents/trade_engine/theoretical_edge.py` | Own BS model value vs CBOE mid → `theoretical_edge_pct` on recommendations |
+| `agents/trade_engine/historical_backtest.py` | Empirical win rate/expectancy/drawdown over realized credit-spread outcomes |
 | `agents/volatility/desk_analytics.py` | Desk surfaces from the free chain: IV skew (RR25/BF25), earnings implied-vs-realized move, front-month straddle move |
 | `agents/volatility/iv_history.py` | Daily per-symbol ATM-IV snapshots → IV rank/percentile |
 | `agents/volatility/iv_metrics.py` | `calculate_iv_rank`, `calculate_iv_percentile`, realized vol |
+| `agents/volatility/flow_metrics.py` | Free-data RV bands, unusual volume, OI divergence, OI center-of-mass, IV mover |
 | `orchestrator/routes/advisor.py` | Authenticated dashboard API |
 | `bridge/main.py` | Paper-only IBKR order checks and submission |
 | `dashboard/app/page.tsx` | Private terminal (local-only, NOT on Pages) |
 | `journal/` | Public trade journal — static site served at `https://jadax.github.io/ThetaForge/`; only entries placed on TWS from the paper-order ledger |
 | `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger (single source of truth) |
 | `scripts/add_trade.py` | Journal narrative input CLI; `--from-ledger` attaches to a TWS-placed trade |
+| `scripts/recap.py` | Weekly/monthly recap export from `journal/trades.json` |
+| `journal/learn/` | Static free-education playbook (IV rank, expected move, POP) |
 | `tests/` | Backend regression suite |
 
 ## Volatility Model (keep intact)

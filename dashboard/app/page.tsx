@@ -31,6 +31,9 @@ type TradeRecommendation = {
   net_debit: number;
   breakeven: number;
   probability_of_profit: number;
+  theoretical_edge_pct?: number;
+  model_value?: number;
+  expected_move_pct: number;
   composite_score: number;
   confidence_score: number;
   iv_rank: number;
@@ -113,11 +116,63 @@ type RecommendationResponse = {
 const signalLabel = (signal: string) => signal.replaceAll("_", " ");
 const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
 const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
+
+// Expected-move price band + P/L zones, drawn on the underlying's price axis
+// (Options AI / OptionStrat pattern). Fail-closed: renders an empty placeholder
+// when the expected move or strikes are missing.
+function ExpectedMoveChart({ trade }: { trade: TradeRecommendation }) {
+  const px = trade.underlying_price;
+  const em = trade.expected_move_pct;
+  if (!px || !em || !trade.legs || trade.legs.length === 0) {
+    return <div className="em-chart em-chart-empty">Expected move data unavailable for this structure.</div>;
+  }
+  const strikes = trade.legs.map((l) => l.strike).filter((s) => s && s > 0);
+  const shortLeg = trade.legs.find((l) => l.action === "SELL");
+  const safeSideUp = shortLeg?.type === "PUT";
+  const span = Math.max(em * 1.7, 3.0) / 100;
+  const lo = px * (1 - span);
+  const hi = px * (1 + span);
+  const W = 220;
+  const PAD = 8;
+  const x = (price: number) => PAD + ((price - lo) / (hi - lo)) * (W - PAD * 2);
+  const bandLo = px * (1 - em / 100);
+  const bandHi = px * (1 + em / 100);
+  const inBand = (p: number) => p >= bandLo && p <= bandHi;
+  // Count how many strikes sit outside the expected-move band on the safe side.
+  const safeStrikes = trade.legs.filter((l) =>
+    safeSideUp ? l.strike >= bandHi : l.strike <= bandLo
+  ).length;
+  const ticks = [px * 0.97, px * 0.985, px, px * 1.015, px * 1.03].filter(
+    (t) => t >= lo && t <= hi && Math.floor(t * 100) % 2 === 0
+  );
+  return (
+    <div className="em-chart">
+      <svg viewBox={`0 0 ${W} 66`} role="img" aria-label="Expected move and P/L zones on the price axis">
+        {[bandLo, bandHi].map((band, i) => (
+          <line key={i} x1={x(band)} y1="10" x2={x(band)} y2="56" stroke="#4c6754" strokeWidth="1" strokeDasharray="2 2" />
+        ))}
+        <rect x={x(bandLo)} y="10" width={Math.max(x(bandHi) - x(bandLo), 2)} height="46" fill="#c9ff5d" opacity="0.10" />
+        <line x1={x(px)} y1="10" x2={x(px)} y2="56" stroke="#e8ece9" strokeWidth="1.4" />
+        {strikes.map((s, i) => (
+          <line key={i} x1={x(s)} y1="14" x2={x(s)} y2="52" stroke="#f0a79b" strokeWidth="2" />
+        ))}
+        {strikes.filter(inBand).length > 0 && (
+          <text x={x(px)} y="64" fill="#f0a79b" fontSize="7" textAnchor="middle">short wing inside expected move</text>
+        )}
+      </svg>
+      <div className="em-caption">
+        <span><i className="em-dot price" /> underlying {dollars(px)}</span>
+        <span><i className="em-dot move" /> exp move ±{em.toFixed(1)}%</span>
+        <span className={safeStrikes > 0 ? "safe" : "warn"}>{safeStrikes > 0 ? `${safeStrikes} short outside the move` : "short inside the move"}</span>
+      </div>
+    </div>
+  );
+}
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v0.9.0";
+const VERSION = "v1.0.0";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -584,12 +639,13 @@ export default function Home() {
         {topTrades && (topTrades.recommendations.length ? <div className="trade-list">{(stockTrades?.recommendations || topTrades.recommendations).slice(0, 3).map((trade, index) => <article className="trade-card" key={trade.id}>
           <div className="trade-rank">#{index + 1}</div>
           <div className="trade-title"><p className="eyebrow">{trade.symbol} · ${trade.underlying_price.toFixed(2)}</p><h3>{signalLabel(trade.strategy)}</h3>{trade.pricing_status && <span className={`pricing-status ${trade.pricing_status.startsWith("IBKR live") ? "live" : "indicative"}`}>{trade.pricing_status}</span>}<p>{trade.reasoning}</p></div>
-          <div className="trade-metrics"><span><small>COMPOSITE</small><b>{trade.composite_score.toFixed(0)}/100</b></span><span><small>PROBABILITY OF PROFIT</small><b>{percent(trade.probability_of_profit)}</b></span><span className="loss"><small>MAX LOSS</small><b>{dollars(trade.max_loss)}</b></span><span className="profit"><small>MAX PROFIT</small><b>{dollars(trade.max_profit)}</b></span><span><small>CAPITAL REQUIRED</small><b>{dollars(trade.capital_required)}</b></span><span><small>{trade.net_credit > 0 ? "NET CREDIT" : "NET DEBIT"}</small><b>{dollars(trade.net_credit || trade.net_debit)}</b></span></div>
+          <div className="trade-metrics"><span><small>COMPOSITE</small><b>{trade.composite_score.toFixed(0)}/100</b></span><span><small>PROBABILITY OF PROFIT</small><b>{percent(trade.probability_of_profit)}</b></span><span className="loss"><small>MAX LOSS</small><b>{dollars(trade.max_loss)}</b></span><span className="profit"><small>MAX PROFIT</small><b>{dollars(trade.max_profit)}</b></span><span><small>CAPITAL REQUIRED</small><b>{dollars(trade.capital_required)}</b></span><span><small>{trade.net_credit > 0 ? "NET CREDIT" : "NET DEBIT"}</small><b>{dollars(trade.net_credit || trade.net_debit)}</b></span>{typeof trade.theoretical_edge_pct === "number" ? <span><small>THEO EDGE</small><b>{trade.theoretical_edge_pct.toFixed(1)}%</b></span> : null}</div>
           <div className="trade-insight">
             <div className="payoff-visual" aria-label={`Maximum loss ${dollars(trade.max_loss)} and maximum profit ${dollars(trade.max_profit)}`}><div className="payoff-caption"><span>MAX LOSS {dollars(trade.max_loss)}</span><span>MAX PROFIT {dollars(trade.max_profit)}</span></div><div className="payoff-track"><i className="loss-fill" style={{ width: `${Math.max(20, Math.min(50, (trade.max_loss / Math.max(trade.max_loss + trade.max_profit, 1)) * 100))}%` }} /><i className="profit-fill" /></div><p>Defined risk/reward · breakeven {dollars(trade.breakeven)}</p></div>
             <div className="signal-stack"><div><small>CONFIDENCE</small><b>{percent(trade.confidence_score)}</b></div><div className="confidence-meter"><i style={{ width: `${Math.min(100, Math.max(0, trade.confidence_score))}%` }} /></div><p>IV rank {percent(trade.iv_rank)} · VIX {trade.vix.toFixed(1)} · {signalLabel(trade.market_regime)}</p></div>
             <div className="return-stack"><small>RETURN ON CAPITAL</small><b>{percent(trade.return_on_capital_pct)}</b><span>{percent(trade.annualized_return_pct)} annualized</span></div>
           </div>
+          <ExpectedMoveChart trade={trade} />
           <div className="trade-legs">{trade.legs.map((leg, legIndex) => <span key={`${trade.id}-${legIndex}`} className={leg.action === "SELL" ? "sell" : "buy"}>{leg.action} {leg.type} {leg.strike} · {leg.expiry}</span>)}</div>
           <details className="trade-plan"><summary>View entry and exit plan</summary><div><section><small>ENTRY</small>{Object.entries(trade.entry_rules).map(([key, value]) => <p key={key}><b>{signalLabel(key)}</b>{value}</p>)}</section><section><small>EXIT</small>{Object.entries(trade.exit_rules).map(([key, value]) => <p key={key}><b>{signalLabel(key)}</b>{value}</p>)}</section></div></details>
           <div className="paper-trade-action">{trade.pricing_status?.startsWith("IBKR live") && [1, 2, 4].includes(trade.legs.length) ? <button type="button" onClick={() => submitPaperTrade(trade)} disabled={submittingTrade === trade.id}>{submittingTrade === trade.id ? "Submitting paper order…" : "Send paper order to IBKR"}</button> : <span>Connect the Paper Bridge and open this stock to verify live IBKR quotes before paper execution.</span>}{paperOrderStatus[trade.id] && <small>{paperOrderStatus[trade.id]}</small>}</div>

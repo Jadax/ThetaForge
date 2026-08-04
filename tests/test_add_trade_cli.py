@@ -110,6 +110,50 @@ def test_appends_trade_recomputes_metrics_and_updates_as_of(journal_file):
     assert metrics["avg_loss"] == pytest.approx(50.0)
     assert metrics["max_drawdown"] == pytest.approx(50.0)
     assert metrics["streak"] == 1
+    assert metrics["expectancy"] == pytest.approx(116.67, abs=0.1)
+    assert metrics["drawdown_from_peak"] == pytest.approx(0.0)
+
+
+def test_build_trade_carries_source_expected_move_and_management_plan(tmp_path):
+    ledger_path = tmp_path / "paper_order_ledger.json"
+    ledger = [{
+        "id": "ledger-9",
+        "strategy": "bull_put_credit",
+        "symbol": "SPY",
+        "legs": [
+            {"symbol": "SPY", "action": "SELL", "right": "P",
+             "strike": 595, "expiry": "2026-08-21"},
+            {"symbol": "SPY", "action": "BUY", "right": "P",
+             "strike": 580, "expiry": "2026-08-21"},
+        ],
+        "max_loss_total": 1500,
+    }]
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = tmp_path / "trades.json"
+    journal_path.write_text(json.dumps(_fixture()), encoding="utf-8")
+
+    args = [
+        "--journal", str(journal_path),
+        "--ledger", str(ledger_path),
+        "--non-interactive",
+        "--from-ledger", "ledger-9",
+        "--status", "open",
+        "--expected-move-pct", "2.4",
+        "--entry-ivr", "58",
+        "--max-profit", "300",
+        "--net-pnl", "0",
+        "--reason", "Rich IV, outside expected move.",
+        "--management-plan",
+        '{"target": "close at 50% of max credit", "event": "close before earnings"}',
+    ]
+    assert add_trade.main(args) == 0
+
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    trade = data["trades"][0]
+    assert trade["source"] == "ledger"
+    assert trade["expected_move_pct"] == 2.4
+    assert trade["management_plan"]["target"] == "close at 50% of max credit"
+    assert trade["entry_ivr"] == 58
 
 
 def test_from_ledger_prefills_legs_and_strategy(tmp_path):

@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from datetime import date, datetime
 from pathlib import Path
@@ -68,6 +69,55 @@ def _days_until(expiry: str | None, opened: str) -> int | None:
         return None
 
 
+def _order_block(record: dict) -> dict:
+    """Raw order facts from the ledger, surfaced as the receipt."""
+    return {
+        "status": record.get("status"),
+        "filled": record.get("filled"),
+        "remaining": record.get("remaining"),
+        "average_fill_price": record.get("average_fill_price"),
+        "limit_price": record.get("limit_price"),
+        "net_credit": record.get("net_credit"),
+        "quantity": record.get("quantity"),
+        "submitted_at": record.get("submitted_at"),
+        "updated_at": record.get("updated_at"),
+    }
+
+
+def _default_management_plan(strategy: str) -> dict:
+    """TastyTrade-flavoured exit/management rules attached to every trade.
+
+    Stored as data and rendered on the card so the audience sees a repeatable,
+    rule-driven management plan rather than a whim. The short-leg strategies
+    use 50% max-profit targets and 21 DTE management; debit (long) structures
+    use breakeven stops and a fixed hold window.
+    """
+    premium_selling = strategy in {
+        "iron_condor", "bull_put_credit", "bear_call_credit",
+        "cash_secured_put", "covered_call", "short_strangle",
+    }
+    if strategy == "cash_secured_put":
+        return {
+            "target": "close at 50% of max credit",
+            "stop": "roll or close if short strike is breached decisively",
+            "time": "manage at 21 DTE",
+            "event": "close before earnings",
+        }
+    if premium_selling:
+        return {
+            "target": "take profit at 50% of max credit",
+            "stop": "roll the tested side at 2x the original credit",
+            "time": "manage/close at 21 DTE",
+            "event": "close before earnings if within 7 days",
+        }
+    return {
+        "target": "take profit at +50-100% of debit paid",
+        "stop": "exit if the spread breaks break-even",
+        "time": "hold to expiry or 50% of DTE",
+        "event": "exit before earnings",
+    }
+
+
 def build_entry(record: dict, overlay: dict) -> dict:
     ledger_id = str(record.get("id", ""))
     symbol = str(record.get("symbol", "")).upper()
@@ -90,6 +140,9 @@ def build_entry(record: dict, overlay: dict) -> dict:
     base = {
         "id": ledger_id,
         "source_id": ledger_id,
+        "source": "ledger",
+        "ledger_ref": ledger_id,
+        "order": _order_block(record),
         "symbol": symbol,
         "opened": opened,
         "closed": None,
@@ -97,11 +150,13 @@ def build_entry(record: dict, overlay: dict) -> dict:
         "strategy": strategy,
         "legs": legs,
         "entry_ivr": None,
+        "expected_move_pct": None,
         "dte_at_entry": max((leg["dte"] for leg in legs if leg["dte"]), default=None),
         "capital_at_risk": float(record.get("max_loss_total") or record.get("max_loss_per_combo") or 0),
         "max_profit": float(record.get("net_credit") or 0),
         "net_pnl": 0.0,
         "net_pnl_pct": 0.0,
+        "management_plan": _default_management_plan(strategy),
         "reason": f"{strategy.replace('_', ' ').title()} on {symbol} — "
                   f"placed on TWS from the ThetaForge recommendation.",
         "research": [],
@@ -109,15 +164,25 @@ def build_entry(record: dict, overlay: dict) -> dict:
         "exit_note": "Open — monitoring the position in the TWS terminal.",
         "timestamp": record.get("updated_at") or submitted_at,
     }
-    for key in ("entry_ivr", "dte_at_entry", "net_pnl", "net_pnl_pct",
-                "capital_at_risk", "max_profit"):
+    for key in ("entry_ivr", "expected_move_pct", "dte_at_entry", "net_pnl",
+                "net_pnl_pct", "capital_at_risk", "max_profit"):
         if overlay.get(key) is not None:
             base[key] = overlay[key]
     for key in ("closed", "status", "reason", "research", "tags", "exit_note",
-                "timestamp"):
+                "timestamp", "management_plan"):
         if overlay.get(key):
             base[key] = overlay[key]
     return base
+
+
+def _ledger_sha(consumed: list[dict]) -> str:
+    """SHA-256 over the exact ledger records the journal was built from.
+
+    Publishing this lets a reader recompute the journal from the same ledger
+    state and detect any silent edit (FTMO/Myfxbook-style verification).
+    """
+    canonical = json.dumps(consumed, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def sync(args: argparse.Namespace) -> int:
@@ -135,6 +200,7 @@ def sync(args: argparse.Namespace) -> int:
 
     entries = []
     seen_sources = set()
+    consumed = []
     for record in ledger:
         status = str(record.get("status", ""))
         if not record.get("recommendation_id"):
@@ -145,10 +211,13 @@ def sync(args: argparse.Namespace) -> int:
         if not source or source in seen_sources:
             continue
         seen_sources.add(source)
+        consumed.append(record)
         entries.append(build_entry(record, overlay_by_source.get(source, {})))
 
     for trade in existing:
         if not trade.get("source_id"):
+            trade = dict(trade)
+            trade.setdefault("source", "manual")
             entries.append(trade)
 
     entries.sort(key=lambda trade: (trade.get("opened", ""), trade.get("timestamp", "")))
@@ -160,6 +229,13 @@ def sync(args: argparse.Namespace) -> int:
         "as_of": date.today().isoformat(),
         "account_equity": (current.get("account_equity") if isinstance(current, dict)
                            else None) or 25000,
+        "verification": {
+            "generator": "scripts/sync_journal.py",
+            "ledger_source": str(args.ledger),
+            "ledger_sha": _ledger_sha(consumed),
+            "entries_from_ledger": len(consumed),
+            "entries_manual": len([e for e in entries if not e.get("source_id")]),
+        },
         "trades": entries,
     }
     args.journal.write_text(json.dumps(journal, indent=2) + "\n", encoding="utf-8")
