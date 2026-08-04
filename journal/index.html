@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ThetaForge · Trade Journal</title>
+    <meta
+      name="description"
+      content="ThetaForge public trade journal: every position was recommended by ThetaForge and executed on the TWS terminal, with the thesis, the structure, and the actual outcome."
+    />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <nav>
+        <div class="brand">
+          <span>θ</span> ThetaForge <small>TRADE JOURNAL</small>
+        </div>
+        <div class="nav-right">
+          <a
+            class="ghost-button"
+            href="https://github.com/Jadax/ThetaForge"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub ↗
+          </a>
+        </div>
+      </nav>
+
+      <section class="journal-hero">
+        <p class="eyebrow">THE THETA PLAYBOOK · RECEIPTS INCLUDED</p>
+        <h1>
+          Trades, <em>reasoning,</em> and the numbers to back both.
+        </h1>
+        <p class="journal-sub" id="journal-sub">
+          Every trade below was recommended by ThetaForge and executed on the
+          TWS terminal. Each idea shows the setup, the structure, the thesis,
+          and what actually happened.
+        </p>
+        <div class="journal-actions">
+          <a
+            class="follow-button"
+            href="https://github.com/Jadax/ThetaForge"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Follow the journal
+          </a>
+          <a
+            class="ghost-button"
+            href="https://github.com/Jadax/ThetaForge/blob/main/docs/STEALING_POLICY.md"
+            target="_blank"
+            rel="noreferrer"
+          >
+            How the signals are built
+          </a>
+        </div>
+      </section>
+
+      <section class="metric-strip" id="metric-strip" aria-label="Journal metrics"></section>
+
+      <section class="curve-panel" id="curve-panel"></section>
+
+      <section class="journal-list">
+        <div class="journal-list-head">
+          <div>
+            <p class="eyebrow">THE JOURNAL</p>
+            <h2>Every trade, with the why</h2>
+          </div>
+          <span class="sort-note" id="sort-note"></span>
+        </div>
+        <div id="journal-list"></div>
+      </section>
+
+      <footer id="footer">
+        Made with <b>♥</b> by <b>Tushant Sharma</b> · <span>Astraiva</span> ·
+        This is not financial advice and nothing here is a solicitation to buy
+        or sell securities.
+      </footer>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>

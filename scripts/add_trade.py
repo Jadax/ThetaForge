@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Append a trade to dashboard/trades.json and recompute the journal metrics.
+"""Append or update a trade in the public journal (journal/trades.json).
 
 Usage:
   python scripts/add_trade.py                          # interactive
-  python scripts/add_trade.py --from-ledger <id>       # pre-fill from paper ledger
+  python scripts/add_trade.py --from-ledger <id>       # attach narrative to a TWS-placed trade
   python scripts/add_trade.py --symbol SPY --strategy bull_put_credit \
       --status closed --leg "SELL PUT 595 2026-08-21 37" \
       --capital-at-risk 59500 --max-profit 395 --net-pnl 95 \
       --entry-ivr 48 --reason "..." --exit-note "..." --tag theta --yes
 
-Non-interactive when every required flag is supplied. Metrics are recomputed
+Non-interactive when every required flag is supplied. Trades that come from the
+TWS ledger carry a `source_id`; `sync_journal.py` regenerates the journal from
+the ledger and preserves this narrative by `source_id`. Metrics are recomputed
 with the same math the journal page uses, so the preview matches the deploy.
 """
 from __future__ import annotations
@@ -22,7 +24,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_JOURNAL = REPO_ROOT / "dashboard" / "trades.json"
+DEFAULT_JOURNAL = REPO_ROOT / "journal" / "trades.json"
 DEFAULT_LEDGER = REPO_ROOT / "data" / "paper_order_ledger.json"
 
 STRATEGIES = {
@@ -67,7 +69,7 @@ def next_trade_id(trades: list[dict]) -> str:
 
 def validate_trade(trade: dict) -> None:
     required = [
-        "id", "symbol", "opened", "status", "strategy", "label", "legs",
+        "id", "symbol", "opened", "status", "strategy", "legs",
         "entry_ivr", "dte_at_entry", "capital_at_risk", "max_profit",
         "net_pnl", "net_pnl_pct", "reason", "research", "tags", "exit_note",
         "timestamp",
@@ -239,7 +241,6 @@ def build_trade(args: argparse.Namespace, ledger: list[dict]) -> dict:
         "closed": closed,
         "status": status,
         "strategy": strategy,
-        "label": "paper",
         "legs": legs,
         "entry_ivr": entry_ivr,
         "dte_at_entry": dte_at_entry,
@@ -253,6 +254,8 @@ def build_trade(args: argparse.Namespace, ledger: list[dict]) -> dict:
         "exit_note": exit_note,
         "timestamp": timestamp,
     }
+    if args.from_ledger:
+        trade["source_id"] = args.from_ledger
     validate_trade(trade)
     return trade
 

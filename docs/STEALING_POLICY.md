@@ -76,26 +76,33 @@ passes them to `AIBrain.analyze`; the notification payload and the advisor
 `_market_snapshot` carry the same fields; `REGIME_WEIGHTS` includes `skew` and
 `short_interest` sources summing to 1.0 per regime.
 
-## Public Trade Journal (keep it honest)
+## Public Trade Journal (only real, placed trades)
 
-`dashboard/trades.json` + `dashboard/app/trades/page.tsx` is the public
-showcase page. Rules that protect the user's credibility:
+`journal/` is a standalone static site (index.html + styles.css + app.js +
+trades.json) hosted on GitHub Pages at
+`https://jadax.github.io/ThetaForge/` — the ONLY public surface. The private
+dashboard/terminal is NOT deployed to Pages; it runs locally and stays
+token-gated. The journal shows only trades that the project recommended AND
+that were placed on the TWS terminal, sourced from the paper-order ledger.
 
-- Every position is labeled PAPER, and the page banner/footer state that no real
-  capital is involved and performance is not predictive.
-- Metrics (win rate, profit factor, max drawdown, streak) are COMPUTED from the
-  journal entries, never hardcoded — no 100%-win claims, ever. Losing trades
-  stay in the journal.
-- Trades are entered via `scripts/add_trade.py` (validates the entry, recomputes
-  metrics, prints a preview). `--from-ledger <id>` pulls legs/strategy/capital
-  straight from the paper-order ledger so journal legs match the simulator
-  fills. Never hand-edit the file for a trade you want counted — the script is
-  the single validated input path.
-- Trade cards must carry the thesis, the legs, and the outcome (what actually
-  happened) plus a timestamped receipt. This is the AfterHour/TradingView
-  trust pattern, not marketing.
-- The private terminal stays token-gated. The journal is a static, public page
-  only — it exposes no account, order, or market-data internals.
+- **Single source of truth:** `scripts/sync_journal.py` regenerates
+  `journal/trades.json` from `data/paper_order_ledger.json`. Every entry needs
+  a `recommendation_id` (a ThetaForge recommendation) and a live order status;
+  cancelled/never-executed orders and anything without a recommendation are
+  dropped. No fabricated or seeded entries survive a sync — if it wasn't placed
+  on TWS, it cannot appear.
+- **Narrative is preserved by `source_id`:** `scripts/add_trade.py --from-ledger
+  <id>` attaches the thesis, exit note, tags, P&L, and close date to a ledger
+  trade; the next sync carries that narrative forward. Entries without a
+  `source_id` (manual trades entered via the CLI) are kept as-is.
+- **Metrics (win rate, profit factor, max drawdown, streak) are COMPUTED from
+  the journal entries** at render time — never hardcoded, never 100%-win,
+  losing trades stay in the journal. This honesty rule is load-bearing for the
+  user's credibility.
+- Trade cards carry the thesis, the legs, and the outcome plus a timestamped
+  receipt — the AfterHour/TradingView trust pattern.
+- Do not put the terminal back on Pages. The dashboard exposes order and
+  position internals and belongs to the owner only.
 
 ## VIX Term Structure / Contango (keep this gate)
 

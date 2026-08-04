@@ -40,8 +40,10 @@ Dashboard (Next.js, GitHub Pages/localhost)
 | `agents/volatility/iv_metrics.py` | `calculate_iv_rank`, `calculate_iv_percentile`, realized vol |
 | `orchestrator/routes/advisor.py` | Authenticated dashboard API |
 | `bridge/main.py` | Paper-only IBKR order checks and submission |
-| `dashboard/app/trades/page.tsx` + `dashboard/trades.json` | Public trade journal (static, PAPER-only, computed metrics) — the only intentionally public dashboard surface |
-| `scripts/add_trade.py` | Validated journal input CLI; appends to `dashboard/trades.json`, recomputes metrics, `--from-ledger` pre-fill |
+| `dashboard/app/page.tsx` | Private terminal (local-only, NOT on Pages) |
+| `journal/` | Public trade journal — static site served at `https://jadax.github.io/ThetaForge/`; only entries placed on TWS from the paper-order ledger |
+| `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger (single source of truth) |
+| `scripts/add_trade.py` | Journal narrative input CLI; `--from-ledger` attaches to a TWS-placed trade |
 | `tests/` | Backend regression suite |
 
 ## Volatility Model (keep intact)

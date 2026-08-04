@@ -1,5 +1,27 @@
 # ThetaForge Changelog
 
+## v0.9.0 - 2026-08-04
+
+- Split the public surface from the private one. The dashboard/terminal is now
+  local-only (it was never reachable without a token anyway); the public trade
+  journal moved out of the Next app into `journal/`, a standalone static site
+  (index.html, styles.css, app.js, trades.json) deployed to the gh-pages branch
+  root at `https://jadax.github.io/ThetaForge/`.
+- The journal now shows ONLY trades that were actually placed on TWS from a
+  ThetaForge recommendation. `scripts/sync_journal.py` regenerates
+  `journal/trades.json` from the paper-order ledger
+  (`data/paper_order_ledger.json`), requiring a `recommendation_id` and a live
+  order status, so cancelled orders and the fabricated seed entries can never
+  appear. Narrative (thesis, exit note, tags, P&L, close) is attached with
+  `scripts/add_trade.py --from-ledger <id>` and preserved across syncs by
+  `source_id`.
+- Removed all PAPER branding from the public journal per the owner's direction;
+  the ledger-backed page states trades were recommended by ThetaForge and
+  executed on the TWS terminal.
+- Removed the Next `/trades` route and `dashboard/trades.json`; the private
+  terminal's nav now links out to the public journal URL.
+- Added `tests/test_sync_journal.py` (6 tests); full suite at 130 passing.
+
 ## v0.8.1 - 2026-08-04
 
 - Added `scripts/add_trade.py`, the validated input path for the public trade

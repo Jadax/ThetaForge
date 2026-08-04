@@ -48,7 +48,6 @@ def _fixture():
         "trader": {"name": "T", "handle": "@t", "tagline": "x"},
         "as_of": "2026-08-04",
         "account_equity": 25000,
-        "paper_only": True,
         "trades": [
             _entry("TF-2026-001", "2026-05-01", 100),
             _entry("TF-2026-002", "2026-06-01", -50),
@@ -151,6 +150,8 @@ def test_from_ledger_prefills_legs_and_strategy(tmp_path):
     assert trade["symbol"] == "XLE"
     assert trade["strategy"] == "bear_call_credit"
     assert trade["status"] == "open"
+    assert trade["source_id"] == "ledger-1"
+    assert "label" not in trade
     assert trade["capital_at_risk"] == 600.0
     assert trade["legs"][0]["type"] == "CALL"
     assert trade["legs"][1]["type"] == "CALL"

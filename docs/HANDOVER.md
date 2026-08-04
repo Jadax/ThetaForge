@@ -20,18 +20,21 @@ Dashboard (GitHub Pages or localhost)
 - `bridge/main.py` is the only paper-order path. It requires
   `BRIDGE_ACCESS_TOKEN`, rejects live ports/accounts, verifies executable IBKR
   quotes, proves defined risk, and applies the weekly-capital ledger.
-- `dashboard/app/page.tsx` is the single-page client. Tokens are kept only in
-  the browser session and must never be committed.
-- `dashboard/app/trades/page.tsx` (+ `dashboard/trades.json`) is the public
-  trade journal: an influencer-style, static showcase page. It is the only
-  intentionally public dashboard surface; every position is labeled PAPER and
-  all metrics are computed from the journal, never hardcoded.
-- `scripts/add_trade.py` is the journal input path: it appends a validated
-  trade to `dashboard/trades.json`, recomputes the metric strip with the same
-  math as the page, and prints a preview. `--from-ledger <id>` pre-fills
-  symbol/strategy/legs/capital from the paper-order ledger
-  (`data/paper_order_ledger.json`). Run it, commit, push — GitHub Pages
-  redeploys the journal.
+- `dashboard/app/page.tsx` is the single-page private terminal. Tokens are kept
+  only in the browser session and must never be committed. It is NOT deployed
+  to GitHub Pages — it runs locally (it needs the local Paper Bridge anyway).
+- `journal/` is the public trade journal: a standalone static site
+  (`index.html`, `styles.css`, `app.js`, `trades.json`, `.nojekyll`) served from
+  the gh-pages branch root at `https://jadax.github.io/ThetaForge/`. Metrics
+  are computed client-side from `trades.json`, never hardcoded.
+- `scripts/sync_journal.py` is the journal's single source of truth: it
+  regenerates `journal/trades.json` from the paper-order ledger
+  (`data/paper_order_ledger.json`), keeping only trades with a
+  `recommendation_id` and a live order status, and preserving narrative authored
+  via `add_trade.py --from-ledger <id>` by `source_id`.
+- `scripts/add_trade.py` attaches the narrative (thesis, exit note, tags, P&L,
+  close date) to a ledger trade or adds a manual trade. Run add_trade and/or
+  sync, commit, push — the journal on Pages redeploys.
 
 State is JSON under `data/`; the directory is ignored by Git. There is no
 database, task queue, Docker Compose setup, Go scanner, or live-order path.
@@ -81,9 +84,10 @@ trade to fill a dashboard card, and it cannot promise profitable outcomes.
 | `orchestrator/routes/advisor.py` | Authenticated dashboard API. |
 | `orchestrator/security.py` | Token validation and request-rate limits. |
 | `bridge/main.py` | Paper-only IBKR order checks and submission. |
-| `dashboard/app/page.tsx` | Private terminal: analysis, alert-to-trade modal, token entry. |
-| `dashboard/app/trades/page.tsx` | Public trade journal (static, PAPER-only, computed metrics). |
-| `dashboard/trades.json` | Journal source of truth for the public page. |
+| `dashboard/app/page.tsx` | Private terminal: analysis, alert-to-trade modal, token entry. Local-only. |
+| `journal/` | Public trade journal (static site on Pages; client-computed metrics). |
+| `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger. |
+| `scripts/add_trade.py` | Journal narrative input; `--from-ledger` attaches to a TWS-placed trade. |
 | `tests/` | Backend regression suite. |
 | `docs/STEALING_POLICY.md` | Provenance of the free feeds and volatility gates — read before removing anything that looks unused. |
 
