@@ -1,0 +1,17 @@
+{
+  "trader": {
+    "name": "Tushant Sharma",
+    "handle": "@thetaforge",
+    "tagline": "Defined-risk option seller. Recommendations placed, receipts always."
+  },
+  "as_of": "2026-08-04",
+  "account_equity": 25000,
+  "verification": {
+    "generator": "scripts/sync_journal.py",
+    "ledger_source": "C:\\Dev\\ThetaForge\\data\\paper_order_ledger.json",
+    "ledger_sha": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "entries_from_ledger": 0,
+    "entries_manual": 0
+  },
+  "trades": []
+}
