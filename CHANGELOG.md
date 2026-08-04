@@ -1,5 +1,15 @@
 # ThetaForge Changelog
 
+## v0.8.1 - 2026-08-04
+
+- Added `scripts/add_trade.py`, the validated input path for the public trade
+  journal: appends a trade to `dashboard/trades.json`, recomputes the metric
+  strip with the same math as the journal page, and prints a preview.
+  `--from-ledger <id>` pre-fills symbol/strategy/legs/capital from the paper
+  order ledger so journal legs match the simulator fills; narrative fields
+  (thesis, exit note, tags) are always entered by hand.
+- Added `tests/test_add_trade_cli.py` (5 tests); full suite at 124 passing.
+
 ## v0.8.0 - 2026-08-04
 
 - Added desk analytics (`agents/volatility/desk_analytics.py`) so the free CBOE

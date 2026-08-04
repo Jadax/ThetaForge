@@ -118,7 +118,7 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v0.8.0";
+const VERSION = "v0.8.1";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
