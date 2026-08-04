@@ -15,6 +15,7 @@ before deleting. Treat every block as load-bearing.
 | CBOE VIX term structure | `cdn.cboe.com/api/global/us_indices/daily_history/{VIX9D,VIX3M,VIX6M,VIX1Y}.json` | Contango/inversion regime for the premium-selling gate | `agents/data_ingestion/cboe_data.py` |
 | Yahoo VIX term-structure tickers | `^VIX9D ^VIX3M ^VIX6M ^VIX1Y` | Primary contango source; CBOE is the fallback | `agents/data_ingestion/free_data.py` |
 | Yahoo earnings calendar | `yf.Ticker(...).get_earnings_dates(limit=4)` | `days_to_earnings` drives the earnings-avoidance gate | `agents/data_ingestion/free_data.py` |
+| yfinance fundamentals | `yf.Ticker(...).info` (`shortPercentOfFloat`, `shortRatio`, `sharesShort`) | Short-interest squeeze fuel input | `agents/data_ingestion/free_data.py` |
 | yfinance historical prices | `yf.Ticker(...).history(period=...)` | 20-day realized vol, trend, CPR inputs | `agents/data_ingestion/free_data.py` |
 
 Requirement: all feeds must stay free (no paid API key). `requirements.txt`
@@ -45,6 +46,52 @@ IV Percentile is the stronger dual filter vs IVR alone (MarketChameleon-style:
 `max(ivr, percentile)` for its edge decision. Never remove the percentile
 input from `AIBrain.analyze` or the scanner's `iv_percentile` pass-through.
 
+## Desk Analytics (keep these signals)
+
+v0.8.0 computes the surfaces every institutional desk quotes from the SAME free
+CBOE chain (per-strike delta + IV) — no paid feed required. `desk_analytics.py`
+is load-bearing; a refactor must not replace it with spot-IV placeholders.
+
+- **IV skew (RR25 / BF25)** — `calculate_iv_skew` delta-interpolates the
+  25-delta put and call IVs from the most-traded expiry that brackets ±25Δ,
+  computes `rr25 = iv_put25 − iv_call25` and `bf25 = wing_iv − atm_iv`, both
+  normalized by ATM IV. Regime bands: `fear` (RR25 ≥ 0.15 or BF25 ≥ 0.15),
+  `elevated_fear` (≥ 0.08), `complacent` (RR25 ≤ 0.02 and BF25 ≤ 0.05),
+  else `neutral`. The Brain emits a `skew` signal and appends a surface read to
+  the selected strategy's reasoning. Fail-closed: a chain without deltas (e.g.
+  yfinance fallback) returns `None`, never a fake skew.
+- **Earnings move edge** — `implied_earnings_move` (front-month ATM straddle /
+  spot) is compared to `historical_earnings_moves` (realized post-earnings
+  one-day moves from the symbol's own price history). `earnings_move_edge`
+  reports `sell_iv` (implied > realized median → sell the move, collect the IV
+  crush) or `buy_iv` (implied < realized → buy the move). It only nudges an
+  already-existing vol edge; it never manufactures one.
+- **Short interest** — `get_short_interest` surfaces `shortPercentOfFloat`,
+  `shortRatio` (days to cover) and `sharesShort`. ≥30% float or ≥15 days to
+  cover emits a `squeeze_fuel` signal; ≥15% / ≥8 days emits a moderate read.
+
+Wiring to preserve: `background_scanner._analyze_one` computes
+`iv_skew`, `short_interest`, `earnings_move` (all fail-closed to `None`) and
+passes them to `AIBrain.analyze`; the notification payload and the advisor
+`_market_snapshot` carry the same fields; `REGIME_WEIGHTS` includes `skew` and
+`short_interest` sources summing to 1.0 per regime.
+
+## Public Trade Journal (keep it honest)
+
+`dashboard/trades.json` + `dashboard/app/trades/page.tsx` is the public
+showcase page. Rules that protect the user's credibility:
+
+- Every position is labeled PAPER, and the page banner/footer state that no real
+  capital is involved and performance is not predictive.
+- Metrics (win rate, profit factor, max drawdown, streak) are COMPUTED from the
+  journal entries, never hardcoded — no 100%-win claims, ever. Losing trades
+  stay in the journal.
+- Trade cards must carry the thesis, the legs, and the outcome (what actually
+  happened) plus a timestamped receipt. This is the AfterHour/TradingView
+  trust pattern, not marketing.
+- The private terminal stays token-gated. The journal is a static, public page
+  only — it exposes no account, order, or market-data internals.
+
 ## VIX Term Structure / Contango (keep this gate)
 
 The `is_vix_contango` helper and the Brain's `term_structure` check implement
@@ -62,7 +109,8 @@ VIX curve is structurally toxic** (front-month fear premium). In `AIBrain`:
 
 `background_scanner._analyze_one` now feeds the Brain:
 `current_iv`, `hv_20`, `iv_percentile`, `expected_move_pct`,
-`vix_term_structure`, and `days_to_earnings`.
+`vix_term_structure`, `days_to_earnings`, `iv_skew`, `short_interest`, and
+`earnings_move`.
 
 Fail-closed rule (v0.6.8, preserved): missing price, chain, VIX, or history is
 a recorded skip reason, never a placeholder trade signal. The volatility

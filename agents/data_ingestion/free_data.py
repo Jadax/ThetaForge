@@ -197,6 +197,63 @@ class FreeDataProvider:
             logger.debug("Earnings date unavailable for %s: %s", symbol, error)
             return None
 
+    async def get_short_interest(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Short-interest profile via yfinance fundamentals (free).
+
+        Desks read heavy short interest as a squeeze / gamma-amplification
+        input: when shorts dominate and price turns up, covering forces fuel
+        the move and retail option buyers get hurt selling into it. Returns
+        None fail-closed when the ticker lacks the fields.
+        """
+        try:
+            def fetch_short() -> Optional[Dict[str, Any]]:
+                ticker = yf.Ticker(symbol)
+                info = ticker.info
+                if not isinstance(info, dict):
+                    return None
+                short_percent = info.get("shortPercentOfFloat")
+                days_to_cover = info.get("shortRatio")
+                shares_short = info.get("sharesShort")
+                if short_percent is None and days_to_cover is None and shares_short is None:
+                    return None
+                return {
+                    "short_percent_of_float": (
+                        round(float(short_percent) * 100, 2) if short_percent is not None else None
+                    ),
+                    "days_to_cover": (
+                        round(float(days_to_cover), 2) if days_to_cover is not None else None
+                    ),
+                    "shares_short": (
+                        int(float(shares_short)) if shares_short is not None else None
+                    ),
+                }
+            return await asyncio.to_thread(fetch_short)
+        except Exception as error:
+            logger.debug("Short interest unavailable for %s: %s", symbol, error)
+            return None
+
+    async def get_earnings_dates(
+        self, symbol: str, limit: int = 12
+    ) -> List[date]:
+        """Past AND upcoming earnings dates via yfinance, oldest first."""
+        try:
+            def fetch_dates() -> List[date]:
+                ticker = yf.Ticker(symbol)
+                frame = ticker.get_earnings_dates(limit=limit)
+                if frame is None or frame.empty:
+                    return []
+                dates: List[date] = []
+                for index in frame.index:
+                    candidate = index
+                    if hasattr(index, "tzinfo") and getattr(index, "tzinfo", None) is not None:
+                        candidate = index.tz_convert(None)
+                    dates.append(pd.Timestamp(candidate).normalize().date())
+                return sorted(dates)
+            return await asyncio.to_thread(fetch_dates)
+        except Exception as error:
+            logger.debug("Earnings dates unavailable for %s: %s", symbol, error)
+            return []
+
     async def get_vix_history(self, period: str = "1y") -> pd.DataFrame:
         """Get historical VIX data."""
         try:

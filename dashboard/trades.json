@@ -1,0 +1,277 @@
+{
+  "trader": {
+    "name": "Tushant Sharma",
+    "handle": "@thetaforge",
+    "tagline": "Defined-risk option seller. Paper-first, receipts always."
+  },
+  "as_of": "2026-08-04",
+  "account_equity": 25000,
+  "paper_only": true,
+  "trades": [
+    {
+      "id": "TF-2026-010",
+      "symbol": "COIN",
+      "opened": "2026-07-20",
+      "closed": null,
+      "status": "open",
+      "strategy": "bull_put_credit",
+      "label": "paper",
+      "legs": [
+        { "action": "SELL", "type": "PUT", "strike": 230, "expiry": "2026-08-15", "dte": 26 },
+        { "action": "BUY", "type": "PUT", "strike": 220, "expiry": "2026-08-15", "dte": 26 }
+      ],
+      "entry_ivr": 68,
+      "dte_at_entry": 26,
+      "capital_at_risk": 1000,
+      "max_profit": 160,
+      "net_pnl": 45.0,
+      "net_pnl_pct": 28.1,
+      "reason": "IVR 68 off a crypto-vol spike with contango VIX structure. 16-delta put spread collects elevated premium on an underlying still in an uptrend.",
+      "research": [
+        { "label": "Chain & skew", "url": "https://www.cboe.com/tradable_products/equity/equity_options/quote_terms/" },
+        { "label": "COIN quote", "url": "https://finance.yahoo.com/quote/COIN/" }
+      ],
+      "tags": ["theta", "credit_spread", "high_ivr"],
+      "exit_note": "Open — monitoring for 50% profit or 21 DTE management.",
+      "timestamp": "2026-08-04T14:10:00Z"
+    },
+    {
+      "id": "TF-2026-009",
+      "symbol": "SPY",
+      "opened": "2026-07-15",
+      "closed": "2026-08-03",
+      "status": "closed",
+      "strategy": "cash_secured_put",
+      "label": "paper",
+      "legs": [
+        { "action": "SELL", "type": "PUT", "strike": 595, "expiry": "2026-08-21", "dte": 37 }
+      ],
+      "entry_ivr": 48,
+      "dte_at_entry": 37,
+      "capital_at_risk": 59500,
+      "max_profit": 395,
+      "net_pnl": 95.0,
+      "net_pnl_pct": 24.1,
+      "reason": "Entry at a 2% pullback on an index that has been bid on dips. Assigned cash is the plan, premium is the carry.",
+      "research": [
+        { "label": "SPY quote", "url": "https://finance.yahoo.com/quote/SPY/" }
+      ],
+      "tags": ["wheel", "index", "cash_secured_put"],
+      "exit_note": "Bought back at 24% of max profit as spot recovered to the 20-day — premium thinning and capital better deployed elsewhere.",
+      "timestamp": "2026-08-03T19:41:00Z"
+    },
+    {
+      "id": "TF-2026-008",
+      "symbol": "XLE",
+      "opened": "2026-07-07",
+      "closed": "2026-07-24",
+      "status": "closed",
+      "strategy": "bear_call_credit",
+      "label": "paper",
+      "legs": [
+        { "action": "SELL", "type": "CALL", "strike": 97, "expiry": "2026-08-07", "dte": 31 },
+        { "action": "BUY", "type": "CALL", "strike": 103, "expiry": "2026-08-07", "dte": 31 }
+      ],
+      "entry_ivr": 55,
+      "dte_at_entry": 31,
+      "capital_at_risk": 600,
+      "max_profit": 150,
+      "net_pnl": -165.0,
+      "net_pnl_pct": -110.0,
+      "reason": "Energy spiked on a geopolitical headline against an otherwise range-bound tape. Sold call spreads into strength on fading momentum.",
+      "research": [
+        { "label": "XLE quote", "url": "https://finance.yahoo.com/quote/XLE/" }
+      ],
+      "tags": ["theta", "credit_spread", "stopped"],
+      "exit_note": "Delta-management exit when the short 97 call breached 21 delta intraday — defined risk capped the damage, loss exceeded max profit because the long leg's liquidity widened at the exit.",
+      "timestamp": "2026-07-24T16:05:00Z"
+    },
+    {
+      "id": "TF-2026-007",
+      "symbol": "AAPL",
+      "opened": "2026-06-25",
+      "closed": "2026-07-16",
+      "status": "closed",
+      "strategy": "covered_call",
+      "label": "paper",
+      "legs": [
+        { "action": "BUY", "type": "STOCK", "strike": 258, "expiry": null, "dte": null },
+        { "action": "SELL", "type": "CALL", "strike": 272, "expiry": "2026-07-17", "dte": 22 }
+      ],
+      "entry_ivr": 33,
+      "dte_at_entry": 22,
+      "capital_at_risk": 25800,
+      "max_profit": 1400,
+      "net_pnl": 210.0,
+      "net_pnl_pct": 15.0,
+      "reason": "Bought the 258 range low after a quiet consolidation; sold the 272 call into a pop. Stock plus premium carry beats cash while we wait for a catalyst.",
+      "research": [
+        { "label": "AAPL quote", "url": "https://finance.yahoo.com/quote/AAPL/" }
+      ],
+      "tags": ["wheel", "covered_call", "low_ivr"],
+      "exit_note": "Rolled up-and-out once — closed the covered call at expiry after stock rallied to the short strike area; assignment kept the position capped as planned.",
+      "timestamp": "2026-07-16T20:22:00Z"
+    },
+    {
+      "id": "TF-2026-006",
+      "symbol": "GLD",
+      "opened": "2026-06-18",
+      "closed": "2026-07-09",
+      "status": "closed",
+      "strategy": "iron_condor",
+      "label": "paper",
+      "legs": [
+        { "action": "SELL", "type": "PUT", "strike": 226, "expiry": "2026-07-10", "dte": 22 },
+        { "action": "BUY", "type": "PUT", "strike": 222, "expiry": "2026-07-10", "dte": 22 },
+        { "action": "SELL", "type": "CALL", "strike": 246, "expiry": "2026-07-10", "dte": 22 },
+        { "action": "BUY", "type": "CALL", "strike": 250, "expiry": "2026-07-10", "dte": 22 }
+      ],
+      "entry_ivr": 44,
+      "dte_at_entry": 22,
+      "capital_at_risk": 400,
+      "max_profit": 110,
+      "net_pnl": 88.0,
+      "net_pnl_pct": 80.0,
+      "reason": "Gold rangefinding between support and the prior high. Both wings placed at 16 delta, closed at 80% when both short legs decayed toward the wings.",
+      "research": [
+        { "label": "GLD quote", "url": "https://finance.yahoo.com/quote/GLD/" }
+      ],
+      "tags": ["theta", "iron_condor", "range"],
+      "exit_note": "Closed both sides at 80% of max profit on day 15 — the classic defined-risk theta grind with no earnings or macro catalyst inside the window.",
+      "timestamp": "2026-07-09T19:12:00Z"
+    },
+    {
+      "id": "TF-2026-005",
+      "symbol": "AMZN",
+      "opened": "2026-06-10",
+      "closed": "2026-07-01",
+      "status": "closed",
+      "strategy": "bull_put_credit",
+      "label": "paper",
+      "legs": [
+        { "action": "SELL", "type": "PUT", "strike": 195, "expiry": "2026-07-03", "dte": 23 },
+        { "action": "BUY", "type": "PUT", "strike": 188, "expiry": "2026-07-03", "dte": 23 }
+      ],
+      "entry_ivr": 41,
+      "dte_at_entry": 23,
+      "capital_at_risk": 700,
+      "max_profit": 175,
+      "net_pnl": 140.0,
+      "net_pnl_pct": 80.0,
+      "reason": "Support held twice at 192 on heavy volume; IVR 41 with the stock basing above the 50-day. 16-delta put spread collects the quiet-money premium.",
+      "research": [
+        { "label": "AMZN quote", "url": "https://finance.yahoo.com/quote/AMZN/" }
+      ],
+      "tags": ["theta", "credit_spread", "support_play"],
+      "exit_note": "Closed at 80% of max profit — spot drifted to the 50-day while short put decayed to 4 delta.",
+      "timestamp": "2026-07-01T19:55:00Z"
+    },
+    {
+      "id": "TF-2026-004",
+      "symbol": "TSLA",
+      "opened": "2026-06-03",
+      "closed": "2026-06-24",
+      "status": "closed",
+      "strategy": "put_debit_spread",
+      "label": "paper",
+      "legs": [
+        { "action": "BUY", "type": "PUT", "strike": 175, "expiry": "2026-06-26", "dte": 23 },
+        { "action": "SELL", "type": "PUT", "strike": 165, "expiry": "2026-06-26", "dte": 23 }
+      ],
+      "entry_ivr": 58,
+      "dte_at_entry": 23,
+      "capital_at_risk": 1000,
+      "max_profit": 1000,
+      "net_pnl": -150.0,
+      "net_pnl_pct": -50.0,
+      "reason": "Bearish read on a failed break of the 20-day. Bought the put spread at 30-delta expecting mean-reversion to the range midpoint. TSLA grinded sideways instead.",
+      "research": [
+        { "label": "TSLA quote", "url": "https://finance.yahoo.com/quote/TSLA/" }
+      ],
+      "tags": ["debit_spread", "directional", "loss"],
+      "exit_note": "Stopped at 50% of max risk on day 15 — no catalyst arrived and theta + time work against long premium. Small loss, disciplined exit.",
+      "timestamp": "2026-06-24T18:33:00Z"
+    },
+    {
+      "id": "TF-2026-003",
+      "symbol": "QQQ",
+      "opened": "2026-05-20",
+      "closed": "2026-06-12",
+      "status": "closed",
+      "strategy": "iron_condor",
+      "label": "paper",
+      "legs": [
+        { "action": "SELL", "type": "PUT", "strike": 505, "expiry": "2026-06-13", "dte": 24 },
+        { "action": "BUY", "type": "PUT", "strike": 500, "expiry": "2026-06-13", "dte": 24 },
+        { "action": "SELL", "type": "CALL", "strike": 545, "expiry": "2026-06-13", "dte": 24 },
+        { "action": "BUY", "type": "CALL", "strike": 550, "expiry": "2026-06-13", "dte": 24 }
+      ],
+      "entry_ivr": 39,
+      "dte_at_entry": 24,
+      "capital_at_risk": 500,
+      "max_profit": 130,
+      "net_pnl": 104.0,
+      "net_pnl_pct": 80.0,
+      "reason": "Post-FOMC vol crush setup — range trading right at the 50/200-day confluence. 16-delta wings, closed at 80% as VIX settled back toward contango.",
+      "research": [
+        { "label": "QQQ quote", "url": "https://finance.yahoo.com/quote/QQQ/" }
+      ],
+      "tags": ["theta", "iron_condor", "event_crush"],
+      "exit_note": "Closed at 80% of max profit on day 17 — IV crush delivered most of the premium early, theta finished the rest.",
+      "timestamp": "2026-06-12T19:03:00Z"
+    },
+    {
+      "id": "TF-2026-002",
+      "symbol": "NVDA",
+      "opened": "2026-05-08",
+      "closed": "2026-05-29",
+      "status": "closed",
+      "strategy": "call_debit_spread",
+      "label": "paper",
+      "legs": [
+        { "action": "BUY", "type": "CALL", "strike": 165, "expiry": "2026-05-30", "dte": 22 },
+        { "action": "SELL", "type": "CALL", "strike": 170, "expiry": "2026-05-30", "dte": 22 }
+      ],
+      "entry_ivr": 46,
+      "dte_at_entry": 22,
+      "capital_at_risk": 250,
+      "max_profit": 500,
+      "net_pnl": 210.0,
+      "net_pnl_pct": 84.0,
+      "reason": "Trend continuation long on a cup-and-handle breakout with relative strength vs QQQ. 40-delta debit spread: defined cost, leveraged upside, IVR 46 mid-range so no crush risk.",
+      "research": [
+        { "label": "NVDA quote", "url": "https://finance.yahoo.com/quote/NVDA/" }
+      ],
+      "tags": ["debit_spread", "breakout", "momentum"],
+      "exit_note": "Closed at 84% of max profit as price tagged the 170 short strike — book the winner instead of chasing the last 16%.",
+      "timestamp": "2026-05-29T19:27:00Z"
+    },
+    {
+      "id": "TF-2026-001",
+      "symbol": "SPY",
+      "opened": "2026-05-01",
+      "closed": "2026-05-22",
+      "status": "closed",
+      "strategy": "bull_put_credit",
+      "label": "paper",
+      "legs": [
+        { "action": "SELL", "type": "PUT", "strike": 588, "expiry": "2026-05-23", "dte": 22 },
+        { "action": "BUY", "type": "PUT", "strike": 580, "expiry": "2026-05-23", "dte": 22 }
+      ],
+      "entry_ivr": 52,
+      "dte_at_entry": 22,
+      "capital_at_risk": 800,
+      "max_profit": 190,
+      "net_pnl": 152.0,
+      "net_pnl_pct": 80.0,
+      "reason": "IVR 52 after the April pullback reset, VIX term structure in contango. 16-delta put spread on the index — selling fear that just refilled, defined risk, no earnings inside the window.",
+      "research": [
+        { "label": "Chain & skew", "url": "https://www.cboe.com/tradable_products/equity/equity_options/quote_terms/" },
+        { "label": "SPY quote", "url": "https://finance.yahoo.com/quote/SPY/" }
+      ],
+      "tags": ["theta", "credit_spread", "fear_refill"],
+      "exit_note": "Closed at 80% of max profit — put skew flattened as spot reclaimed the 20-day, closing the edge the IVR entry promised.",
+      "timestamp": "2026-05-22T18:48:00Z"
+    }
+  ]
+}

@@ -105,24 +105,29 @@ class AIBrain:
     # Signal weights by market regime
     REGIME_WEIGHTS = {
         "bullish": {
-            "flow": 0.20, "iv": 0.15, "technical": 0.25, "cpr": 0.15,
-            "sentiment": 0.10, "gex": 0.10, "sideways": 0.05,
+            "flow": 0.20, "iv": 0.15, "technical": 0.22, "cpr": 0.13,
+            "sentiment": 0.08, "gex": 0.08, "sideways": 0.04,
+            "skew": 0.05, "short_interest": 0.05,
         },
         "bearish": {
-            "flow": 0.25, "iv": 0.20, "technical": 0.20, "cpr": 0.10,
-            "sentiment": 0.10, "gex": 0.10, "sideways": 0.05,
+            "flow": 0.23, "iv": 0.20, "technical": 0.18, "cpr": 0.08,
+            "sentiment": 0.08, "gex": 0.08, "sideways": 0.05,
+            "skew": 0.05, "short_interest": 0.05,
         },
         "neutral": {
-            "flow": 0.15, "iv": 0.25, "technical": 0.10, "cpr": 0.15,
-            "sentiment": 0.15, "gex": 0.10, "sideways": 0.10,
+            "flow": 0.13, "iv": 0.22, "technical": 0.09, "cpr": 0.13,
+            "sentiment": 0.13, "gex": 0.08, "sideways": 0.07,
+            "skew": 0.08, "short_interest": 0.07,
         },
         "high_vol": {
-            "flow": 0.25, "iv": 0.30, "technical": 0.10, "cpr": 0.05,
-            "sentiment": 0.10, "gex": 0.15, "sideways": 0.05,
+            "flow": 0.22, "iv": 0.27, "technical": 0.09, "cpr": 0.04,
+            "sentiment": 0.09, "gex": 0.13, "sideways": 0.05,
+            "skew": 0.06, "short_interest": 0.05,
         },
         "low_vol": {
-            "flow": 0.10, "iv": 0.30, "technical": 0.20, "cpr": 0.15,
-            "sentiment": 0.10, "gex": 0.05, "sideways": 0.10,
+            "flow": 0.08, "iv": 0.27, "technical": 0.17, "cpr": 0.12,
+            "sentiment": 0.08, "gex": 0.04, "sideways": 0.09,
+            "skew": 0.08, "short_interest": 0.07,
         },
     }
 
@@ -199,6 +204,9 @@ class AIBrain:
         vix_term_structure: Dict = None,
         expected_move_pct: float = None,
         iv_percentile: float = None,
+        iv_skew: Dict = None,
+        short_interest: Dict = None,
+        earnings_move: Dict = None,
     ) -> BrainOutput:
         """
         MAIN ENTRY POINT: Analyze a symbol and produce comprehensive recommendation.
@@ -207,6 +215,9 @@ class AIBrain:
         vix_term_structure: {"VIX9D": float, "VIX3M": float, "VIX6M": float, "VIX1Y": float}
         expected_move_pct: 1-SD expected move over the trade horizon, as a percent of spot.
         iv_percentile: IV percentile (0-100) from the symbol's own IV history.
+        iv_skew: desk_analytics.calculate_iv_skew() output (RR25/BF25 surface shape).
+        short_interest: free_data.get_short_interest() output (% float, days to cover).
+        earnings_move: desk_analytics.earnings_move_edge() output (implied vs realized).
         """
         closes = historical_prices or [stock_price]
         highs = high_prices or [stock_price * 1.01]
@@ -320,8 +331,87 @@ class AIBrain:
                     strength=0, confidence=50,
                     reasoning=f"IVR {ivr:.0f} but VIX term structure inverted → pause premium selling",
                 )
+
+            # Earnings IV vs realized history: rich IV → sell the move, cheap
+            # IV → buy it. Only nudges an already-existing vol edge; it never
+            # fabricates one where the surface data is missing.
+            if earnings_move and signals and signals[-1].source == "iv":
+                iv_sig = signals[-1]
+                read = earnings_move.get("read")
+                if read == "sell_iv" and "sell_premium" in iv_sig.signal:
+                    signals[-1] = SignalResult(
+                        source="iv", signal=iv_sig.signal,
+                        strength=min(1.0, iv_sig.strength + 0.1),
+                        confidence=min(90, iv_sig.confidence + 5),
+                        reasoning=(
+                            f"{iv_sig.reasoning} | Earnings IV {earnings_move['implied_move_pct']:.1f}% "
+                            f"vs realized median {earnings_move['median_historical_move_pct']:.1f}% → rich, sell the move"
+                        ),
+                    )
+                elif read == "buy_iv" and "buy_premium" in iv_sig.signal:
+                    signals[-1] = SignalResult(
+                        source="iv", signal=iv_sig.signal,
+                        strength=max(-1.0, iv_sig.strength - 0.1),
+                        confidence=min(90, iv_sig.confidence + 5),
+                        reasoning=(
+                            f"{iv_sig.reasoning} | Earnings IV {earnings_move['implied_move_pct']:.1f}% "
+                            f"vs realized median {earnings_move['median_historical_move_pct']:.1f}% → cheap, buy the move"
+                        ),
+                    )
         else:
             iv_signal = {"iv_rank": 50}
+
+        # Desk surface data rides on the IV payload so the scanner and advisor
+        # routes surface it without a separate transport.
+        iv_signal["iv_skew"] = iv_skew
+        iv_signal["short_interest"] = short_interest
+        iv_signal["earnings_move"] = earnings_move
+
+        # 2b. IV Skew — the surface shape every desk quotes (RR25/BF25).
+        if iv_skew:
+            skew_regime = iv_skew.get("regime")
+            if skew_regime in ("fear", "elevated_fear"):
+                signals.append(SignalResult(
+                    source="skew", signal="put_skew_rich",
+                    strength=-0.12,
+                    confidence=65 if skew_regime == "fear" else 55,
+                    reasoning=iv_skew.get("reasoning", ""),
+                ))
+            elif skew_regime == "complacent":
+                signals.append(SignalResult(
+                    source="skew", signal="flat_skew",
+                    strength=0.08, confidence=40,
+                    reasoning=iv_skew.get("reasoning", ""),
+                ))
+            else:
+                signals.append(SignalResult(
+                    source="skew", signal="neutral", strength=0.0, confidence=30,
+                    reasoning=iv_skew.get("reasoning", ""),
+                ))
+
+        # 2c. Short interest — the squeeze-fuel input desks watch (% float).
+        if short_interest:
+            short_pct = short_interest.get("short_percent_of_float")
+            days_to_cover = short_interest.get("days_to_cover")
+            if (short_pct is not None and short_pct >= 30) or (days_to_cover is not None and days_to_cover >= 15):
+                signals.append(SignalResult(
+                    source="short_interest", signal="squeeze_fuel",
+                    strength=0.3, confidence=65,
+                    reasoning=(
+                        f"Short interest {short_pct:.0f}% of float" if short_pct is not None else f"Days to cover {days_to_cover:.0f}"
+                    ) + " — trapped shorts fuel upside",
+                ))
+            elif (short_pct is not None and short_pct >= 15) or (days_to_cover is not None and days_to_cover >= 8):
+                signals.append(SignalResult(
+                    source="short_interest", signal="moderate_squeeze_fuel",
+                    strength=0.15, confidence=50,
+                    reasoning="Elevated short interest — squeeze risk supports longs",
+                ))
+            else:
+                signals.append(SignalResult(
+                    source="short_interest", signal="neutral", strength=0.0, confidence=30,
+                    reasoning="Short interest not elevated — no squeeze input",
+                ))
 
         # 3. Technical / Trend Signal
         from agents.backtest.advanced_backtest import SignalEngine
@@ -486,6 +576,10 @@ class AIBrain:
             overall_signal, regime, iv_signal, sideways, vix, days_to_earnings,
             symbol=symbol, existing_positions=existing_positions, confidence=avg_confidence,
         )
+        skew_note = self._skew_reasoning(iv_signal)
+        if skew_note:
+            best_strategy = dict(best_strategy)
+            best_strategy["reasoning"] = f"{best_strategy['reasoning']} | {skew_note}"
 
         # === TIME-HORIZON RECOMMENDATIONS ===
         recommendations_1w = self._horizon_recommendations(
@@ -553,6 +647,21 @@ class AIBrain:
         if trend in ("bullish", "bearish"):
             return trend
         return "neutral"
+
+    def _skew_reasoning(self, iv_signal: Dict) -> str:
+        """Short desk read on the surface shape, appended to strategy reasoning."""
+        skew = iv_signal.get("iv_skew") if isinstance(iv_signal, dict) else None
+        if not skew:
+            return ""
+        regime = skew.get("regime")
+        rr = skew.get("rr25_norm")
+        if regime == "fear":
+            return f"put skew extreme (RR25 {rr}) — rich downside hedges, enhanced put credit"
+        if regime == "elevated_fear":
+            return f"elevated put skew (RR25 {rr}) — put premium rich"
+        if regime == "complacent":
+            return f"flat skew (RR25 {rr}) — no fear priced, premium thin, size down"
+        return ""
 
     def _select_best_strategy(
         self,

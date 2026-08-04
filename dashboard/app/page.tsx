@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
 type Analysis = {
@@ -117,7 +118,7 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v0.7.0";
+const VERSION = "v0.8.0";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -523,6 +524,7 @@ export default function Home() {
       <nav>
         <div className="brand"><span>θ</span> ThetaForge <small>PERSONAL TERMINAL · {VERSION}</small></div>
         <div className="nav-right">
+          <Link className="terminal-link" href="/trades">Public journal ↗</Link>
           <div className="notif-bell" onClick={() => setShowNotifications(!showNotifications)}>
             🔔{notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
           </div>

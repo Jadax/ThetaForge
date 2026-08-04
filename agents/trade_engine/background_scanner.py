@@ -296,6 +296,39 @@ class BackgroundBrainScanner:
         except Exception:
             days_to_earnings = None
 
+        # Desk analytics (all fail-closed to None): IV skew from the chain's
+        # per-strike deltas, short interest via yfinance, and the earnings
+        # implied-vs-realized move read. None of these can fabricate an edge
+        # when the source data is missing.
+        try:
+            from agents.volatility.desk_analytics import calculate_iv_skew
+            iv_skew = calculate_iv_skew(chain)
+        except Exception:
+            iv_skew = None
+
+        try:
+            short_interest = await self._provider.get_short_interest(symbol)
+        except Exception:
+            short_interest = None
+
+        earnings_move = None
+        try:
+            from agents.volatility.desk_analytics import (
+                implied_earnings_move,
+                historical_earnings_moves,
+                earnings_move_edge,
+            )
+            if current_iv and price > 0:
+                implied = implied_earnings_move(chain, price)
+                if implied:
+                    earnings_dates = await self._provider.get_earnings_dates(symbol, limit=12)
+                    past_dates = [event for event in earnings_dates if event < date.today()]
+                    if past_dates:
+                        moves = historical_earnings_moves(hist, past_dates)
+                        earnings_move = earnings_move_edge(implied, moves)
+        except Exception:
+            earnings_move = None
+
         try:
             brain = await self._lazy_brain()
             result = brain.analyze(
@@ -312,6 +345,9 @@ class BackgroundBrainScanner:
                 vix_term_structure=vix_term_structure,
                 expected_move_pct=expected_move_pct,
                 iv_percentile=iv_percentile,
+                iv_skew=iv_skew,
+                short_interest=short_interest,
+                earnings_move=earnings_move,
             )
             return {
                 "score": result.overall_score,
@@ -325,6 +361,9 @@ class BackgroundBrainScanner:
                 "iv_hv_signal": (result.iv_signal or {}).get("signal"),
                 "expected_move_pct": (result.iv_signal or {}).get("expected_move_pct"),
                 "term_structure": (result.iv_signal or {}).get("term_structure"),
+                "iv_skew": (result.iv_signal or {}).get("iv_skew"),
+                "short_interest": (result.iv_signal or {}).get("short_interest"),
+                "earnings_move": (result.iv_signal or {}).get("earnings_move"),
                 "top_signal": "",
             }, None
         except Exception:
@@ -383,6 +422,9 @@ class BackgroundBrainScanner:
                     "iv_rank": data.get("iv_rank"),
                     "iv_hv_ratio": data.get("iv_hv_ratio"),
                     "iv_hv_signal": data.get("iv_hv_signal"),
+                    "iv_skew": data.get("iv_skew"),
+                    "short_interest": data.get("short_interest"),
+                    "earnings_move": data.get("earnings_move"),
                     "top_signal": data.get("top_signal", ""),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "acknowledged": False,

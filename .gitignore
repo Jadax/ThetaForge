@@ -45,3 +45,6 @@ dump.rdb
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Playwright MCP tooling output
+.playwright-mcp/

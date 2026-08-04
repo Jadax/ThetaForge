@@ -1,5 +1,37 @@
 # ThetaForge Changelog
 
+## v0.8.0 - 2026-08-04
+
+- Added desk analytics (`agents/volatility/desk_analytics.py`) so the free CBOE
+  chain becomes an institutional-grade volatility surface, not just a chain:
+  - **IV skew** — 25-delta risk reversal (RR25) and 25-delta butterfly (BF25),
+    delta-interpolated from per-strike deltas, normalized by ATM IV, and
+    classified into a desk regime (fear / elevated_fear / neutral / complacent).
+    The Brain emits a `skew` signal and appends a surface read to the chosen
+    strategy's reasoning.
+  - **Earnings move** — the front-month ATM straddle's implied move compared
+    against the symbol's realized post-earnings move history
+    (`earnings_move_edge`). Rich IV ("sell the move") nudges an existing
+    sell-premium edge; cheap IV ("buy the move") nudges buy-premium. Never
+    fabricates an edge when data is missing.
+- Added short interest (`short_percent_of_float`, `days_to_cover`,
+  `shares_short`) via yfinance fundamentals, surfaced as a squeeze-fuel signal
+  when shorts are crowded.
+- Wired all three through the scanner's `_analyze_one` (fail-closed to `None`),
+  the scanner notification payload, and the on-demand advisor
+  `_market_snapshot`; `REGIME_WEIGHTS` gained `skew` and `short_interest`
+  sources (rebalanced to 1.0).
+- Added a public trade journal (`dashboard/app/trades/page.tsx` +
+  `dashboard/trades.json`): an influencer-style showcase page with a metrics
+  strip (net P&L, win rate, profit factor, avg win/loss, max drawdown, current
+  streak), a CSS/SVG equity curve, and per-trade cards showing structure, DTE,
+  entry IVR, the thesis, what actually happened, research links, tags, and a
+  timestamped receipt. Every position is explicitly labeled PAPER and the page
+  carries a paper-only disclaimer. Private terminal remains token-gated; the
+  journal is static, honest, and has no 100%-win claims.
+- Added `tests/test_desk_analytics.py` and brain/scanner coverage; full suite at
+  +14 tests.
+
 ## v0.7.0 - 2026-08-04
 
 - Added the free, no-key CBOE delayed-quotes provider

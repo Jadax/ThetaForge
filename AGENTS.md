@@ -31,14 +31,16 @@ Dashboard (Next.js, GitHub Pages/localhost)
 | Path | Role |
 | --- | --- |
 | `agents/data_ingestion/cboe_data.py` | Free no-key CBOE delayed quotes: option chains (Greeks+IV), quotes, VIX term structure |
-| `agents/data_ingestion/free_data.py` | Multi-source provider: IBKR > CBOE > Alpaca > yfinance; VIX term structure, contango, earnings date |
+| `agents/data_ingestion/free_data.py` | Multi-source provider: IBKR > CBOE > Alpaca > yfinance; VIX term structure, contango, earnings date, short interest |
 | `agents/trade_engine/background_scanner.py` | Universe discovery + `_analyze_one` (feeds all vol inputs to Brain) |
-| `agents/trade_engine/ai_brain.py` | Regime, signal aggregation, `iv_signal` (rank/percentile/term-structure), strategy selection gates |
+| `agents/trade_engine/ai_brain.py` | Regime, signal aggregation, `iv_signal` (rank/percentile/term-structure/iv_skew/short_interest/earnings_move), strategy selection gates |
 | `agents/trade_engine/recommender.py` | Authoritative candidate scoring and quality gates |
+| `agents/volatility/desk_analytics.py` | Desk surfaces from the free chain: IV skew (RR25/BF25), earnings implied-vs-realized move, front-month straddle move |
 | `agents/volatility/iv_history.py` | Daily per-symbol ATM-IV snapshots → IV rank/percentile |
 | `agents/volatility/iv_metrics.py` | `calculate_iv_rank`, `calculate_iv_percentile`, realized vol |
 | `orchestrator/routes/advisor.py` | Authenticated dashboard API |
 | `bridge/main.py` | Paper-only IBKR order checks and submission |
+| `dashboard/app/trades/page.tsx` + `dashboard/trades.json` | Public trade journal (static, PAPER-only, computed metrics) — the only intentionally public dashboard surface |
 | `tests/` | Backend regression suite |
 
 ## Volatility Model (keep intact)

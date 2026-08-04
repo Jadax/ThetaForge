@@ -41,6 +41,8 @@ async def test_brain_analyze_uses_async_provider_and_all_available_signals(monke
     monkeypatch.setattr(advisor.provider, "get_historical_prices", AsyncMock(return_value=history))
     monkeypatch.setattr(advisor.provider, "get_vix", AsyncMock(return_value=24.0))
     monkeypatch.setattr(advisor.provider, "get_put_call_ratio", AsyncMock(return_value=1.4))
+    monkeypatch.setattr(advisor.provider, "get_short_interest", AsyncMock(return_value=None))
+    monkeypatch.setattr(advisor.provider, "get_earnings_dates", AsyncMock(return_value=[]))
     monkeypatch.setattr(advisor, "SignalTracker", _Tracker)
 
     response = await advisor.brain_analyze(advisor.BrainAnalysisRequest(symbol="test"))
@@ -54,6 +56,58 @@ async def test_brain_analyze_uses_async_provider_and_all_available_signals(monke
     }
     assert response["cpr_signal"]
     assert response["recommendations_1m"]
+
+
+def test_brain_consumes_desk_analytics_and_emits_new_signals():
+    brain = AIBrain()
+    prices = [100.0] * 60
+    skew = {
+        "expiry": "2026-09-18", "atm_iv": 0.30, "iv_call_25": 0.27, "iv_put_25": 0.40,
+        "rr25": 0.13, "bf25": 0.02, "rr25_norm": 0.43, "bf25_norm": 0.07,
+        "regime": "fear", "reasoning": "Put skew extreme — heavy hedging demand",
+    }
+    short_interest = {
+        "short_percent_of_float": 32.0, "days_to_cover": 12.0, "shares_short": 1000,
+    }
+    earnings_move = {
+        "implied_move_pct": 6.0, "median_historical_move_pct": 3.5,
+        "edge_pct": 2.5, "events_used": 8, "read": "sell_iv", "signal": "premium_sell_edge",
+    }
+
+    output = brain.analyze(
+        symbol="TEST", stock_price=100.0, option_chain=[],
+        historical_prices=prices, high_prices=[101.0] * 60, low_prices=[99.0] * 60,
+        current_iv=0.30, hv_20=0.18, vix=20.0,
+        iv_skew=skew, short_interest=short_interest, earnings_move=earnings_move,
+    )
+
+    sources = {signal["source"] for signal in output.all_signals}
+    assert "skew" in sources
+    assert "short_interest" in sources
+    assert output.iv_signal["iv_skew"] == skew
+    assert output.iv_signal["short_interest"] == short_interest
+    assert output.iv_signal["earnings_move"] == earnings_move
+    # Rich earnings IV attached to a premium-selling edge shows up in reasoning.
+    iv = next(signal for signal in output.all_signals if signal["source"] == "iv")
+    assert "sell the move" in iv["reasoning"]
+
+
+def test_brain_missing_desk_analytics_stays_neutral():
+    brain = AIBrain()
+    prices = [100.0] * 60
+
+    output = brain.analyze(
+        symbol="TEST", stock_price=100.0, option_chain=[],
+        historical_prices=prices, high_prices=[101.0] * 60, low_prices=[99.0] * 60,
+        current_iv=0.30, hv_20=0.18, vix=20.0,
+    )
+
+    assert output.iv_signal.get("iv_skew") is None
+    assert output.iv_signal.get("short_interest") is None
+    assert output.iv_signal.get("earnings_move") is None
+    sources = {signal["source"] for signal in output.all_signals}
+    assert "skew" not in sources
+    assert "short_interest" not in sources
 
 
 @pytest.mark.asyncio

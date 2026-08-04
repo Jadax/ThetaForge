@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional
 import asyncio
 import math
 import statistics
+from datetime import date
 
 from orchestrator.security import (
     analysis_rate_limit,
@@ -143,6 +144,39 @@ async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, 
         if "error" not in gex:
             gex_data = {"regime": gex.get("gex_regime", "NEUTRAL").lower(), **gex}
 
+    # Desk analytics — IV skew, short interest, and the earnings IV-vs-history
+    # read. Each degrades to None when the free data can't produce it.
+    iv_skew = None
+    if option_chain:
+        try:
+            from agents.volatility.desk_analytics import calculate_iv_skew
+            iv_skew = calculate_iv_skew(option_chain)
+        except Exception:
+            iv_skew = None
+
+    short_interest = None
+    try:
+        short_interest = await provider.get_short_interest(symbol)
+    except Exception:
+        short_interest = None
+
+    earnings_move = None
+    try:
+        from agents.volatility.desk_analytics import (
+            implied_earnings_move,
+            historical_earnings_moves,
+            earnings_move_edge,
+        )
+        implied = implied_earnings_move(option_chain, stock_price) if option_chain else None
+        if implied and historical_frame is not None and not historical_frame.empty:
+            earnings_dates = await provider.get_earnings_dates(symbol, limit=12)
+            past_dates = [event for event in earnings_dates if event < date.today()]
+            if past_dates:
+                moves = historical_earnings_moves(historical_frame, past_dates)
+                earnings_move = earnings_move_edge(implied, moves)
+    except Exception:
+        earnings_move = None
+
     return {
         "stock_price": stock_price,
         "option_chain": option_chain,
@@ -161,6 +195,9 @@ async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, 
         "gex_data": gex_data,
         "flow_data": flow_data,
         "pcr_data": {"current": float(pcr), "historical": []} if isinstance(pcr, (int, float)) and pcr > 0 else None,
+        "iv_skew": iv_skew,
+        "short_interest": short_interest,
+        "earnings_move": earnings_move,
     }
 
 
