@@ -275,17 +275,3 @@ class AlertEngine:
             history = [h for h in history if h["symbol"] == symbol.upper()]
         return history[-limit:]
 
-    def get_active_rules_count(self) -> int:
-        rules = self._read_rules()
-        return sum(1 for r in rules if not r.get("triggered") or not r.get("one_time"))
-
-    def summary(self) -> Dict:
-        rules = self._read_rules()
-        history = self._read_history()
-        return {
-            "total_rules": len(rules),
-            "active_rules": sum(1 for r in rules if not r.get("triggered") or not r.get("one_time")),
-            "triggered_rules": sum(1 for r in rules if r.get("triggered")),
-            "total_alerts_fired": len(history),
-            "recent_alerts": history[-10:],
-        }

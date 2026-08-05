@@ -1,9 +1,8 @@
 """
 Options ROI Calculator.
-Stolen from: OptionsellerROI.com, Barchart, Moomoo Option Seller Report.
 
 Calculates return on capital for every possible options trade across all strikes
-and expirations - the core feature that makes OptionsellerROI valuable.
+and expirations.
 
 Key metrics:
 - Premium Yield = Premium / (Strike * 100) for CSPs
@@ -18,9 +17,8 @@ from datetime import datetime, timedelta
 
 class ROICalculator:
     """
-    Calculates ROI metrics for all option selling strategies.
-    Replicates OptionsellerROI's core feature: instant comparison of
-    return on capital across every strike and expiration.
+    Calculates ROI metrics for all option selling strategies, giving instant
+    comparison of return on capital across every strike and expiration.
     """
 
     def __init__(self, risk_free_rate: float = 0.05):
@@ -191,8 +189,8 @@ class ROICalculator:
         self, opportunities: List[Dict[str, Any]], sort_by: str = "annualized_return_pct"
     ) -> List[Dict[str, Any]]:
         """
-        Rank all opportunities by ROI - this is the OptionsellerROI killer feature.
-        Sort by any metric: annualized return, premium yield, POP, return on risk.
+        Rank all opportunities by ROI, sorted by any metric: annualized return,
+        premium yield, POP, or return on risk.
         """
         return sorted(opportunities, key=lambda x: x.get(sort_by, 0), reverse=True)
 
@@ -255,7 +253,6 @@ class ROICalculator:
     ) -> List[Dict[str, float]]:
         """
         Scan ALL strikes for CSP opportunities - instant ROI comparison.
-        This is exactly what OptionsellerROI does.
         """
         results = []
         for option in chain:

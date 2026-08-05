@@ -1,11 +1,11 @@
 """
-CBOE Delayed Quotes Provider — free, no API key.
+CBOE Delayed Quotes Provider - free, no API key.
 
-Stolen from the free public endpoints that Barchart, OptionsDX and similar
-tools use as their raw feed. CBOE publishes 15-minute delayed NBBO options
-quotes (with full Greeks and IV) and VIX term-structure indices on its public
-CDN. There is no authentication and no rate-limit agreement; the endpoints are
-the same ones the CBOE website's own tables use.
+Uses the same free public CBOE endpoints that public options tables rely on.
+CBOE publishes 15-minute delayed NBBO options quotes (with full Greeks and IV)
+and VIX term-structure indices on its public CDN. There is no authentication
+and no rate-limit agreement; the endpoints are the same ones the CBOE
+website's own tables use.
 
 Endpoints:
   - Options chain:      https://cdn.cboe.com/api/global/delayed_quotes/options/{SYMBOL}.json

@@ -167,15 +167,16 @@ thetaforge/
 ├── dashboard/                 # Next.js dashboard
 ├── agents/
 │   ├── trade_engine/          # Production path: Brain, recommender, scanner
-│   ├── data_ingestion/        # CBOE (free no-key), IBKR, yfinance, Alpaca
+│   ├── data_ingestion/        # CBOE (free no-key), yfinance, Alpaca
 │   ├── volatility/            # IV history store, IV Rank/Percentile, realized vol, Greeks
 │   ├── flow_analysis/         # Unusual activity, GEX engine
 │   ├── technical/             # RSI, MACD, Bollinger, trend
 │   ├── risk_management/       # Kelly + portfolio limits
 │   └── backtest/              # SignalEngine indicators (macd/rsi/adx) for the Brain
 ├── tests/                     # Unit tests
-├── deployment/                # Panic button, setup scripts
-└── docs/                      # Handover, paper bridge, stealing policy
+├── scripts/                   # Journal CLI, journal sync, recap
+├── journal/                   # Public trade journal site
+└── docs/                      # Handover, signal/data policy
 ```
 
 The deployed Advisor is a single FastAPI process using JSON files in `data/`

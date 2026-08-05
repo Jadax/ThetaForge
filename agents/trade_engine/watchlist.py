@@ -114,6 +114,3 @@ class FavoritesStore:
                 return WatchlistItem(**item)
         return None
 
-    def symbol_exists(self, symbol: str, user: str = "default") -> bool:
-        data = self._read()
-        return any(i["symbol"] == symbol.upper() for i in data.get(user, []))

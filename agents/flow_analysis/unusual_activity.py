@@ -1,9 +1,7 @@
 """
 Unusual Options Activity Detector.
-Stolen from: Barchart (unusual volume), MarketChameleon (volume spike),
-UnusualWhales (flow scanner), CheddarFlow (dark pool prints).
 
-Detects:
+Flags unusual volume, size, and price-action patterns in the options chain:
 1. Volume > 2x Open Interest (contract being accumulated)
 2. Volume > 10x average daily volume (unusual activity)
 3. Large block trades (>$100k premium)

@@ -23,7 +23,6 @@ praw>=7.7.0
 # Data & Analytics
 numpy>=1.26.0
 pandas>=2.1.0
-py_vollib>=1.0.1
 scipy>=1.11.0
 ta>=0.11.0
 

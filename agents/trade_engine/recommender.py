@@ -1,10 +1,9 @@
 """
 Trade Recommender - The Core Engine.
-Capital In → Specific Trades Out.
+Capital In - Specific Trades Out.
 
-Stolen from: TastyTrade (mechanical rules), ORATS (NVRP filtering),
-OptionStrat (strategy visualization), Barchart (signal confirmation),
-OptionsellerROI (ROI comparison), Thinkorswim (probability analysis).
+Applies mechanical trade-management rules, volatility filtering, and
+probability analysis to score and rank candidate strategies.
 
 This is the brain that:
 1. Takes account info (capital, risk tolerance, positions)
@@ -1249,7 +1248,7 @@ class TradeRecommender:
         }
 
     def _generate_exit_rules(self, strategy_type: StrategyType, candidate: Dict) -> Dict:
-        """Specific exit rules - stolen from TastyTrade mechanical rules.
+        """Specific exit rules - TastyTrade-style mechanical management.
 
         The professional playbook: close at 50% of max profit OR at 21 DTE,
         whichever comes first; hard stop at 2-3x the credit received. The

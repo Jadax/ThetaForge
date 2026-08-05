@@ -89,7 +89,7 @@ trade to fill a dashboard card, and it cannot promise profitable outcomes.
 | `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger. |
 | `scripts/add_trade.py` | Journal narrative input; `--from-ledger` attaches to a TWS-placed trade. |
 | `tests/` | Backend regression suite. |
-| `docs/STEALING_POLICY.md` | Provenance of the free feeds and volatility gates — read before removing anything that looks unused. |
+| `docs/SIGNAL_POLICY.md` | Provenance of the free feeds and volatility gates — read before removing anything that looks unused. |
 
 ## Versioning and Validation
 
@@ -133,4 +133,4 @@ sources of truth.
 
 `agents/backtest/advanced_backtest.py` is deliberately retained: `SignalEngine`
 (macd/rsi/adx helpers) is imported by `ai_brain.py` and `tv_indicators.py`. See
-`docs/STEALING_POLICY.md` before removing anything that looks unused.
+`docs/SIGNAL_POLICY.md` before removing anything that looks unused.

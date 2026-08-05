@@ -1,8 +1,5 @@
 """
 Strategy Scorer.
-Stolen from: TastyTrade (probability of profit weighting),
-ORATS (NVRP-based strategy selection), OptionStrat (risk/reward scoring),
-Barchart (momentum + flow confirmation).
 
 Scores and ranks strategy candidates based on:
 1. Edge (NVRP, IV vs HV, flow alignment)

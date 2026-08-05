@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Operating notes for AI agents working in ThetaForge. Read `docs/STEALING_POLICY.md`
+Operating notes for AI agents working in ThetaForge. Read `docs/SIGNAL_POLICY.md`
 before touching anything volatility-, CBOE-, or scanner-related — several
 "unused" files are upstream suppliers for active gates.
 
@@ -47,6 +47,7 @@ Dashboard (Next.js, GitHub Pages/localhost)
 | `journal/` | Public trade journal — static site served at `https://jadax.github.io/ThetaForge/`; only entries placed on TWS from the paper-order ledger |
 | `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger (single source of truth) |
 | `scripts/add_trade.py` | Journal narrative input CLI; `--from-ledger` attaches to a TWS-placed trade |
+| `scripts/journal_common.py` | Shared ledger→journal leg mapping used by `add_trade.py` and `sync_journal.py` |
 | `scripts/recap.py` | Weekly/monthly recap export from `journal/trades.json` |
 | `journal/learn/` | Static free-education playbook (IV rank, expected move, POP) |
 | `tests/` | Backend regression suite |
@@ -65,6 +66,6 @@ Dashboard (Next.js, GitHub Pages/localhost)
 - Do not delete "dead-looking" modules without grepping for importers across
   the whole repo (including `orchestrator/` and `bridge/`). `advanced_backtest.py`
   looks dead but `ai_brain.py` imports its `SignalEngine`.
-- Do not add paid data dependencies; every feed is free (see STEALING_POLICY).
+- Do not add paid data dependencies; every feed is free (see SIGNAL_POLICY).
 - Do not add a second scoring or order path.
 - Do not reintroduce removed fake/backtest/live-toggle routes or Celery.

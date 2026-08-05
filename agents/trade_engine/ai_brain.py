@@ -3,7 +3,8 @@ ThetaForge AI Brain - Unified Signal Orchestrator.
 The central nervous system that combines ALL indicators, strategies,
 and signals into a single coherent recommendation engine.
 
-Stolen from: Every competitor analyzed. This is the synthesis.
+This is the synthesis of standard volatility, flow, and technical trading
+research applied through a single weighted scoring model.
 
 Architecture:
   Market Data → 15+ Signal Engines → Brain Scoring → Strategy Selection
@@ -92,7 +93,7 @@ class AIBrain:
     This is the CORE of ThetaForge - it takes in data from ALL engines
     and produces a single, coherent, actionable recommendation.
     
-    Weight hierarchy (stolen from institutional quant funds):
+    Weight hierarchy (institutional-style composite scoring):
     1. Flow/Unusual Activity: 25% (smart money leads)
     2. IV/NVRP Edge: 20% (volatility is the #1 edge in options)
     3. Technical/Trend: 15% (direction matters)

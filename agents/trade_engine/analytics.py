@@ -1,9 +1,7 @@
 """
 Options Analytics Calculators.
-Stolen from: OptionStrat (max pain), Barchart (expected move),
-ORATS (NVRP), Tradier (Greeks), Thinkorswim (probability zone).
 
-Implements:
+Implements standard options-market analytics:
 - Max Pain (strike price where most options expire worthless)
 - Expected Move (based on ATM straddle price)
 - Net Volatility Risk Premium (NVRP) - ORATS edge signal
@@ -11,8 +9,7 @@ Implements:
 - Support/Resistance from options OI
 """
 import math
-import statistics
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List
 from collections import defaultdict
 
 
@@ -250,26 +247,3 @@ class OptionsAnalytics:
 
         return {"support": support, "resistance": resistance}
 
-    def implied_move_at_expiration(
-        self,
-        stock_price: float,
-        iv: float,
-        dte: int,
-    ) -> Dict[str, Any]:
-        """
-        Calculate where price will be at expiration with probabilities.
-        Similar to Thinkorswim's probability analysis.
-        """
-        em = self.expected_move(stock_price, iv, dte)
-        expected_move_1sd = em["expected_move_1sd"]
-
-        return {
-            "current_price": stock_price,
-            "expected_move_1sd": expected_move_1sd,
-            "range_68pct": (round(stock_price - expected_move_1sd, 2), round(stock_price + expected_move_1sd, 2)),
-            "range_95pct": (em["lower_2sd"], em["upper_2sd"]),
-            "probability_above_current": 50.0,
-            "probability_below_current": 50.0,
-            "dte": dte,
-            "iv": iv,
-        }

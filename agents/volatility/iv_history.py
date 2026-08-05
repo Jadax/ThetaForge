@@ -4,13 +4,11 @@ Persistent per-symbol implied-volatility history store.
 IV Rank and IV Percentile are meaningless unless they come from an actual
 history of the symbol's implied volatility. Free feeds (yfinance, CBOE) expose
 only a point-in-time chain, so this store appends one daily ATM-IV snapshot per
-symbol per scan and computes rank/percentile from the accumulated history,
-mirroring the snapshot collectors that options-data-pipeline and qlib-options
-use. The store degrades gracefully: callers fall back to a realized-vol proxy
-until enough samples exist.
+symbol per scan and computes rank/percentile from the accumulated history. The
+store degrades gracefully: callers fall back to a realized-vol proxy until
+enough samples exist.
 
-Stolen pattern: options-data-pipeline (dmitridefreitas-dev) ATM-IV snapshot
-ETL. Reuses calculate_iv_rank / calculate_iv_percentile from iv_metrics.
+Reuses calculate_iv_rank / calculate_iv_percentile from iv_metrics.
 """
 import json
 import logging

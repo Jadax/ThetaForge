@@ -23,6 +23,12 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from journal_common import RIGHT_TO_TYPE, journal_legs, ledger_capital_at_risk  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_JOURNAL = REPO_ROOT / "journal" / "trades.json"
 DEFAULT_LEDGER = REPO_ROOT / "data" / "paper_order_ledger.json"
@@ -31,7 +37,6 @@ STRATEGIES = {
     "cash_secured_put", "covered_call", "bull_put_credit", "bear_call_credit",
     "iron_condor", "put_debit_spread", "call_debit_spread",
 }
-RIGHT_TO_TYPE = {"C": "CALL", "P": "PUT"}
 
 
 class CliError(Exception):
@@ -149,23 +154,8 @@ def prefill_from_ledger(ledger_id: str, ledger: list[dict]) -> dict:
     record = next((item for item in ledger if item.get("id") == ledger_id), None)
     if record is None:
         raise CliError(f"No ledger record with id {ledger_id!r}")
-    legs = []
-    for leg in record.get("legs", []):
-        right = leg.get("right")
-        leg_type = RIGHT_TO_TYPE.get(str(right), "CALL")
-        expiry = leg.get("expiry") or None
-        dte = None
-        if expiry:
-            dte = max((datetime.strptime(expiry, "%Y-%m-%d").date()
-                       - date.today()).days, 0)
-        legs.append({
-            "action": str(leg.get("action", "SELL")).upper(),
-            "type": leg_type,
-            "strike": float(leg["strike"]) if leg.get("strike") else None,
-            "expiry": expiry,
-            "dte": dte,
-        })
-    capital = record.get("max_loss_total") or record.get("max_loss_per_combo")
+    legs = journal_legs(record.get("legs", []), as_of=date.today())
+    capital = ledger_capital_at_risk(record)
     return {
         "symbol": str(record.get("symbol", "")).upper(),
         "strategy": str(record.get("strategy", "")),

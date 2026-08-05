@@ -6,6 +6,7 @@ __pycache__/
 dist/
 build/
 *.egg
+.pytest_cache/
 
 # Virtual Environment
 venv/
@@ -26,10 +27,6 @@ env/
 .DS_Store
 Thumbs.db
 
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
 # Logs
 *.log
 logs/
@@ -39,9 +36,6 @@ logs/
 # are recreated on first use; committing them makes deploys fight the app.
 data/*.json
 .validation-dashboard-*/
-
-# Redis
-dump.rdb
 
 # Jupyter
 .ipynb_checkpoints/

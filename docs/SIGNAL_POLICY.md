@@ -1,4 +1,4 @@
-# ThetaForge Stealing Policy
+# ThetaForge Signal & Data Policy
 
 This file exists to make high-value additions hard to remove. Every entry below
 was researched against a real competitor or free public data source, then

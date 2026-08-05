@@ -3,16 +3,14 @@ Signal Performance Tracker.
 Records Brain predictions and tracks actual outcomes to dynamically
 adjust signal weights based on historical accuracy.
 
-This is the SELF-IMPROVING component of the AI Brain.
+This is the SELF-IMPROVING component of the AI Brain, modeled on how
+institutional desks track signal decay and rebalance signal weights.
 
 Architecture:
 1. Every Brain analysis is logged with timestamp, signals, scores
 2. After N days, fetch actual price movement
 3. Calculate hit rate per signal source
 4. Feed accuracy data back into Brain for weight adjustment
-
-Stolen from: Renaissance Technologies (signal decay tracking),
-Two Sigma (ensemble rebalancing), DE Shaw (adaptive models).
 """
 import json
 import os
@@ -281,10 +279,3 @@ class SignalTracker:
             "dynamic_weights": self.get_dynamic_weights(),
         }
 
-    def get_pending_predictions(self, symbol: str = None) -> List[Dict]:
-        """Get predictions still waiting for outcome."""
-        log = self._read_log()
-        pending = [r for r in log if not r.get("outcome_recorded")]
-        if symbol:
-            pending = [r for r in pending if r["symbol"] == symbol.upper()]
-        return pending

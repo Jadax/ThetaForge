@@ -1,5 +1,49 @@
 # ThetaForge Changelog
 
+## v1.1.0 - 2026-08-04
+
+Refactor and hardening pass for public release. No behavior change to the
+scoring or order paths; all tests remain green (145 passing) and the dashboard
+build is unchanged.
+
+### Dead code removed
+- Deleted orphan modules with no importers: `agents/volatility/term_structure.py`,
+  `agents/data_ingestion/ibkr_client.py`, `deployment/panic_button.py` (and the
+  empty `deployment/`, `models/`, `.validation-dashboard-*/` leftovers).
+- `agents/backtest/advanced_backtest.py` reduced from ~770 to ~140 lines: the
+  unused `BacktestEngine`, `StressTestEngine`, and ~15 unused `SignalEngine`
+  indicators removed; only `rsi`, `macd`, `bollinger_bands`, `_ema`, `adx`
+  (used by the Brain and technical indicators) are kept.
+- `agents/volatility/black_scholes.py`: removed unused pricing methods
+  (`implied_volatility`, `probability_of_profit`, `american_price`,
+  `aggregate_greeks`, `payoff_at_expiry`); kept `price` + Greeks.
+- `agents/technical/tv_indicators.py`: removed `calculate_weekly_cpr`,
+  `calculate_pivot_points`, `iv_percentile`, `zero_dte_signal`, `expected_move`,
+  `tastytrade_rules` and the `PivotData` type (all unused).
+- Removed small dead methods with zero callers across `alerts`, `signal_tracker`,
+  `watchlist`, `analytics`, `gex_engine`, `technical/indicators`, `iv_history`.
+- Cleaned unused imports (including an unused `oi_divergence` import in the
+  scanner's `_flow_signals`).
+
+### Logic de-duplication
+- New `scripts/journal_common.py` — single home for the ledger→journal leg
+  mapping (`RIGHT_TO_TYPE`, `journal_legs`) and `ledger_capital_at_risk`; both
+  `add_trade.py` and `sync_journal.py` now delegate to it (behavior unchanged).
+
+### Attribution & professionalism
+- Removed "Stolen from: <third party>" framing and third-party author names in
+  docstrings everywhere; code is now cleanly described as standard methodology,
+  authored by Tushant Sharma.
+
+### Dependency & release hardening
+- `agents/volatility/greeks.py` is now a thin adapter over the in-repo
+  Black-Scholes engine, removing the deprecated `py_vollib` dependency
+  (dropped from `requirements.txt`).
+- `.env.example` rewritten to reflect the actual free, paper-only, no-database
+  architecture (removed dead DB/Redis/Reddit/Alpaca/live-activation keys).
+- `.gitignore` cleaned (removed Celery/Redis entries; added `.pytest_cache/`).
+- README repo-tree updated to match the current layout.
+
 ## v1.0.0 - 2026-08-04
 
 Credibility, journaling, and edge hardening — built from a competitive review of

@@ -23,14 +23,20 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from datetime import date, datetime
 from pathlib import Path
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from journal_common import journal_legs, ledger_capital_at_risk  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_JOURNAL = REPO_ROOT / "journal" / "trades.json"
 DEFAULT_LEDGER = REPO_ROOT / "data" / "paper_order_ledger.json"
 
-RIGHT_TO_TYPE = {"C": "CALL", "P": "PUT"}
 EXCLUDED_STATUSES = {"ApiCancelled", "Cancelled", "Inactive", "PendingCancel"}
 
 DEFAULT_TRADER = {
@@ -59,14 +65,8 @@ def _opened_date(submitted_at: str) -> str:
         return submitted_at[:10]
 
 
-def _days_until(expiry: str | None, opened: str) -> int | None:
-    if not expiry:
-        return None
-    try:
-        opened_date = datetime.fromisoformat(opened).date() if "T" in opened else date.fromisoformat(opened)
-        return max((date.fromisoformat(expiry) - opened_date).days, 0)
-    except ValueError:
-        return None
+def _opened_as_date(opened: str):
+    return datetime.fromisoformat(opened).date() if "T" in opened else date.fromisoformat(opened)
 
 
 def _order_block(record: dict) -> dict:
@@ -125,17 +125,10 @@ def build_entry(record: dict, overlay: dict) -> dict:
     submitted_at = str(record.get("submitted_at", ""))
     opened = _opened_date(submitted_at)
 
-    legs = []
-    for leg in record.get("legs", []):
-        expiry = leg.get("expiry") or None
-        dte = _days_until(expiry, opened)
-        legs.append({
-            "action": str(leg.get("action", "SELL")).upper(),
-            "type": RIGHT_TO_TYPE.get(str(leg.get("right")), "CALL"),
-            "strike": float(leg["strike"]) if leg.get("strike") else None,
-            "expiry": expiry,
-            "dte": dte,
-        })
+    legs = journal_legs(
+        record.get("legs", []),
+        as_of=_opened_as_date(opened),
+    )
 
     base = {
         "id": ledger_id,
@@ -152,7 +145,7 @@ def build_entry(record: dict, overlay: dict) -> dict:
         "entry_ivr": None,
         "expected_move_pct": None,
         "dte_at_entry": max((leg["dte"] for leg in legs if leg["dte"]), default=None),
-        "capital_at_risk": float(record.get("max_loss_total") or record.get("max_loss_per_combo") or 0),
+        "capital_at_risk": ledger_capital_at_risk(record) or 0.0,
         "max_profit": float(record.get("net_credit") or 0),
         "net_pnl": 0.0,
         "net_pnl_pct": 0.0,

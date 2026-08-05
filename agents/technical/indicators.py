@@ -147,16 +147,3 @@ class TechnicalEngine:
 
         return support, resistance
 
-    @staticmethod
-    def is_trending(indicators: Dict[str, Any]) -> bool:
-        """Check if the underlying is in a strong trend (for directional strategies)."""
-        trend = indicators.get("trend", "NEUTRAL")
-        rsi = indicators.get("rsi", 50)
-        return trend in ["STRONG_BULLISH", "STRONG_BEARISH"] or rsi > 70 or rsi < 30
-
-    @staticmethod
-    def is_range_bound(indicators: Dict[str, Any]) -> bool:
-        """Check if the underlying is range-bound (for premium selling)."""
-        trend = indicators.get("trend", "NEUTRAL")
-        bb = indicators.get("bollinger", {})
-        return trend == "NEUTRAL" and 0.2 < bb.get("position", 0.5) < 0.8

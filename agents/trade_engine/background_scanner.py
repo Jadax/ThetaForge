@@ -79,7 +79,7 @@ def _flow_signals(chain: List[Dict]) -> Optional[Dict]:
     """Unusual-volume / OI-divergence / pin-price signals from the free chain."""
     try:
         from agents.volatility.flow_metrics import (
-            unusual_volume, oi_divergence, oi_center_of_mass,
+            unusual_volume, oi_center_of_mass,
         )
     except ImportError:
         return None

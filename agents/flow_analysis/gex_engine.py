@@ -91,30 +91,6 @@ class GEXEngine:
             "strike_gex": {k: round(v / 1e6, 4) for k, v in sorted(strike_gex.items())},
         }
 
-    def calculate_spx_gex(self, option_chain: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Calculate SPX-specific GEX with institutional-grade metrics."""
-        gex_data = self.calculate_chain_gex(option_chain)
-
-        if "error" in gex_data:
-            return gex_data
-
-        S = gex_data["underlying"]
-
-        # Support/Resistance from GEX concentrations
-        strike_gex = gex_data.get("strike_gex", {})
-        if strike_gex:
-            sorted_strikes = sorted(strike_gex.items(), key=lambda x: abs(x[1]), reverse=True)
-            top_gex_strikes = [s for s, _ in sorted_strikes[:10]]
-            top_gex_strikes.sort()
-
-            resistance_levels = [s for s in top_gex_strikes if s > S][:3]
-            support_levels = [s for s in top_gex_strikes if s < S][-3:]
-
-            gex_data["resistance"] = resistance_levels
-            gex_data["support"] = support_levels
-
-        return gex_data
-
     def get_gex_trading_signals(self, gex_data: Dict[str, Any]) -> List[str]:
         """Generate trading signals based on GEX regime."""
         signals = []
