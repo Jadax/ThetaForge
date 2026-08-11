@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="ThetaForge Orchestrator",
     description="Multi-agent AI-augmented options trading intelligence system.",
-    version="1.1.4",
+    version="1.2.0",
     lifespan=lifespan
 )
 

@@ -1,5 +1,35 @@
 # ThetaForge Changelog
 
+## v1.2.0 - 2026-08-11
+
+Added a hosted deployment path for the private terminal, for use from a
+computer where `Start-ThetaForge.cmd` can't run. No changes to
+`dashboard/app/page.tsx` itself — same app, same tokens, same behavior;
+only where it's served from is new.
+
+- Added `deployment/cloudflare_deploy_terminal.ps1`: builds the existing
+  static export (`next.config.ts` already has `output: "export"`) and
+  deploys it to Cloudflare Pages via `wrangler` (already an unused
+  devDependency in `dashboard/package.json` from the original scaffold).
+- Added `docs/HOSTED_TERMINAL.md`: the one-time Cloudflare Access setup that
+  actually makes a public URL safe to use. Deliberately not an in-app
+  password check — the terminal is a static export with no server, so any
+  client-side login gate would be fully bypassable (the JS is downloadable
+  regardless) and would be fake security. Access authenticates a visitor at
+  Cloudflare's edge before the page is served at all, gated to a single
+  allowed email address; no application code involved.
+- Documented the required manual step: adding the new Cloudflare Pages
+  origin to `DASHBOARD_ORIGINS` on the Render Advisor, or every API call
+  from the hosted terminal fails CORS.
+- Noted the one real limitation: the Paper Bridge is still never hosted
+  anywhere and must run beside TWS on the trading computer regardless of
+  where the terminal is opened from. Analysis works from anywhere once
+  deployed; placing orders from another computer additionally needs
+  Tailscale to reach the Bridge, as already documented in
+  `docs/PAPER_BRIDGE.md`.
+- Added an `AGENTS.md` guardrail against ever reintroducing an app-level
+  login as a substitute for Access.
+
 ## v1.1.4 - 2026-08-04
 
 Persisted the Advisor and Bridge tokens to `localStorage` instead of

@@ -51,6 +51,10 @@ Every feed in the production path is free. There is no paid API dependency.
 Docker is optional development infrastructure; it is not required for the
 personal dashboard and paper Bridge.
 
+The private terminal can also run hosted at a public URL gated by Cloudflare
+Access, for use from a computer where you can't run `Start-ThetaForge.cmd` —
+see `docs/HOSTED_TERMINAL.md`.
+
 ## Scanner Pipeline
 
 ```

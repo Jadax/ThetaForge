@@ -43,7 +43,8 @@ Dashboard (Next.js, GitHub Pages/localhost)
 | `agents/volatility/flow_metrics.py` | Free-data RV bands, unusual volume, OI divergence, OI center-of-mass, IV mover |
 | `orchestrator/routes/advisor.py` | Authenticated dashboard API |
 | `bridge/main.py` | Paper-only IBKR order checks and submission |
-| `dashboard/app/page.tsx` | Private terminal (local-only, NOT on Pages) |
+| `dashboard/app/page.tsx` | Private terminal — local, or hosted on Cloudflare Pages behind Cloudflare Access (never on the public journal's GitHub Pages) |
+| `deployment/cloudflare_deploy_terminal.ps1` | Builds and deploys the private terminal to Cloudflare Pages |
 | `journal/` | Public trade journal — static site served at `https://jadax.github.io/ThetaForge/`; only entries placed on TWS from the paper-order ledger |
 | `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger (single source of truth) |
 | `scripts/add_trade.py` | Journal narrative input CLI; `--from-ledger` attaches to a TWS-placed trade |
@@ -74,3 +75,9 @@ Dashboard (Next.js, GitHub Pages/localhost)
   per-symbol analysis to 20-way concurrent fan-out cut a full ~130-symbol
   scan from several minutes to ~69 seconds with no increase in skipped/failed
   symbols. See the comment above the constant before changing it.
+- Do not add an in-app password/login check to `dashboard/app/page.tsx` as a
+  substitute for Cloudflare Access. The terminal is a static export with no
+  server; any client-side check is fully bypassable (the JS is downloadable
+  regardless of what it does at runtime) and would be fake security. Access
+  is a platform-level gate in front of the site, not something the app code
+  can or should reimplement — see `docs/HOSTED_TERMINAL.md`.

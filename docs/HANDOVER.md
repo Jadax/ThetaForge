@@ -24,9 +24,16 @@ Dashboard (GitHub Pages or localhost)
 - `bridge/main.py` is the only paper-order path. It requires
   `BRIDGE_ACCESS_TOKEN`, rejects live ports/accounts, verifies executable IBKR
   quotes, proves defined risk, and applies the weekly-capital ledger.
-- `dashboard/app/page.tsx` is the single-page private terminal. Tokens are kept
-  only in the browser session and must never be committed. It is NOT deployed
-  to GitHub Pages — it runs locally (it needs the local Paper Bridge anyway).
+- `dashboard/app/page.tsx` is the single-page private terminal. Tokens
+  persist in that browser's `localStorage` (never committed, never sent
+  anywhere but the Advisor/Bridge the user points them at) and can be cleared
+  with the in-app "Forget saved tokens" button. It is NOT deployed to the
+  public GitHub Pages journal. It can optionally be deployed to Cloudflare
+  Pages behind Cloudflare Access (`docs/HOSTED_TERMINAL.md`) for use from a
+  computer that can't run the local launcher — Access, not app code, is what
+  makes that safe to expose. The Paper Bridge itself is still never hosted
+  anywhere; it must run beside TWS on the trading computer regardless of
+  where the terminal is opened from.
 - `journal/` is the public trade journal: a standalone static site
   (`index.html`, `styles.css`, `app.js`, `trades.json`, `.nojekyll`) served from
   the gh-pages branch root at `https://jadax.github.io/ThetaForge/`. Metrics
@@ -98,12 +105,14 @@ trade to fill a dashboard card, and it cannot promise profitable outcomes.
 | `orchestrator/routes/advisor.py` | Authenticated dashboard API. |
 | `orchestrator/security.py` | Token validation and request-rate limits. |
 | `bridge/main.py` | Paper-only IBKR order checks and submission. |
-| `dashboard/app/page.tsx` | Private terminal: analysis, alert-to-trade modal, token entry. Local-only. |
+| `dashboard/app/page.tsx` | Private terminal: analysis, alert-to-trade modal, token entry. Runs local or hosted (Cloudflare Access-gated); identical either way. |
+| `deployment/cloudflare_deploy_terminal.ps1` | Builds and deploys the private terminal to Cloudflare Pages. |
 | `journal/` | Public trade journal (static site on Pages; client-computed metrics). |
 | `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger. |
 | `scripts/add_trade.py` | Journal narrative input; `--from-ledger` attaches to a TWS-placed trade. |
 | `tests/` | Backend regression suite. |
 | `docs/SIGNAL_POLICY.md` | Provenance of the free feeds and volatility gates — read before removing anything that looks unused. |
+| `docs/HOSTED_TERMINAL.md` | Cloudflare Pages + Access setup for reaching the terminal from any computer. |
 
 ## Versioning and Validation
 
