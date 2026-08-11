@@ -1,6 +1,6 @@
 # Remote Paper Bridge
 
-The IBKR Bridge is deliberately **not** a Railway service. It must run on the
+The IBKR Bridge is deliberately **not** a Render service. It must run on the
 computer where TWS or IB Gateway is running, because it connects to that local
 IBKR session.
 
@@ -48,4 +48,7 @@ whether it is connected to TWS/IB Gateway.
 - Keep TWS/IB Gateway and the Bridge on a private network.
 - Set `BRIDGE_ACCESS_TOKEN` before allowing remote access.
 - Never forward port 8002 on your router.
-- Every order is staged and requires explicit `confirm_paper_order=true`.
+- The only order path is `POST /orders/submit-combo`. It requires live
+  executable IBKR bid/ask data, proves the structure is defined-risk, checks
+  the order against the weekly capital reservation in the ledger, and verifies
+  available funds or share ownership before submission.

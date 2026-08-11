@@ -6,7 +6,7 @@ ThetaForge is a personal, paper-only options decision-support system.
 
 ```
 Dashboard (GitHub Pages or localhost)
-    -> authenticated requests -> Advisor (Railway FastAPI)
+    -> authenticated requests -> Advisor (Render FastAPI, free tier)
     -> authenticated local requests -> Paper Bridge (local FastAPI)
     -> Paper TWS or IB Gateway
 ```
@@ -38,8 +38,18 @@ Dashboard (GitHub Pages or localhost)
 
 State is JSON under `data/`; the directory is ignored by Git. There is no
 database, task queue, Docker Compose setup, Go scanner, or live-order path.
-The Dockerfile remains because Railway builds the single Advisor service from
-it.
+The Dockerfile remains because Render builds the single Advisor service from
+it directly (`render.yaml`).
+
+Render's free web-service tier has no persistent disk and sleeps a service
+after 15 minutes with no HTTP traffic, fully restarting the container (and
+therefore the `data/*.json` state) on the next request — a far more frequent
+reset than the occasional redeploy this already tolerated on the previous
+host. `.github/workflows/keep-advisor-warm.yml` pings the public `/health/`
+probe every 10 minutes, comfortably inside that 15-minute window, so the
+instance does not sleep under normal operation and `iv_history.json` keeps its
+real 52-week history intact. It needs no secrets — `/health/` is
+unauthenticated by design (see `orchestrator/main.py`).
 
 ## Recommendation Pipeline
 
@@ -114,12 +124,22 @@ npm run build -- --webpack
 
 ## Deployment Requirements
 
-- Railway needs `ADVISOR_API_TOKEN` set to a strong private value.
-- The dashboard needs that same Advisor token once per browser session.
-- Local `.env` needs `BRIDGE_ACCESS_TOKEN`; the dashboard needs it once per
-  browser session before connecting the local Bridge.
-- TWS/IB Gateway must be logged into the paper account with its API socket
-  enabled. Keep account credentials in TWS/IB Gateway, never in the dashboard.
+1. **Render**: dashboard.render.com → New → Blueprint → point at this repo.
+   Render reads `render.yaml` and builds `Dockerfile` as-is. When prompted,
+   set `ADVISOR_API_TOKEN` to a strong private value (it is deliberately left
+   out of `render.yaml` via `sync: false` so it is never committed). Every
+   `/api/advisor/*` route requires it; an unset value makes the Advisor fail
+   closed with 503 rather than serve unauthenticated (`orchestrator/security.py`).
+2. If the assigned service URL differs from `thetaforge-advisor.onrender.com`
+   (Render appends a suffix if that name is taken), update `DEFAULT_ADVISOR_API`
+   in `dashboard/app/page.tsx` and the URL hardcoded in
+   `.github/workflows/keep-advisor-warm.yml` to match.
+3. The dashboard needs that same Advisor token once per browser session,
+   entered in its "Advisor API address and token" panel.
+4. Local `.env` needs `BRIDGE_ACCESS_TOKEN`; the dashboard needs it once per
+   browser session before connecting the local Bridge.
+5. TWS/IB Gateway must be logged into the paper account with its API socket
+   enabled. Keep account credentials in TWS/IB Gateway, never in the dashboard.
 
 ## Removed Surface
 

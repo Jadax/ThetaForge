@@ -10,7 +10,7 @@
 
 ## Current Production Path
 
-- **Website dashboard**: GitHub Pages frontend backed by the Railway Advisor.
+- **Website dashboard**: GitHub Pages frontend backed by the Render Advisor.
 - **Automatic discovery**: Screens up to 300 liquid/active underlyings and runs
   deeper options analysis on the evidence-based shortlist.
 - **Unified Brain**: Combines regime, volatility, technical, positioning, flow,
@@ -71,9 +71,14 @@ proximity. Selling premium is gated on elevated IV rank/percentile **and** a
 healthy VIX curve; an inverted curve or earnings inside 7 days blocks new
 positions.
 
-The hosted Railway scanner cannot directly reach a Bridge running on a personal
+The hosted Render scanner cannot directly reach a Bridge running on a personal
 computer. Local IBKR discoveries are sent by the dashboard when the Bridge is
 connected; the hosted background scan otherwise uses its public discovery path.
+A scheduled GitHub Actions workflow (`.github/workflows/keep-advisor-warm.yml`)
+pings the Advisor's public `/health/` probe every 10 minutes so Render's free
+tier never idles it to sleep — a sleep/wake cycle would otherwise reset the
+persisted IV history and notification state on every wake, since Render's free
+web services have no persistent disk.
 
 ## Strategy Research Library
 
@@ -104,7 +109,7 @@ and execution tests.
 ```
 Dashboard (GitHub Pages or localhost)
         │ authenticated HTTPS requests
-Advisor on Railway (FastAPI + background scanner)
+Advisor on Render (FastAPI + background scanner)
         │ authenticated local request when an order is requested
 Paper-only IBKR Bridge on your computer
         │
@@ -181,8 +186,8 @@ thetaforge/
 
 The deployed Advisor is a single FastAPI process using JSON files in `data/`
 for state. It does not use a database, Celery worker, Docker Compose, or a
-separate Go scanner. The Dockerfile remains because Railway uses it to build
-the service.
+separate Go scanner. The Dockerfile remains because Render builds the service
+from it directly (see `render.yaml`).
 
 ## Testing
 
@@ -194,6 +199,17 @@ pytest tests/ --cov=agents --cov-report=term-missing
 ## Configuration
 
 All configuration via environment variables. See `.env.example`.
+
+## Deployment
+
+The Advisor deploys to [Render](https://render.com)'s free web-service tier
+via `render.yaml` — it builds the existing `Dockerfile` directly, no separate
+image config needed. `.github/workflows/keep-advisor-warm.yml` pings the
+public `/health/` probe every 10 minutes so the free tier's 15-minute idle
+sleep never triggers; a sleep/wake cycle would otherwise reset the persisted
+IV history and notification state on every wake, since Render's free web
+services have no persistent disk. Full setup steps are in
+`docs/HANDOVER.md` → Deployment Requirements.
 
 ## Disclaimers
 

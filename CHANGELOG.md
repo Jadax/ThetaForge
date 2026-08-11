@@ -1,5 +1,29 @@
 # ThetaForge Changelog
 
+## v1.1.1 - 2026-08-04
+
+Moved the hosted Advisor off Railway (no longer free) to Render's free tier.
+No scoring or order-path changes; all tests remain green (145 passing).
+
+- Added `render.yaml` — Render Blueprint that builds the existing `Dockerfile`
+  directly, no separate image config. `ADVISOR_API_TOKEN` is deliberately left
+  out (`sync: false`) so it is entered once in the Render dashboard and never
+  committed.
+- Added `.github/workflows/keep-advisor-warm.yml` — pings the public
+  `/health/` probe every 10 minutes. Render's free tier sleeps a service after
+  15 minutes with no HTTP traffic and fully restarts the container on the next
+  request, which would otherwise reset `data/iv_history.json` (the real
+  per-symbol IV history behind IV Rank/Percentile) and the notification queue
+  far more often than the occasional redeploy this already tolerated. The
+  workflow needs no secrets — `/health/` is intentionally unauthenticated.
+- Removed `railway.toml`.
+- Updated `DEFAULT_ADVISOR_API` in `dashboard/app/page.tsx` and every Railway
+  reference in `README.md`, `AGENTS.md`, `docs/HANDOVER.md`, and
+  `docs/PAPER_BRIDGE.md`.
+- Fixed a stale line in `docs/PAPER_BRIDGE.md` describing a `confirm_paper_order`
+  staging flow that was removed from `bridge/main.py` in v0.6.4; the only order
+  path has been `POST /orders/submit-combo` since then.
+
 ## v1.1.0 - 2026-08-04
 
 Refactor and hardening pass for public release. No behavior change to the

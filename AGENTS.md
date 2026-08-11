@@ -17,7 +17,7 @@ before touching anything volatility-, CBOE-, or scanner-related — several
 
 ```
 Dashboard (Next.js, GitHub Pages/localhost)
-  -> Advisor (Railway FastAPI, orchestrator/main.py, 5-min background scan)
+  -> Advisor (Render FastAPI free tier, orchestrator/main.py, 5-min background scan)
      -> Paper Bridge (local FastAPI, bridge/main.py) -> Paper TWS/IB Gateway
 ```
 

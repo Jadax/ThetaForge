@@ -169,10 +169,10 @@ function ExpectedMoveChart({ trade }: { trade: TradeRecommendation }) {
   );
 }
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
-const DEFAULT_ADVISOR_API = "https://thetaforge-production.up.railway.app";
+const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v1.1.0";
+const VERSION = "v1.1.1";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -609,10 +609,10 @@ export default function Home() {
           <summary>Advisor API address and token</summary>
           <input className="api" value={apiBase} onChange={(event) => setApiBase(event.target.value)} aria-label="Local Brain address" />
           <input className="api" type="password" value={advisorToken} onChange={(event) => setAdvisorToken(event.target.value)} aria-label="Advisor API token" placeholder="Advisor API token — current session only" />
-          <p>Use your Railway service URL here for live analysis. The token must match <code>ADVISOR_API_TOKEN</code> on that service; it is held for this browser session only. Your IBKR paper-trading Bridge remains local to your trading computer.</p>
+          <p>Use your Render service URL here for live analysis. The token must match <code>ADVISOR_API_TOKEN</code> on that service; it is held for this browser session only. Your IBKR paper-trading Bridge remains local to your trading computer.</p>
         </details>
         {!advisorToken && <p className="error">Enter your Advisor API token to load market analysis.</p>}
-        {error && <p className="error">{error}. Check the Railway Advisor URL, then try again.</p>}
+        {error && <p className="error">{error}. Check the Render Advisor URL, then try again.</p>}
       </section>
 
       {!analysis ? <section className="empty"><b>Ready when you are.</b><span>Enter a symbol to combine volatility, technical, flow, PCR, and dealer-positioning context.</span></section> : <>
