@@ -1,5 +1,46 @@
 # ThetaForge Changelog
 
+## v1.1.2 - 2026-08-04
+
+Superseded v1.1.1's Render deployment with Google Cloud Run — genuinely free,
+and doesn't conflict with another Google Cloud project already in use. This
+is more than a config swap: Cloud Run's free tier only stays free if the
+container scales to zero when idle, which means the app's internal
+300-second background-scan loop cannot be relied on to keep running (keeping
+one instance always-on would cost ~14× the entire free monthly vCPU-second
+budget). All tests remain green (145 passing).
+
+- **Parallelized the background scanner.** `background_scanner.py`'s
+  `_analyze_one` calls ran sequentially per symbol; added a bounded
+  `asyncio.Semaphore` (`SCAN_CONCURRENCY = 20`). Measured against live data
+  sources: a full ~130-symbol scan dropped from several minutes to **~69
+  seconds**, with no increase in skipped/failed symbols. This is what makes a
+  request-driven trigger interval affordable on the free vCPU-second budget —
+  see the comment above `SCAN_CONCURRENCY` and `docs/HANDOVER.md` →
+  Deployment Requirements for the full math.
+- Added `deployment/gcp_deploy.ps1` — one script that enables the required
+  APIs, stores `ADVISOR_API_TOKEN` in Secret Manager (prompted once, masked,
+  never written to a file), deploys the Advisor to Cloud Run
+  (`min-instances=0`, `max-instances=1`), and creates the Cloud Scheduler job
+  that calls the authenticated `/api/advisor/scanner/trigger` every 20
+  minutes — replacing the app's own internal timer as the thing that actually
+  drives the scan on this host. Idempotent; safe to re-run.
+- Removed `render.yaml` and `.github/workflows/keep-advisor-warm.yml`.
+- Documented, rather than silently shipped, a real limitation: because the
+  container isn't kept warm between scheduler triggers, `data/*.json` state
+  (IV history, notifications, watchlist) does not reliably persist across
+  scan cycles on this tier. Fixing that properly means moving state off local
+  disk (e.g. a Cloud Storage FUSE volume mount, batched to stay inside GCS's
+  free operation quota) — scoped out as explicit follow-up work rather than
+  done partially. Live Brain analysis is unaffected; IV Rank quality and
+  notification continuity are what degrade.
+- Swapped every Render/Railway reference to Cloud Run across `README.md`,
+  `AGENTS.md`, `docs/HANDOVER.md`, `docs/PAPER_BRIDGE.md`, and the
+  dashboard's default API URL / error copy. `DEFAULT_ADVISOR_API` is
+  deliberately blank now — Cloud Run assigns the URL at deploy time rather
+  than a predictable name-based subdomain — with placeholder text guiding
+  where to paste it.
+
 ## v1.1.1 - 2026-08-04
 
 Moved the hosted Advisor off Railway (no longer free) to Render's free tier.

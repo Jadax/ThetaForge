@@ -6,14 +6,18 @@ ThetaForge is a personal, paper-only options decision-support system.
 
 ```
 Dashboard (GitHub Pages or localhost)
-    -> authenticated requests -> Advisor (Render FastAPI, free tier)
+    -> authenticated requests -> Advisor (Google Cloud Run, free tier)
     -> authenticated local requests -> Paper Bridge (local FastAPI)
     -> Paper TWS or IB Gateway
 ```
 
-- `orchestrator/main.py` starts the FastAPI Advisor and its 300-second
-  background scan. Only `/health` is public; `/api/advisor/*` requires
-  `ADVISOR_API_TOKEN`.
+- `orchestrator/main.py` starts the FastAPI Advisor. Its `lifespan` still
+  starts a 300-second internal background-scan loop, which is what runs when
+  the app is hosted anywhere that stays up continuously (e.g. `docker-compose`
+  locally). On Cloud Run's free tier that internal loop does not reliably
+  fire on its own schedule — see Deployment Requirements below for why, and
+  for the Cloud Scheduler trigger that replaces it there. Only `/health` is
+  public; `/api/advisor/*` requires `ADVISOR_API_TOKEN`.
 - `agents/trade_engine/` is the production recommendation path. Its
   `background_scanner.py` discovers a liquid universe and invokes
   `ai_brain.py` and `recommender.py`.
@@ -38,18 +42,9 @@ Dashboard (GitHub Pages or localhost)
 
 State is JSON under `data/`; the directory is ignored by Git. There is no
 database, task queue, Docker Compose setup, Go scanner, or live-order path.
-The Dockerfile remains because Render builds the single Advisor service from
-it directly (`render.yaml`).
-
-Render's free web-service tier has no persistent disk and sleeps a service
-after 15 minutes with no HTTP traffic, fully restarting the container (and
-therefore the `data/*.json` state) on the next request — a far more frequent
-reset than the occasional redeploy this already tolerated on the previous
-host. `.github/workflows/keep-advisor-warm.yml` pings the public `/health/`
-probe every 10 minutes, comfortably inside that 15-minute window, so the
-instance does not sleep under normal operation and `iv_history.json` keeps its
-real 52-week history intact. It needs no secrets — `/health/` is
-unauthenticated by design (see `orchestrator/main.py`).
+The Dockerfile remains because Cloud Run builds the single Advisor service
+from it directly (`deployment/gcp_deploy.ps1` runs `gcloud run deploy
+--source .`).
 
 ## Recommendation Pipeline
 
@@ -98,6 +93,7 @@ trade to fill a dashboard card, and it cannot promise profitable outcomes.
 | `journal/` | Public trade journal (static site on Pages; client-computed metrics). |
 | `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger. |
 | `scripts/add_trade.py` | Journal narrative input; `--from-ledger` attaches to a TWS-placed trade. |
+| `deployment/gcp_deploy.ps1` | Deploys the Advisor to Cloud Run and sets up the Cloud Scheduler scan trigger. |
 | `tests/` | Backend regression suite. |
 | `docs/SIGNAL_POLICY.md` | Provenance of the free feeds and volatility gates — read before removing anything that looks unused. |
 
@@ -124,21 +120,83 @@ npm run build -- --webpack
 
 ## Deployment Requirements
 
-1. **Render**: dashboard.render.com → New → Blueprint → point at this repo.
-   Render reads `render.yaml` and builds `Dockerfile` as-is. When prompted,
-   set `ADVISOR_API_TOKEN` to a strong private value (it is deliberately left
-   out of `render.yaml` via `sync: false` so it is never committed). Every
-   `/api/advisor/*` route requires it; an unset value makes the Advisor fail
-   closed with 503 rather than serve unauthenticated (`orchestrator/security.py`).
-2. If the assigned service URL differs from `thetaforge-advisor.onrender.com`
-   (Render appends a suffix if that name is taken), update `DEFAULT_ADVISOR_API`
-   in `dashboard/app/page.tsx` and the URL hardcoded in
-   `.github/workflows/keep-advisor-warm.yml` to match.
-3. The dashboard needs that same Advisor token once per browser session,
+### Why Cloud Run changes the scan architecture
+
+Cloud Run's Always Free tier (180,000 vCPU-seconds, 360,000 GiB-seconds, 2M
+requests per month) is only free if the container scales to zero when idle
+(`min-instances=0`). Keeping one instance alive 24/7 to let the app's own
+internal 300-second `asyncio` loop (`orchestrator/main.py` lifespan →
+`background_scanner.py`) run continuously requires "CPU always allocated,"
+which bills roughly 2.6M vCPU-seconds/month for a single always-on instance —
+about 14× the entire free monthly quota. There is no way to keep that loop
+running around the clock on this tier without it costing real money almost
+immediately.
+
+The fix is architectural, not a workaround: a Cloud Scheduler job (free tier:
+3 jobs/billing account/month, we use 1) calls the already-authenticated
+`POST /api/advisor/scanner/trigger` on a schedule instead. Each call is a
+normal, billable Cloud Run request that completes and lets the instance scale
+back to zero — which fits the free tier's actual economics (pay only while
+handling a request) instead of fighting them.
+
+That still has to fit inside the vCPU-second budget, which is why
+`background_scanner.py`'s `_analyze_one` calls were parallelized
+(`SCAN_CONCURRENCY = 20`, bounded `asyncio.Semaphore`) instead of running
+sequentially. Sequential, a full scan of the ~130-symbol universe took
+several minutes; measured against live data sources at `SCAN_CONCURRENCY=20`,
+it completes in **~69 seconds** with no increase in skipped/failed symbols.
+At that measured rate:
+
+```
+180,000 vCPU-sec/month free ÷ 69 vCPU-sec/scan ≈ 2,600 scans/month max
+43,200 min/month ÷ 2,600 scans ≈ 16.5 min = the break-even interval
+```
+
+The deploy script schedules the trigger every **20 minutes** — comfortably
+under that break-even point, leaving margin for real-world variance (Cloud
+Run's network path to yfinance/CBOE may differ from wherever this was
+measured, plus per-invocation cold-start overhead) and for the dashboard's
+own on-demand `/brain/analyze` / `/recommend` calls, which draw from the same
+budget. **Do not tighten this below 20 minutes without re-measuring** — see
+the comment above `SCAN_CONCURRENCY` in `background_scanner.py`. After a few
+days live, check Cloud Run's Metrics tab against the free quota before
+considering it.
+
+### Known limitation: state does not persist between scan cycles
+
+Because the container is not kept warm between Cloud Scheduler triggers
+(that's what keeps it free), `data/*.json` — the per-symbol IV history behind
+IV Rank/Percentile (`iv_history.json`), the notification queue, and the
+watchlist — does not reliably survive from one scan cycle to the next. Each
+cold start effectively starts that history fresh. Live Brain analysis
+(`/brain/analyze`, `/recommend`) is unaffected since it doesn't depend on
+that history; **IV Rank quality and notification continuity are what
+degrade**. Fixing this properly means moving that state off the container's
+local disk — e.g. a Cloud Run Cloud Storage FUSE volume mount, batched to a
+small number of writes per scan cycle to stay inside GCS's free-tier
+operation quota (5,000 Class A / 50,000 Class B ops per month; the current
+per-symbol write pattern would blow through that in a single day and needs
+batching first) — which was deliberately scoped out of this deployment change
+as separate follow-up work rather than shipped partially.
+
+### Setup
+
+1. Create a GCP project with billing enabled (required by Cloud Run even for
+   free-tier usage — this is an account-level step only you can do) and run
+   `gcloud auth login`.
+2. From the repository root: `deployment/gcp_deploy.ps1 -ProjectId <your-project-id>`.
+   It enables the required APIs, creates `ADVISOR_API_TOKEN` in Secret
+   Manager (prompts once, masked, if the secret doesn't already exist — the
+   value is never written to a file or committed), deploys the Advisor to
+   Cloud Run, and creates the Cloud Scheduler trigger job. Safe to re-run;
+   every step is idempotent.
+3. Note the printed service URL. If it's not what `DEFAULT_ADVISOR_API` in
+   `dashboard/app/page.tsx` expects, update that constant to match.
+4. The dashboard needs that same Advisor token once per browser session,
    entered in its "Advisor API address and token" panel.
-4. Local `.env` needs `BRIDGE_ACCESS_TOKEN`; the dashboard needs it once per
+5. Local `.env` needs `BRIDGE_ACCESS_TOKEN`; the dashboard needs it once per
    browser session before connecting the local Bridge.
-5. TWS/IB Gateway must be logged into the paper account with its API socket
+6. TWS/IB Gateway must be logged into the paper account with its API socket
    enabled. Keep account credentials in TWS/IB Gateway, never in the dashboard.
 
 ## Removed Surface

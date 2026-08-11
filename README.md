@@ -10,7 +10,8 @@
 
 ## Current Production Path
 
-- **Website dashboard**: GitHub Pages frontend backed by the Render Advisor.
+- **Website dashboard**: GitHub Pages frontend backed by the Advisor on Google
+  Cloud Run.
 - **Automatic discovery**: Screens up to 300 liquid/active underlyings and runs
   deeper options analysis on the evidence-based shortlist.
 - **Unified Brain**: Combines regime, volatility, technical, positioning, flow,
@@ -71,14 +72,22 @@ proximity. Selling premium is gated on elevated IV rank/percentile **and** a
 healthy VIX curve; an inverted curve or earnings inside 7 days blocks new
 positions.
 
-The hosted Render scanner cannot directly reach a Bridge running on a personal
+The hosted scanner cannot directly reach a Bridge running on a personal
 computer. Local IBKR discoveries are sent by the dashboard when the Bridge is
 connected; the hosted background scan otherwise uses its public discovery path.
-A scheduled GitHub Actions workflow (`.github/workflows/keep-advisor-warm.yml`)
-pings the Advisor's public `/health/` probe every 10 minutes so Render's free
-tier never idles it to sleep — a sleep/wake cycle would otherwise reset the
-persisted IV history and notification state on every wake, since Render's free
-web services have no persistent disk.
+
+On Cloud Run's free tier the Advisor runs request-driven rather than as an
+always-on process (`min-instances=0`): a Cloud Scheduler job calls the
+authenticated `/api/advisor/scanner/trigger` endpoint every 20 minutes instead
+of relying on the app's own internal 300-second loop staying alive between
+requests. Per-symbol analysis (`_analyze_one`) runs with bounded concurrency
+(`SCAN_CONCURRENCY` in `background_scanner.py`) so a full ~130-symbol scan
+completes in roughly a minute rather than several — see
+`docs/HANDOVER.md` → Deployment Requirements for the measured numbers behind
+both the concurrency and interval choices. Because the container is not kept
+warm between triggers, `data/*.json` state (IV history, notifications,
+watchlist) does not reliably persist across scan cycles; see the same section
+for why and what fixing it properly would take.
 
 ## Strategy Research Library
 
@@ -109,12 +118,15 @@ and execution tests.
 ```
 Dashboard (GitHub Pages or localhost)
         │ authenticated HTTPS requests
-Advisor on Render (FastAPI + background scanner)
+Advisor on Google Cloud Run (FastAPI, request-driven, scale-to-zero)
         │ authenticated local request when an order is requested
 Paper-only IBKR Bridge on your computer
         │
 Paper TWS or IB Gateway
 ```
+
+A Cloud Scheduler job (also on the free tier) periodically calls the
+authenticated scan-trigger endpoint above; see Deployment below.
 
 The production system is a single FastAPI Advisor and a local paper-only
 Bridge. `agents/trade_engine/` is the authoritative recommendation path: it
@@ -181,13 +193,15 @@ thetaforge/
 ├── tests/                     # Unit tests
 ├── scripts/                   # Journal CLI, journal sync, recap
 ├── journal/                   # Public trade journal site
+├── deployment/                # Cloud Run + Cloud Scheduler deploy script
 └── docs/                      # Handover, signal/data policy
 ```
 
 The deployed Advisor is a single FastAPI process using JSON files in `data/`
 for state. It does not use a database, Celery worker, Docker Compose, or a
-separate Go scanner. The Dockerfile remains because Render builds the service
-from it directly (see `render.yaml`).
+separate Go scanner. The Dockerfile remains because Cloud Run builds the
+service from it directly (`deployment/gcp_deploy.ps1` runs `gcloud run deploy
+--source .`).
 
 ## Testing
 
@@ -202,13 +216,19 @@ All configuration via environment variables. See `.env.example`.
 
 ## Deployment
 
-The Advisor deploys to [Render](https://render.com)'s free web-service tier
-via `render.yaml` — it builds the existing `Dockerfile` directly, no separate
-image config needed. `.github/workflows/keep-advisor-warm.yml` pings the
-public `/health/` probe every 10 minutes so the free tier's 15-minute idle
-sleep never triggers; a sleep/wake cycle would otherwise reset the persisted
-IV history and notification state on every wake, since Render's free web
-services have no persistent disk. Full setup steps are in
+The Advisor deploys to [Google Cloud Run](https://cloud.google.com/run)'s
+Always Free tier via `deployment/gcp_deploy.ps1` — it builds the existing
+`Dockerfile` directly (`gcloud run deploy --source .`), stores
+`ADVISOR_API_TOKEN` in Secret Manager rather than a plain env var, and creates
+the Cloud Scheduler job that drives the background scan.
+
+Cloud Run is request-driven and scales to zero when idle (`min-instances=0`),
+which is what keeps it free — a container kept always-on would exceed the
+free vCPU-second quota within the first couple of days. The scan therefore
+runs on an external 20-minute trigger rather than the app's own internal
+timer staying alive continuously, and `data/*.json` state does not reliably
+persist between scan cycles as a result. Full reasoning, the measured timing
+behind the concurrency and interval numbers, and this limitation are in
 `docs/HANDOVER.md` → Deployment Requirements.
 
 ## Disclaimers

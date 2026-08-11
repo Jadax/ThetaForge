@@ -30,6 +30,14 @@ SCAN_STATE_FILE = os.path.join(DATA_DIR, "brain_scan_state.json")
 NOTIFICATION_SCORE_FLOOR = 75
 NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
 
+# Bounded fan-out for per-symbol analysis in scan_once(). Measured against
+# live free data sources: ~130 symbols at concurrency=20 completes in ~2
+# minutes with no increase in skipped/failed symbols vs lower concurrency.
+# This number is load-bearing for hosting cost on a request-billed platform
+# (see docs/HANDOVER.md -> Deployment Requirements) — re-measure before
+# lowering it.
+SCAN_CONCURRENCY = 20
+
 
 def _atm_iv(chain: List[Dict]) -> Optional[float]:
     """Best-effort ATM implied volatility from the nearest-expiry chain.
@@ -477,8 +485,26 @@ class BackgroundBrainScanner:
         if len(clean) != len(old_notifs):
             self._write_json(SCAN_NOTIFICATIONS_FILE, clean)
 
-        for symbol in symbols:
-            data, skip_reason = await self._analyze_one(symbol)
+        # Every symbol's analysis is I/O-bound (price, chain, VIX, history,
+        # desk analytics — each its own network round trip), so a sequential
+        # loop over ~130+ symbols takes minutes. On a request-driven host
+        # billed by wall-clock instance time, that directly costs money; it
+        # also just makes the scan slow everywhere. Bounded concurrent
+        # fan-out cuts wall time roughly by SCAN_CONCURRENCY. The semaphore
+        # keeps us from hammering yfinance/CBOE with 100+ simultaneous
+        # requests. Notification/results bookkeeping below stays a plain
+        # sequential loop over the gathered results — unchanged from before —
+        # so only one coroutine ever reads/writes the notifications file.
+        semaphore = asyncio.Semaphore(SCAN_CONCURRENCY)
+
+        async def _analyze_bounded(symbol: str) -> Tuple[str, Optional[dict], Optional[str]]:
+            async with semaphore:
+                data, skip_reason = await self._analyze_one(symbol)
+                return symbol, data, skip_reason
+
+        analyzed = await asyncio.gather(*(_analyze_bounded(symbol) for symbol in symbols))
+
+        for symbol, data, skip_reason in analyzed:
             if data is None:
                 reason = skip_reason or "unknown"
                 skipped[reason] = skipped.get(reason, 0) + 1

@@ -1,8 +1,8 @@
 # Remote Paper Bridge
 
-The IBKR Bridge is deliberately **not** a Render service. It must run on the
-computer where TWS or IB Gateway is running, because it connects to that local
-IBKR session.
+The IBKR Bridge is deliberately **not** a Cloud Run service. It must run on
+the computer where TWS or IB Gateway is running, because it connects to that
+local IBKR session.
 
 For personal access from other computers, use a private network such as
 Tailscale. Install it on the trading computer and each computer you use, then

@@ -17,7 +17,9 @@ before touching anything volatility-, CBOE-, or scanner-related — several
 
 ```
 Dashboard (Next.js, GitHub Pages/localhost)
-  -> Advisor (Render FastAPI free tier, orchestrator/main.py, 5-min background scan)
+  -> Advisor (Cloud Run free tier, orchestrator/main.py, request-driven scan
+     via Cloud Scheduler every 20 min — see background_scanner.py's
+     SCAN_CONCURRENCY comment and docs/HANDOVER.md)
      -> Paper Bridge (local FastAPI, bridge/main.py) -> Paper TWS/IB Gateway
 ```
 
@@ -50,6 +52,7 @@ Dashboard (Next.js, GitHub Pages/localhost)
 | `scripts/journal_common.py` | Shared ledger→journal leg mapping used by `add_trade.py` and `sync_journal.py` |
 | `scripts/recap.py` | Weekly/monthly recap export from `journal/trades.json` |
 | `journal/learn/` | Static free-education playbook (IV rank, expected move, POP) |
+| `deployment/gcp_deploy.ps1` | Deploys the Advisor to Cloud Run + sets up the Cloud Scheduler scan trigger |
 | `tests/` | Backend regression suite |
 
 ## Volatility Model (keep intact)
@@ -69,3 +72,7 @@ Dashboard (Next.js, GitHub Pages/localhost)
 - Do not add paid data dependencies; every feed is free (see SIGNAL_POLICY).
 - Do not add a second scoring or order path.
 - Do not reintroduce removed fake/backtest/live-toggle routes or Celery.
+- Do not lower `SCAN_CONCURRENCY` or tighten the Cloud Scheduler interval
+  below what `docs/HANDOVER.md` → Deployment Requirements documents without
+  re-measuring: both are load-bearing for staying inside Cloud Run's free
+  vCPU-second quota, not arbitrary tuning knobs.
