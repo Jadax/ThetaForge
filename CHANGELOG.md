@@ -1,5 +1,32 @@
 # ThetaForge Changelog
 
+## v1.2.1 - 2026-08-11
+
+Fixes found by actually running `deployment/cloudflare_deploy_terminal.ps1`
+against a real Cloudflare account for the first time, rather than only
+syntax-checking it.
+
+- Fixed `Join-Path $PSScriptRoot ".." "dashboard"`: Windows PowerShell 5.1's
+  `Join-Path` only accepts two path segments (`-Path`, `-ChildPath`); the
+  three-argument form is a PowerShell 7+ feature and errored immediately on
+  the target environment. Chained two calls instead.
+- Fixed a wrong assumption in the script's own docstring: `wrangler pages
+  deploy` does **not** create the Cloudflare Pages project on first use — it
+  errors "Project not found." The script now checks `wrangler pages project
+  list` and creates the project only if missing.
+- **Corrected a real gap in `docs/HOSTED_TERMINAL.md`**: confirmed live that
+  every deployment gets its own unique, independently public preview URL
+  (`https://<hash>.thetaforge-terminal.pages.dev`) in addition to the clean
+  production URL. The original instructions only covered gating the bare
+  hostname in Cloudflare Access, which would have left every past and future
+  deployment's preview URL unprotected. Now instructs adding the wildcard
+  domain (`*.thetaforge-terminal.pages.dev`) to the Access application, and
+  verifying both the production and a preview URL prompt for login.
+- Removed `dashboard/dist/` (untracked local leftover from the original
+  vinext-starter scaffold's build system, not the `next build` path this app
+  actually uses) — wrangler was picking up a stale `wrangler.json` from it
+  and emitting a "redirected configuration" warning on every deploy.
+
 ## v1.2.0 - 2026-08-11
 
 Added a hosted deployment path for the private terminal, for use from a

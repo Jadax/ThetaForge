@@ -31,7 +31,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$dashboardRoot = Join-Path $PSScriptRoot ".." "dashboard"
+# Windows PowerShell 5.1's Join-Path takes exactly two segments (-Path,
+# -ChildPath); the multi-segment overload is a PowerShell 7+ feature.
+$repoRoot = Join-Path -Path $PSScriptRoot -ChildPath ".."
+$dashboardRoot = Join-Path -Path $repoRoot -ChildPath "dashboard"
 
 Push-Location $dashboardRoot
 try {
@@ -45,8 +48,20 @@ try {
         throw "Build did not produce out/index.html - check the build output above."
     }
 
+    # `wrangler pages deploy` does not create the project on first use; it
+    # errors "Project not found" instead. Check for it and create it only if
+    # missing, so this script works unattended on a fresh Cloudflare account
+    # as well as on repeat runs against an existing project.
+    Write-Host "== Ensuring Cloudflare Pages project '$ProjectName' exists =="
+    $existingProjects = npx wrangler pages project list 2>$null
+    if (-not ($existingProjects -match "\b$([regex]::Escape($ProjectName))\b")) {
+        npx wrangler pages project create $ProjectName --production-branch main
+    } else {
+        Write-Host "Project already exists; reusing it."
+    }
+
     Write-Host "== Deploying ./out to Cloudflare Pages project '$ProjectName' =="
-    npx wrangler pages deploy out --project-name $ProjectName
+    npx wrangler pages deploy out --project-name $ProjectName --commit-dirty=true
 } finally {
     Pop-Location
 }

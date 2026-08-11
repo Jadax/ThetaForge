@@ -45,17 +45,25 @@ building the Access policy — done in Cloudflare's own dashboard, by you.
    deployment\cloudflare_deploy_terminal.ps1
    ```
    The first run creates the Cloudflare Pages project (default name
-   `thetaforge-terminal`, so the URL is
+   `thetaforge-terminal`, so the production URL is
    `https://thetaforge-terminal.pages.dev`) and uploads the static build.
    At this point the URL is **live and unprotected** — the next steps close
    that gap.
+
+   **Every deployment also gets its own unique preview URL** (e.g.
+   `https://88a923db.thetaforge-terminal.pages.dev`, printed at the end of
+   each deploy) — confirmed live and publicly reachable independent of the
+   production URL. Gating only the bare `thetaforge-terminal.pages.dev`
+   hostname in step 5 below leaves every one of these reachable. Use a
+   wildcard so Access covers all of them.
 4. In the Cloudflare dashboard, open **Zero Trust** (left sidebar) and
    complete the one-time Zero Trust onboarding if prompted (just picks a team
    name, no cost on the free plan).
 5. **Zero Trust → Access → Applications → Add an application → Self-hosted.**
-   - Application domain: the Pages URL from step 3
-     (`thetaforge-terminal.pages.dev`), path left as default so the whole
-     site is covered, not just `/`.
+   - Application domain: add both `thetaforge-terminal.pages.dev` **and**
+     `*.thetaforge-terminal.pages.dev` (the wildcard is what covers every
+     past and future preview/deployment URL, not just the production one).
+     Path left as default so the whole site is covered, not just `/`.
    - Session duration: your choice (24 hours is a reasonable default for a
      personal single-user app).
 6. Add a policy on that application: **Allow**, rule type **Emails**, and
@@ -64,7 +72,9 @@ building the Access policy — done in Cloudflare's own dashboard, by you.
    One-Time PIN (emailed code) is enabled by default and needs no further
    setup; you don't need a full SSO/identity provider for a single-user app.
 7. Save. Open the Pages URL in a private/incognito window to confirm it now
-   prompts for the email code before showing anything.
+   prompts for the email code before showing anything — and separately open
+   the most recent deployment's preview URL too, to confirm the wildcard
+   actually caught it and not just the production hostname.
 
 ## Required: allow the new origin on the Advisor
 
