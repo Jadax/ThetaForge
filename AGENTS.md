@@ -17,9 +17,7 @@ before touching anything volatility-, CBOE-, or scanner-related — several
 
 ```
 Dashboard (Next.js, GitHub Pages/localhost)
-  -> Advisor (Cloud Run free tier, orchestrator/main.py, request-driven scan
-     via Cloud Scheduler every 20 min — see background_scanner.py's
-     SCAN_CONCURRENCY comment and docs/HANDOVER.md)
+  -> Advisor (Render FastAPI free tier, orchestrator/main.py, 5-min background scan)
      -> Paper Bridge (local FastAPI, bridge/main.py) -> Paper TWS/IB Gateway
 ```
 
@@ -34,7 +32,7 @@ Dashboard (Next.js, GitHub Pages/localhost)
 | --- | --- |
 | `agents/data_ingestion/cboe_data.py` | Free no-key CBOE delayed quotes: option chains (Greeks+IV), quotes, VIX term structure |
 | `agents/data_ingestion/free_data.py` | Multi-source provider: IBKR > CBOE > Alpaca > yfinance; VIX term structure, contango, earnings date, short interest |
-| `agents/trade_engine/background_scanner.py` | Universe discovery + `_analyze_one` (feeds all vol inputs to Brain) |
+| `agents/trade_engine/background_scanner.py` | Universe discovery + `_analyze_one` (feeds all vol inputs to Brain); bounded-concurrency scan (`SCAN_CONCURRENCY`) |
 | `agents/trade_engine/ai_brain.py` | Regime, signal aggregation, `iv_signal` (rank/percentile/term-structure/iv_skew/short_interest/earnings_move), strategy selection gates |
 | `agents/trade_engine/recommender.py` | Authoritative candidate scoring and quality gates |
 | `agents/trade_engine/theoretical_edge.py` | Own BS model value vs CBOE mid → `theoretical_edge_pct` on recommendations |
@@ -52,7 +50,6 @@ Dashboard (Next.js, GitHub Pages/localhost)
 | `scripts/journal_common.py` | Shared ledger→journal leg mapping used by `add_trade.py` and `sync_journal.py` |
 | `scripts/recap.py` | Weekly/monthly recap export from `journal/trades.json` |
 | `journal/learn/` | Static free-education playbook (IV rank, expected move, POP) |
-| `deployment/gcp_deploy.ps1` | Deploys the Advisor to Cloud Run + sets up the Cloud Scheduler scan trigger |
 | `tests/` | Backend regression suite |
 
 ## Volatility Model (keep intact)
@@ -72,7 +69,8 @@ Dashboard (Next.js, GitHub Pages/localhost)
 - Do not add paid data dependencies; every feed is free (see SIGNAL_POLICY).
 - Do not add a second scoring or order path.
 - Do not reintroduce removed fake/backtest/live-toggle routes or Celery.
-- Do not lower `SCAN_CONCURRENCY` or tighten the Cloud Scheduler interval
-  below what `docs/HANDOVER.md` → Deployment Requirements documents without
-  re-measuring: both are load-bearing for staying inside Cloud Run's free
-  vCPU-second quota, not arbitrary tuning knobs.
+- Do not revert `SCAN_CONCURRENCY` (`background_scanner.py`) to a sequential
+  loop over symbols. It was measured against live data sources: bounding
+  per-symbol analysis to 20-way concurrent fan-out cut a full ~130-symbol
+  scan from several minutes to ~69 seconds with no increase in skipped/failed
+  symbols. See the comment above the constant before changing it.

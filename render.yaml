@@ -1,0 +1,20 @@
+# Render Blueprint for the ThetaForge Advisor.
+# Deploy: Render dashboard -> New -> Blueprint -> point at this repo.
+# Render builds the existing Dockerfile as-is; no separate image config needed.
+#
+# ADVISOR_API_TOKEN is deliberately left unset here (sync: false) so it is
+# entered once in the Render dashboard and never committed. Every
+# /api/advisor/* route requires it (orchestrator/security.py); an unset value
+# makes the Advisor fail closed with 503 rather than serving unauthenticated.
+services:
+  - type: web
+    name: thetaforge-advisor
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health/
+    envVars:
+      - key: ADVISOR_API_TOKEN
+        sync: false
+      - key: DASHBOARD_ORIGINS
+        value: https://jadax.github.io,http://localhost:3000,http://127.0.0.1:3000

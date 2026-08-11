@@ -1,5 +1,30 @@
 # ThetaForge Changelog
 
+## v1.1.3 - 2026-08-04
+
+Reverted v1.1.2's Google Cloud Run deployment back to Render. Cloud Run's
+free tier only stays free with `min-instances=0`, which meant the app's
+continuous background-scan design had to be replaced with an external
+Scheduler trigger and accept that `data/*.json` state (IV history,
+notifications, watchlist) wouldn't reliably persist between scan cycles.
+Render's free tier plus a keepalive ping avoids that tradeoff entirely — the
+container stays warm under normal operation, so the app's original
+continuous-loop design and persisted IV history work as intended. All tests
+remain green (145 passing).
+
+- Restored `render.yaml` and `.github/workflows/keep-advisor-warm.yml` from
+  v1.1.1.
+- Removed `deployment/gcp_deploy.ps1` and the Cloud Run/Scheduler setup.
+- Restored every README.md/AGENTS.md/docs/HANDOVER.md/docs/PAPER_BRIDGE.md
+  Render reference and the dashboard's default API URL / error copy.
+- **Kept** the background-scanner concurrency fix from v1.1.2
+  (`SCAN_CONCURRENCY = 20` in `background_scanner.py`) — it's a genuine
+  improvement independent of hosting platform: a full ~130-symbol scan
+  completes in ~69 seconds instead of several minutes, measured against live
+  data sources, with no increase in skipped/failed symbols. Faster scans mean
+  fresher data and less chance of overlapping runs regardless of where this
+  is deployed.
+
 ## v1.1.2 - 2026-08-04
 
 Superseded v1.1.1's Render deployment with Google Cloud Run — genuinely free,
