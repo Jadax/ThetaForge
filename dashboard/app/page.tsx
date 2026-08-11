@@ -172,7 +172,7 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v1.1.3";
+const VERSION = "v1.1.4";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -221,11 +221,11 @@ export default function Home() {
   useEffect(() => {
     const saved = window.localStorage.getItem("thetaforge-api-base");
     const advisorBase = saved === "http://localhost:8000" || !saved ? DEFAULT_ADVISOR_API : saved;
-    const savedToken = window.sessionStorage.getItem("thetaforge-advisor-token") || "";
+    const savedToken = window.localStorage.getItem("thetaforge-advisor-token") || "";
     setApiBase(advisorBase);
     setAdvisorToken(savedToken);
     setBridgeBase(window.localStorage.getItem("thetaforge-bridge-base") || "http://127.0.0.1:8002");
-    setBridgeToken(window.sessionStorage.getItem("thetaforge-bridge-token") || "");
+    setBridgeToken(window.localStorage.getItem("thetaforge-bridge-token") || "");
     const savedCapital = window.localStorage.getItem("thetaforge-max-options-capital") || "";
     setMaxOptionsCapital(savedCapital);
     void checkAdvisor(advisorBase);
@@ -308,7 +308,7 @@ export default function Home() {
     setBridgeLoading(true);
     const base = bridgeBase.replace(/\/$/, "");
     window.localStorage.setItem("thetaforge-bridge-base", base);
-    window.sessionStorage.setItem("thetaforge-bridge-token", bridgeToken);
+    window.localStorage.setItem("thetaforge-bridge-token", bridgeToken);
     const headers: HeadersInit = bridgeToken ? { "X-ThetaForge-Bridge-Token": bridgeToken } : {};
     try {
       const connection = await fetch(`${base}/connect`, { method: "POST", headers });
@@ -371,12 +371,19 @@ export default function Home() {
     else window.localStorage.removeItem("thetaforge-max-options-capital");
   }
 
+  function forgetSavedTokens() {
+    window.localStorage.removeItem("thetaforge-advisor-token");
+    window.localStorage.removeItem("thetaforge-bridge-token");
+    setAdvisorToken("");
+    setBridgeToken("");
+  }
+
   async function analyze(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
     setError("");
     window.localStorage.setItem("thetaforge-api-base", apiBase.replace(/\/$/, ""));
-    window.sessionStorage.setItem("thetaforge-advisor-token", advisorToken);
+    window.localStorage.setItem("thetaforge-advisor-token", advisorToken);
     try {
       const response = await advisorRequest("/api/advisor/brain/analyze", {
         method: "POST",
@@ -608,8 +615,9 @@ export default function Home() {
         <details>
           <summary>Advisor API address and token</summary>
           <input className="api" value={apiBase} onChange={(event) => setApiBase(event.target.value)} aria-label="Local Brain address" />
-          <input className="api" type="password" value={advisorToken} onChange={(event) => setAdvisorToken(event.target.value)} aria-label="Advisor API token" placeholder="Advisor API token — current session only" />
-          <p>Use your Render service URL here for live analysis. The token must match <code>ADVISOR_API_TOKEN</code> on that service; it is held for this browser session only. Your IBKR paper-trading Bridge remains local to your trading computer.</p>
+          <input className="api" type="password" value={advisorToken} onChange={(event) => setAdvisorToken(event.target.value)} aria-label="Advisor API token" placeholder="Advisor API token — saved on this device" />
+          <p>Use your Render service URL here for live analysis. The token must match <code>ADVISOR_API_TOKEN</code> on that service. This terminal runs locally and is not deployed publicly, so both this and the Bridge token below are saved in this browser's local storage on this device rather than re-entered every session — use "Forget saved tokens" if you ever share this machine. Your IBKR paper-trading Bridge remains local to your trading computer.</p>
+          <button type="button" onClick={forgetSavedTokens}>Forget saved tokens</button>
         </details>
         {!advisorToken && <p className="error">Enter your Advisor API token to load market analysis.</p>}
         {error && <p className="error">{error}. Check the Render Advisor URL, then try again.</p>}
@@ -659,7 +667,7 @@ export default function Home() {
         <div><p className="eyebrow">LOCAL IBKR PAPER BRIDGE</p><h3>{bridgeStatus}</h3><p>Connect the dashboard to the Bridge running beside your paper TWS or IB Gateway session.</p></div>
         <div className="bridge-controls">
           <label>Bridge address<input className="api" value={bridgeBase} onChange={(event) => setBridgeBase(event.target.value)} aria-label="IBKR Bridge address" /></label>
-          <label>Bridge token<input className="api" type="password" value={bridgeToken} onChange={(event) => setBridgeToken(event.target.value)} aria-label="IBKR Bridge token" placeholder="Current session only" /></label>
+          <label>Bridge token<input className="api" type="password" value={bridgeToken} onChange={(event) => setBridgeToken(event.target.value)} aria-label="IBKR Bridge token" placeholder="Saved on this device" /></label>
           <button type="button" onClick={connectBridge} disabled={bridgeLoading}>{bridgeLoading ? "Connecting…" : "Connect paper Bridge"}</button>
         </div>
         {positions.length > 0 && <div className="positions">{positions.map((position, index) => <span key={position.id || `${position.symbol}-${position.contract_type || "legacy"}-${position.strike || ""}-${position.expiry || ""}-${position.right || ""}-${index}`}><b>{position.symbol}</b> {position.contract_type === "OPT" ? `${position.right} ${position.strike} · ${position.expiry}` : "stock"} · {position.position} @ ${position.average_cost.toFixed(2)}</span>)}</div>}

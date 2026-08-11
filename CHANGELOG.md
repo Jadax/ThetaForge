@@ -1,5 +1,17 @@
 # ThetaForge Changelog
 
+## v1.1.4 - 2026-08-04
+
+Persisted the Advisor and Bridge tokens to `localStorage` instead of
+`sessionStorage`. Both were previously cleared on tab close by design, but
+the private terminal (`dashboard/app/page.tsx`) is explicitly local-only and
+never deployed publicly (`docs/HANDOVER.md`), so re-entering both tokens
+every session was pure friction with no real security benefit for a
+single-user local machine — `sessionStorage` vs `localStorage` doesn't change
+XSS exposure either way, only how long a value survives a shared browser
+profile. Added a "Forget saved tokens" button next to the Advisor token field
+that clears both.
+
 ## v1.1.3 - 2026-08-04
 
 Reverted v1.1.2's Google Cloud Run deployment back to Render. Cloud Run's
