@@ -8,9 +8,11 @@ Adapted from IBKRTools and general market data aggregation patterns.
 import asyncio
 import logging
 import math
+import os
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta, date
 
+import httpx
 import yfinance as yf
 import pandas as pd
 
@@ -18,17 +20,47 @@ from agents.data_ingestion.cboe_data import CBOEDataProvider
 
 logger = logging.getLogger(__name__)
 
+# The VM's read-only IBKR market-data proxy (deployment/vm_market_data_service.py).
+# Unset by default so this stays inert everywhere except where these env vars
+# are actually configured (Render) -- get_option_chain falls through to CBOE
+# then yfinance on any missing config, timeout, or error, exactly as it did
+# before this existed.
+IBKR_MARKET_DATA_URL = os.getenv("IBKR_MARKET_DATA_URL", "")
+IBKR_MARKET_DATA_TOKEN = os.getenv("IBKR_MARKET_DATA_TOKEN", "")
+IBKR_MARKET_DATA_TIMEOUT = float(os.getenv("IBKR_MARKET_DATA_TIMEOUT", "12"))
+
 
 class FreeDataProvider:
     """
     Multi-source data provider using only free APIs.
-    Priority: IBKR > CBOE (options) > Alpaca > yfinance
+    Priority: IBKR (via the VM proxy, when configured) > CBOE (options) > Alpaca > yfinance
     """
 
     def __init__(self, ibkr_client=None, alpaca_client=None):
         self.ibkr = ibkr_client
         self.alpaca = alpaca_client
         self.cboe = CBOEDataProvider()
+
+    async def _get_ibkr_proxy_chain(self, symbol: str) -> Optional[List[Dict[str, Any]]]:
+        """Pull a chain from the VM's read-only IBKR proxy. Returns None (never
+        raises) on any failure so the caller always falls through to CBOE --
+        a slow or down VM should degrade the data source, not the scan."""
+        if not IBKR_MARKET_DATA_URL or not IBKR_MARKET_DATA_TOKEN:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=IBKR_MARKET_DATA_TIMEOUT) as client:
+                response = await client.get(
+                    f"{IBKR_MARKET_DATA_URL}/option-chain/{symbol}",
+                    headers={"X-Market-Data-Token": IBKR_MARKET_DATA_TOKEN},
+                )
+            if response.status_code != 200:
+                logger.debug("IBKR proxy chain unavailable for %s: HTTP %s", symbol, response.status_code)
+                return None
+            chain = response.json()
+            return chain or None
+        except Exception as error:
+            logger.debug("IBKR proxy chain unavailable for %s: %s", symbol, error)
+            return None
 
     async def get_stock_price(self, symbol: str) -> Optional[float]:
         """Get current stock price from any available source."""
@@ -55,11 +87,17 @@ class FreeDataProvider:
         return None
 
     async def get_option_chain(self, symbol: str) -> List[Dict[str, Any]]:
-        """Get full option chain. IBKR provides free real-time data with account.
+        """Get full option chain. IBKR (via the VM's own market-data proxy)
+        is the priority source when configured, since it's the account's own
+        live-ish OPRA feed rather than a shared public endpoint.
 
         Falls back to the free CBOE delayed-quotes feed (full Greeks, no API
         key, 15-minute delayed NBBO) and then to yfinance.
         """
+        ibkr_chain = await self._get_ibkr_proxy_chain(symbol)
+        if ibkr_chain:
+            return ibkr_chain
+
         if self.ibkr and self.ibkr._connected:
             return await self.ibkr.get_option_chain(symbol)
 
