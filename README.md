@@ -55,6 +55,11 @@ The private terminal can also run hosted at a public URL gated by Cloudflare
 Access, for use from a computer where you can't run `Start-ThetaForge.cmd` —
 see `docs/HOSTED_TERMINAL.md`.
 
+The Bridge and IB Gateway can run on an always-on cloud VM instead of a
+personal computer, with an autonomous executor that submits paper orders
+clearing the Advisor's existing quality gates without manual review —
+see `docs/AUTONOMOUS_TRADING.md`.
+
 ## Scanner Pipeline
 
 ```

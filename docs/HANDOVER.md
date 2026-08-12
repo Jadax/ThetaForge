@@ -17,13 +17,19 @@ Dashboard (GitHub Pages or localhost)
 - `agents/trade_engine/` is the production recommendation path. Its
   `background_scanner.py` discovers a liquid universe and invokes
   `ai_brain.py` and `recommender.py`. Per-symbol analysis runs with bounded
-  concurrency (`SCAN_CONCURRENCY = 20`, `asyncio.Semaphore`) rather than a
-  sequential loop — measured against live data sources, a full ~130-symbol
-  scan completes in ~69 seconds instead of several minutes, with no increase
-  in skipped/failed symbols. Do not revert this to sequential scanning.
+  concurrency (`SCAN_CONCURRENCY = 5`, `asyncio.Semaphore`) rather than a
+  sequential loop. This number is a rate-limit ceiling, not just a speed
+  choice — confirmed live via Render's logs that a higher value (20) got
+  CBOE-429'd on nearly every request from Render's outbound IP and appeared
+  to starve other concurrent Advisor requests into 502s for the scan's
+  duration. Do not raise it without re-verifying against Render's actual
+  logs; a local measurement will not reproduce the failure.
 - `bridge/main.py` is the only paper-order path. It requires
   `BRIDGE_ACCESS_TOKEN`, rejects live ports/accounts, verifies executable IBKR
-  quotes, proves defined risk, and applies the weekly-capital ledger.
+  quotes, proves defined risk, and applies the weekly-capital ledger. It runs
+  either locally beside TWS, or on an always-on Oracle Cloud VM beside a
+  headless IB Gateway (`docs/AUTONOMOUS_TRADING.md`) — either way it binds
+  `127.0.0.1` only and is never exposed to the public internet.
 - `dashboard/app/page.tsx` is the single-page private terminal. Tokens
   persist in that browser's `localStorage` (never committed, never sent
   anywhere but the Advisor/Bridge the user points them at) and can be cleared
@@ -31,9 +37,11 @@ Dashboard (GitHub Pages or localhost)
   public GitHub Pages journal. It can optionally be deployed to Cloudflare
   Pages behind Cloudflare Access (`docs/HOSTED_TERMINAL.md`) for use from a
   computer that can't run the local launcher — Access, not app code, is what
-  makes that safe to expose. The Paper Bridge itself is still never hosted
-  anywhere; it must run beside TWS on the trading computer regardless of
-  where the terminal is opened from.
+  makes that safe to expose.
+- `deployment/vm_auto_executor.py` autonomously submits paper orders that
+  clear the Advisor's existing quality gates, through the Bridge, on the
+  always-on VM — see `docs/AUTONOMOUS_TRADING.md` for the full pipeline,
+  including why the paper-only lock must not be weakened for this.
 - `journal/` is the public trade journal: a standalone static site
   (`index.html`, `styles.css`, `app.js`, `trades.json`, `.nojekyll`) served from
   the gh-pages branch root at `https://jadax.github.io/ThetaForge/`. Metrics
@@ -113,6 +121,7 @@ trade to fill a dashboard card, and it cannot promise profitable outcomes.
 | `tests/` | Backend regression suite. |
 | `docs/SIGNAL_POLICY.md` | Provenance of the free feeds and volatility gates — read before removing anything that looks unused. |
 | `docs/HOSTED_TERMINAL.md` | Cloudflare Pages + Access setup for reaching the terminal from any computer. |
+| `docs/AUTONOMOUS_TRADING.md` | Always-on VM running Gateway + Bridge + the autonomous executor; setup gotchas and runbook. |
 
 ## Versioning and Validation
 

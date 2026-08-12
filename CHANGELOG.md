@@ -1,5 +1,54 @@
 # ThetaForge Changelog
 
+## v1.3.0 - 2026-08-12
+
+Added a fully autonomous paper-trading pipeline running on an always-on
+Oracle Cloud VM, so the system can run every day the market is open without
+depending on a personal computer being on. This is a genuine capability
+change, not a config tweak — the system now places paper orders without a
+human reviewing each one, gated behind explicit confirmation before it was
+built (see the corresponding chat decision), and adds zero new trade-safety
+logic: it's a headless caller of the exact same quality gates and Bridge
+verification that already existed.
+
+- Added `deployment/vm_auto_executor.py`: polls the Advisor's already-gated
+  notifications, fetches a fully-specified structure per symbol, and submits
+  through the local Bridge — which independently re-verifies live quotes,
+  defined-risk, and the weekly capital-limit ledger regardless of caller.
+- Added `deployment/market_hours_supervisor.sh` + a systemd timer: starts
+  IB Gateway, the Bridge, and the executor at market open and stops them at
+  close, driven by the same real NYSE-calendar `market_open` status the
+  Advisor already computes — one source of truth, not a second calendar.
+- Added `deployment/journal_sync_push.sh`: autonomously placed trades are
+  synced into the public journal and published after each cycle with fills.
+  Fixed a real, previously-undocumented gap in the existing manual workflow
+  while building this — GitHub Pages serves from the `gh-pages` branch root,
+  not `main`, and nothing synced `journal/` on `main` into it; the manual
+  "push and it redeploys" instructions in `docs/HANDOVER.md` were incorrect
+  even before this change.
+- Added `docs/AUTONOMOUS_TRADING.md`: full runbook, including several
+  undocumented setup gotchas hit while building this (IBC's `JAVA_PATH`
+  must point at the JRE's `bin/` directory, not its root; Ubuntu's Minimal
+  image is missing X11 libraries IB Gateway's Swing UI needs even under
+  Xvfb headless).
+- Lowered `SCAN_CONCURRENCY` from 20 to 5 (`background_scanner.py`) after
+  confirming live via Render's logs that 20-way fan-out got CBOE-429'd on
+  nearly every request from Render's outbound IP and appeared to starve
+  other concurrent Advisor requests into 502s for the scan's duration — not
+  reproducible from a residential IP, so this had to be diagnosed live
+  rather than locally.
+- Declined to remove the paper-only lock in `bridge/main.py` when asked, and
+  added an explicit `AGENTS.md` guardrail against it: that lock is the
+  project's core safety invariant, and loosening it "for future convenience"
+  would leave unattended, autonomous code with a standing path to real
+  trades the moment live credentials were ever entered, with no additional
+  review step. Going live should be a deliberate, separately-reviewed
+  decision made at the time it's actually wanted.
+- All 155 tests pass; verified live end-to-end on the actual VM (not just
+  locally): IBC auto-login against the real IBKR paper session, Bridge
+  connection, live position retrieval, and the executor's Advisor polling
+  loop.
+
 ## v1.2.4 - 2026-08-12
 
 Found live, via Render's logs, not guessed: `SCAN_CONCURRENCY = 20` (added in
