@@ -1,5 +1,52 @@
 # ThetaForge Changelog
 
+## v1.6.0 - 2026-08-13
+
+High-win-rate upgrade to the AI brain: research-backed entry *context* gates
+and an open-position management framework, distilled from the top-trader
+playbook (tastytrade DTE/exit studies, Cboe expected-move math, IBD relative
+strength, thetagang premium-selling hygiene) and the 11 new reference sources
+cataloged in `docs/SOURCES.md`.
+
+- New `agents/trade_engine/high_winrate.py`: pure, unit-tested entry vetoes
+  applied after the generic quality gates (POP, IVR, credit-to-width, POT):
+  trend alignment (no bull structure into a confirmed downtrend and vice
+  versa), a short-strike buffer at/outside the 1-SD expected move (~68% POP
+  floor), an entry-DTE band (no new short premium <21 or >60 DTE; debit floor
+  at 14 DTE), an earnings blackout for new short premium, and the IBD "L" rule
+  — no directional short premium on 6-month market laggards (the one soft
+  gate: missing RS data disables it, never fabricates a reject).
+- Brain (`ai_brain.py`): `_select_best_strategy` now enforces trend alignment
+  on the bull-put/bear-call credit and debit-spread branches (new
+  `trend_mismatch` reason) and the relative-strength gate on directional
+  premium (`laggard` reason). `relative_strength` is surfaced on `BrainOutput`.
+- Scanner (`background_scanner.py`): `_analyze_one` computes each symbol's
+  6-month return minus SPY's (`_spy_126_return`, fetched once per scan and
+  shared across the fan-out) and feeds it to the Brain and scan results.
+- Recommender (`recommender.py`): new step 4c applies the same high-win-rate
+  context gates to every scored candidate (`_passes_high_winrate_gate`) so
+  the `/recommend` path and the auto-executor path agree.
+- New `agents/trade_engine/trade_manager.py` + `POST
+  /api/advisor/positions/management`: the exit framework for open positions —
+  take profit at 50% of max credit, close/roll inside the 21-DTE gamma window,
+  stop at 2× the credit, close before earnings, flag tested short strikes; plus
+  a portfolio plan (position cap, per-symbol capital slice, trailing-drawdown
+  circuit breaker, weekly capital limit). It only *recommends* actions — order
+  submission stays exclusively in the Bridge, so there is still exactly one
+  execution path.
+- Dashboard: "Position management · theta exits" panel (JSON position input,
+  per-position action + urgency, portfolio green/blocked banner). VERSION →
+  v1.6.0.
+- `docs/SIGNAL_POLICY.md` and `docs/SOURCES.md` updated with the new gates, the
+  soft-vs-hard input split, and the 11 new sources (gorillatrades, stockcircle,
+  stratxai, clarkstreetvalue, stratosphere, macroaxis, stocknear, trefis,
+  aiolux, altindex, investors.com) plus the tastytrade/Cboe research.
+- Tests: 205 pass (was 176). New `tests/test_high_winrate.py` and
+  `tests/test_trade_manager.py`; brain trend/RS gate tests; recommender step-4c
+  tests.
+- Kept invariants: no second scoring or order path; free feeds only; fail-closed
+  (soft only on relative-strength, never on hard safety inputs).
+
 ## v1.5.0 - 2026-08-13
 
 Added the general-trader side of the platform — a read-only cross-asset market

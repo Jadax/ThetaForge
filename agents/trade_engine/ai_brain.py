@@ -23,6 +23,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime, timedelta
 
+from agents.trade_engine.high_winrate import (
+    relative_strength_ok as hw_relative_strength_ok,
+    strategy_bias as hw_strategy_bias,
+)
+
 
 class TimeHorizon(str, Enum):
     SWING_1W = "1w"      # 1 week - 0DTE to 7DTE, high gamma
@@ -84,6 +89,8 @@ class BrainOutput:
     dynamic_weights: Dict = field(default_factory=dict)
     # Backtest context
     backtest_summary: Dict = field(default_factory=dict)
+    # Relative strength vs SPY (6-month) — IBD "L" filter
+    relative_strength: float = None
 
 
 class AIBrain:
@@ -219,6 +226,7 @@ class AIBrain:
         short_interest: Dict = None,
         earnings_move: Dict = None,
         vol_risk_premium: Dict = None,
+        relative_strength: float = None,
     ) -> BrainOutput:
         """
         MAIN ENTRY POINT: Analyze a symbol and produce comprehensive recommendation.
@@ -637,6 +645,7 @@ class AIBrain:
         best_strategy = self._select_best_strategy(
             overall_signal, regime, iv_signal, sideways, vix, days_to_earnings,
             symbol=symbol, existing_positions=existing_positions, confidence=avg_confidence,
+            trend=trend, relative_strength=relative_strength,
         )
         skew_note = self._skew_reasoning(iv_signal)
         if skew_note:
@@ -693,6 +702,7 @@ class AIBrain:
             sideways_signal=sideways,
             all_signals=all_signal_dicts,
             portfolio_warnings=portfolio_warnings,
+            relative_strength=relative_strength,
         )
 
     def _detect_regime(self, vix: float, iv: float, hv: float, trend: str = "neutral") -> str:
@@ -736,6 +746,8 @@ class AIBrain:
         symbol: str = "",
         existing_positions: List[Dict] = None,
         confidence: float = 0,
+        trend: str = "neutral",
+        relative_strength: float = None,
     ) -> Dict[str, str]:
         """Select the best strategy based on all signals + portfolio context.
 
@@ -744,6 +756,13 @@ class AIBrain:
         so a single bad regime input can never mint a trade. The return dict
         carries a ``reason_code`` so the scanner can tally *why* symbols are
         paused without parsing prose.
+
+        Trend alignment (IBD "trade with the market") and relative strength
+        ("L" = leaders only) are hard vetoes on the *directional* branches:
+        a bull structure is never minted against a confirmed downtrend, and
+        directional short premium is never sold against a clear market laggard.
+        The premium sell strategy is only chosen when it also passes the
+        high-win-rate context gates.
         """
         # Dual-filter rank: whichever of IV Rank / IV percentile confirms an
         # elevated reading drives strategy selection (eff_iv_rank set in
@@ -805,12 +824,38 @@ class AIBrain:
         # waiting for rich (>50) IVR and leaving that band empty.
         if ivr >= 40 and not sideways.get("is_sideways", False):
             if signal in [SignalStrength.BUY, SignalStrength.STRONG_BUY, SignalStrength.WEAK_BUY]:
+                if trend == "bearish":
+                    return {
+                        "strategy": "no_trade",
+                        "reason_code": "trend_mismatch",
+                        "reasoning": f"Bullish signal but {symbol} is in a confirmed downtrend — do not sell puts into the knife",
+                    }
+                rs_ok, rs_reason = hw_relative_strength_ok("bull_put", relative_strength)
+                if not rs_ok:
+                    return {
+                        "strategy": "no_trade",
+                        "reason_code": "laggard",
+                        "reasoning": f"{symbol}: {rs_reason}",
+                    }
                 return {
                     "strategy": "bull_put_credit",
                     "reason_code": "bull_put_credit",
                     "reasoning": f"IVR {ivr:.0f} + bullish trend → bull put credit spread captures premium + direction",
                 }
             elif signal in [SignalStrength.SELL, SignalStrength.STRONG_SELL, SignalStrength.WEAK_SELL]:
+                if trend == "bullish":
+                    return {
+                        "strategy": "no_trade",
+                        "reason_code": "trend_mismatch",
+                        "reasoning": f"Bearish signal but {symbol} is in a confirmed uptrend — do not sell calls into strength",
+                    }
+                rs_ok, rs_reason = hw_relative_strength_ok("bear_call", relative_strength)
+                if not rs_ok:
+                    return {
+                        "strategy": "no_trade",
+                        "reason_code": "laggard",
+                        "reasoning": f"{symbol}: {rs_reason}",
+                    }
                 return {
                     "strategy": "bear_call_credit",
                     "reason_code": "bear_call_credit",
@@ -820,12 +865,24 @@ class AIBrain:
         # Low IV + Bullish = buy options
         if ivr < 30:
             if signal in [SignalStrength.BUY, SignalStrength.STRONG_BUY]:
+                if trend == "bearish":
+                    return {
+                        "strategy": "no_trade",
+                        "reason_code": "trend_mismatch",
+                        "reasoning": f"Bullish signal but {symbol} is in a confirmed downtrend — no call debit",
+                    }
                 return {
                     "strategy": "call_debit_spread",
                     "reason_code": "call_debit_spread",
                     "reasoning": f"IVR {ivr:.0f} + bullish → debit spread limits cost in low-IV environment",
                 }
             elif signal in [SignalStrength.SELL, SignalStrength.STRONG_SELL]:
+                if trend == "bullish":
+                    return {
+                        "strategy": "no_trade",
+                        "reason_code": "trend_mismatch",
+                        "reasoning": f"Bearish signal but {symbol} is in a confirmed uptrend — no put debit",
+                    }
                 return {
                     "strategy": "put_debit_spread",
                     "reason_code": "put_debit_spread",

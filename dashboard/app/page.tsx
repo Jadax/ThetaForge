@@ -121,6 +121,54 @@ type MarketOverview = {
   symbols: Record<string, MarketSymbolRead>;
 };
 
+type ManagementPosition = {
+  symbol: string;
+  strategy?: string;
+  short_strike: number;
+  long_strike: number;
+  expiry?: string;
+  credit_received?: number;
+  quantity?: number;
+  spot?: number;
+  dte?: number;
+  short_leg_value?: number;
+  days_to_earnings?: number;
+  capital_required?: number;
+};
+
+type ManagementAction = {
+  action: string;
+  reason: string;
+  urgency: "low" | "medium" | "high";
+  symbol: string;
+  strategy: string;
+  profit_pct: number | null;
+  loss_to_credit: number | null;
+  dte: number | null;
+  short_strike: number;
+  long_strike: number;
+  max_loss: number | null;
+  max_profit: number;
+  spot?: number | null;
+  short_leg_value?: number | null;
+};
+
+type PortfolioPlan = {
+  can_open_new: boolean;
+  violations: string[];
+  num_positions: number;
+  max_positions: number;
+  per_symbol_capital: Record<string, number>;
+  max_symbol_slice: number;
+  realized_drawdown_pct: number;
+  drawdown_breaker_pct: number;
+};
+
+type ManagementResponse = {
+  actions: ManagementAction[];
+  portfolio: PortfolioPlan;
+};
+
 type PaperOrderRecord = {
   id: string;
   symbol: string;
@@ -210,7 +258,7 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v1.5.0";
+const VERSION = "v1.6.0";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -246,6 +294,12 @@ export default function Home() {
   const [marketsLoading, setMarketsLoading] = useState(false);
   const [marketsError, setMarketsError] = useState("");
   const [marketsSymbols, setMarketsSymbols] = useState("");
+  const [managementPositions, setManagementPositions] = useState("");
+  const [managementCapital, setManagementCapital] = useState("");
+  const [managementRealized, setManagementRealized] = useState("");
+  const [managementResult, setManagementResult] = useState<ManagementResponse | null>(null);
+  const [managementLoading, setManagementLoading] = useState(false);
+  const [managementError, setManagementError] = useState("");
 
   // The hosted Advisor holds one shared watchlist, alert set, and notification
   // queue. Every call carries the shared secret so that a public URL does not
@@ -513,6 +567,41 @@ export default function Home() {
     }
   }
 
+  async function loadManagement(event: FormEvent) {
+    event.preventDefault();
+    setManagementLoading(true);
+    setManagementError("");
+    setStatus("Evaluating open positions");
+    try {
+      let positions: ManagementPosition[];
+      try {
+        positions = JSON.parse(managementPositions || "[]") as ManagementPosition[];
+      } catch {
+        throw new Error("Positions must be valid JSON, e.g. [{\"symbol\":\"AAPL\",\"strategy\":\"bull_put\",\"short_strike\":200,\"long_strike\":190,\"credit_received\":1.2,\"dte\":30}]");
+      }
+      if (!Array.isArray(positions) || positions.length === 0) throw new Error("Enter at least one open position.");
+      const response = await advisorRequest("/api/advisor/positions/management", {
+        method: "POST",
+        body: JSON.stringify({
+          positions,
+          capital: managementCapital ? Number(managementCapital) : 100000,
+          realized_pnl: managementRealized ? Number(managementRealized) : 0,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Position management returned ${response.status}`);
+      }
+      setManagementResult(await response.json());
+      setStatus("Advisor connected");
+    } catch (requestError) {
+      setManagementError(requestError instanceof Error ? requestError.message : "Unable to evaluate positions");
+      setStatus("Advisor connected · management unavailable");
+    } finally {
+      setManagementLoading(false);
+    }
+  }
+
   async function verifyWithIBKR(result: RecommendationResponse): Promise<RecommendationResponse> {
     const uniqueLegs = new Map<string, { symbol: string; expiry: string; strike: number; right: "C" | "P" }>();
     for (const trade of result.recommendations) for (const leg of trade.legs) {
@@ -721,6 +810,21 @@ export default function Home() {
             <div className="trade-title"><p className="eyebrow">{symbol} · ${read.price.toFixed(2)} · {read.volatility_20d_annualized != null ? `${(read.volatility_20d_annualized * 100).toFixed(1)}% 20d vol` : "vol n/a"}</p><h3>{signalLabel(read.read)}</h3><p>RSI {read.rsi_14.toFixed(0)} · ADX {read.adx.toFixed(0)} · {read.macd_bullish ? "MACD bullish" : "MACD bearish"} · {read.above_200d ? "above" : "below"} 200-day</p></div>
             <div className="trade-metrics"><span><small>1D</small><b>{read.change_1d_pct >= 0 ? "+" : ""}{read.change_1d_pct.toFixed(2)}%</b></span><span><small>1M</small><b>{read.change_1m_pct >= 0 ? "+" : ""}{read.change_1m_pct.toFixed(2)}%</b></span><span><small>VS 52W HIGH</small><b>{read.percent_off_52w_high.toFixed(1)}%</b></span><span><small>VOLUME</small><b>{read.volume_ratio != null ? `${read.volume_ratio.toFixed(2)}x` : "—"}</b></span></div>
           </article>)}</div> : null}
+        </>}
+      </section>
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">POSITION MANAGEMENT · THETA EXITS</p><h2>Manage open short-premium positions</h2><p>The research playbook, applied to positions you already hold: take profit at 50% of max credit, close or roll inside the 21-DTE gamma window, stop at 2× the credit, and never hold short premium through an earnings print. Read-only guidance — closing orders still go through the paper Bridge.</p></div>
+          <form className="scan-form" onSubmit={loadManagement}><textarea className="api" value={managementPositions} onChange={(event) => setManagementPositions(event.target.value)} rows={3} placeholder='[{"symbol":"AAPL","strategy":"bull_put","short_strike":200,"long_strike":190,"credit_received":1.20,"dte":30}]' aria-label="Open positions JSON" /><input className="api" value={managementCapital} onChange={(event) => setManagementCapital(event.target.value)} placeholder="Portfolio capital (default 100,000)" aria-label="Portfolio capital" /><input className="api" value={managementRealized} onChange={(event) => setManagementRealized(event.target.value)} placeholder="Realized P&L, negative = losses" aria-label="Realized P&L" /><button disabled={managementLoading}>{managementLoading ? "Evaluating…" : "Run management check"}</button></form>
+        </div>
+        {managementError && <p className="error">{managementError}</p>}
+        {managementResult && <>
+          {managementResult.portfolio.can_open_new ? <div className="market-chip"><small>PORTFOLIO</small><b>Green to open</b><span>{managementResult.portfolio.num_positions} of {managementResult.portfolio.max_positions} positions · max {dollars(managementResult.portfolio.max_symbol_slice)} per symbol · drawdown {managementResult.portfolio.realized_drawdown_pct.toFixed(1)}%</span></div> : <div className="market-chip"><small>PORTFOLIO</small><b>Blocked</b><span>{managementResult.portfolio.violations.join(" · ") || "Portfolio limits exceeded"}</span></div>}
+          <div className="trade-list">{managementResult.actions.map((action, index) => <article className="trade-card" key={`${action.symbol}-${index}`}>
+            <div className="trade-title"><p className="eyebrow">{action.symbol} · {signalLabel(action.strategy)} · {action.dte != null ? `${action.dte} DTE` : "DTE n/a"}</p><h3>{signalLabel(action.action)}</h3><p>{action.reason}</p></div>
+            <div className="trade-metrics"><span><small>PROFIT CAPTURED</small><b>{action.profit_pct != null ? percent(action.profit_pct) : "—"}</b></span><span className={action.loss_to_credit != null && action.loss_to_credit >= 2 ? "loss" : ""}><small>LOSS-TO-CREDIT</small><b>{action.loss_to_credit != null ? `${action.loss_to_credit.toFixed(1)}x` : "—"}</b></span><span><small>SHORT STRIKE</small><b>{action.short_strike.toFixed(2)}{action.spot != null ? ` · spot ${action.spot.toFixed(2)}` : ""}</b></span><span className="profit"><small>MAX PROFIT</small><b>{dollars(action.max_profit)}</b></span><span className="loss"><small>MAX LOSS</small><b>{action.max_loss != null ? dollars(action.max_loss) : "—"}</b></span></div>
+          </article>)}</div>
         </>}
       </section>
 

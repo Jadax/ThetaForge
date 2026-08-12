@@ -30,6 +30,11 @@ from agents.flow_analysis.gex_engine import GEXEngine
 from agents.trade_engine.alerts import AlertEngine, AlertPriority, AlertType
 from agents.trade_engine.signal_tracker import SignalTracker
 from agents.trade_engine.background_scanner import get_background_scanner, LIQUID_OPTIONS_UNIVERSE
+from agents.trade_engine.trade_manager import (
+    OpenPosition,
+    evaluate_position,
+    portfolio_plan,
+)
 
 # Every Advisor route reads or mutates one shared, single-user state set, so
 # authentication is applied at the router rather than per endpoint.
@@ -662,6 +667,120 @@ async def get_dashboard(request: DashboardRequest):
         "top_picks_1w": [{"symbol": r["symbol"], "signal": r["overall_signal"], "score": r["overall_score"]} for r in top_1w],
         "top_picks_1m": [{"symbol": r["symbol"], "signal": r["overall_signal"], "score": r["overall_score"]} for r in top_1m],
     }
+
+
+# === Position Management ===
+
+class PositionInput(BaseModel):
+    """An open short-premium spread as reported by the Bridge."""
+    symbol: str = Field(..., min_length=1, max_length=10)
+    strategy: str = Field("bull_put", min_length=1, max_length=32)
+    short_strike: float = Field(..., gt=0)
+    long_strike: float = Field(0, gt=0)
+    expiry: Optional[str] = None
+    credit_received: float = Field(0.0, ge=0)
+    quantity: int = Field(1, ge=1, le=100)
+    spot: Optional[float] = Field(None, gt=0)
+    dte: Optional[int] = Field(None, ge=0, le=365)
+    short_leg_value: Optional[float] = Field(None, ge=0)
+    days_to_earnings: Optional[int] = Field(None, ge=0, le=365)
+    capital_required: Optional[float] = Field(None, ge=0)
+
+
+class ManagementRequest(BaseModel):
+    positions: List[PositionInput] = Field(default_factory=list, max_length=25)
+    capital: float = Field(100_000, gt=0)
+    realized_pnl: float = 0.0
+    starting_capital: Optional[float] = None
+    weekly_capital_limit: Optional[float] = None
+    weekly_capital_used: float = Field(0.0, ge=0)
+
+
+def _find_short_leg_mid(chain: List[Dict], position: PositionInput) -> Optional[float]:
+    """Current mid of the short leg(s) from a fresh chain, if present.
+
+    Iron condors carry two short legs; the worst-case (highest-value) wing
+    drives the management decision, so the max mid is returned.
+    """
+    if not chain:
+        return None
+    is_call = "call" in position.strategy.lower()
+    legs = [position.short_strike, position.long_strike] if "condor" in position.strategy.lower() else [position.short_strike]
+    mids = []
+    for strike in legs:
+        for opt in chain:
+            if float(opt.get("strike") or 0) != strike:
+                continue
+            if position.expiry and opt.get("expiry") != position.expiry:
+                continue
+            if not is_call and str(opt.get("option_type", "")).upper() not in ("PUT", "P"):
+                continue
+            if is_call and str(opt.get("option_type", "")).upper() not in ("CALL", "C"):
+                continue
+            bid = float(opt.get("bid") or 0)
+            ask = float(opt.get("ask") or 0)
+            if bid > 0 and ask > 0:
+                mids.append((bid + ask) / 2)
+    return max(mids) if mids else None
+
+
+@router.post("/positions/management", dependencies=[Depends(scan_rate_limit)])
+async def positions_management(request: ManagementRequest):
+    """Evaluate open short-premium positions against the exit framework.
+
+    Applies the trade-management rules — 50% of max credit take-profit,
+    the 21-DTE gamma window, the 2x-credit loss stop, and the pre-earnings
+    exit — plus the portfolio plan (position cap, per-symbol capital slice,
+    trailing-drawdown breaker). Missing spots and short-leg values are
+    refreshed from free data; anything still unknown is left null so the
+    management engine fails open on enrichment, never on safety inputs.
+
+    This endpoint only *recommends* management actions — order submission
+    remains exclusively in the Bridge, so there is no second execution path.
+    """
+    actions = []
+    for pos in request.positions:
+        spot = pos.spot
+        short_leg_value = pos.short_leg_value
+        if not spot or spot <= 0:
+            try:
+                fetched = await provider.get_stock_price(pos.symbol)
+                spot = float(fetched) if isinstance(fetched, (int, float)) and fetched > 0 else None
+            except Exception:
+                spot = None
+        if short_leg_value is None or short_leg_value < 0:
+            try:
+                chain = await provider.get_option_chain(pos.symbol) or []
+                short_leg_value = _find_short_leg_mid(chain, pos)
+            except Exception:
+                short_leg_value = None
+
+        open_position = OpenPosition(
+            symbol=pos.symbol,
+            strategy=pos.strategy,
+            short_strike=pos.short_strike,
+            long_strike=pos.long_strike,
+            expiry=pos.expiry,
+            credit_received=pos.credit_received,
+            quantity=pos.quantity,
+            spot=spot,
+            dte=pos.dte,
+            short_leg_value=short_leg_value,
+        )
+        result = evaluate_position(open_position, days_to_earnings=pos.days_to_earnings)
+        result["spot"] = spot
+        result["short_leg_value"] = short_leg_value
+        actions.append(result)
+
+    plan = portfolio_plan(
+        [{"symbol": p.symbol, "capital_required": p.capital_required or 0} for p in request.positions],
+        request.capital,
+        realized_pnl=request.realized_pnl,
+        starting_capital=request.starting_capital,
+        weekly_capital_limit=request.weekly_capital_limit,
+        weekly_capital_used=request.weekly_capital_used,
+    )
+    return {"actions": actions, "portfolio": plan}
 
 
 # === Legacy Endpoints ===

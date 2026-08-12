@@ -371,6 +371,7 @@ class BackgroundBrainScanner:
         self._last_results: Dict[str, str] = {}  # symbol → signature
         self._provider = FreeDataProvider()
         self._brain = None
+        self._spy_126_return_cache = None
         self._ensure_files()
 
     # ── persistence helpers ──────────────────────────────────────────
@@ -412,6 +413,26 @@ class BackgroundBrainScanner:
             from agents.trade_engine.ai_brain import AIBrain
             self._brain = AIBrain()
         return self._brain
+
+    async def _spy_126_return(self) -> float:
+        """6-month SPY return (fractions) for relative-strength vs the market.
+
+        Fetched once per process and shared across the concurrent per-symbol
+        analysis fan-out, so a full scan adds at most one SPY request. Missing
+        data degrades to 0.0 — relative strength then equals the symbol's own
+        return, which keeps a scan pass alive instead of failing it.
+        """
+        if self._spy_126_return_cache is None:
+            self._spy_126_return_cache = 0.0
+            try:
+                hist = await self._provider.get_historical_prices("SPY", period="6mo")
+                if hist is not None:
+                    closes = hist["Close"].tolist() if hasattr(hist, "Close") else []
+                    if len(closes) >= 2 and closes[0]:
+                        self._spy_126_return_cache = closes[-1] / closes[0] - 1
+            except Exception:
+                logger.warning("SPY history unavailable; relative strength disabled this scan")
+        return self._spy_126_return_cache
 
     # ── scan logic ───────────────────────────────────────────────────
 
@@ -519,6 +540,21 @@ class BackgroundBrainScanner:
         except Exception:
             days_to_earnings = None
 
+        # Relative strength vs the market (IBD "L" rule): the symbol's 6-month
+        # (126-trading-day) return minus SPY's. Fed to the Brain as a hard veto
+        # on directional short premium against clear laggards. Missing data is
+        # soft — it disables the RS veto, never fabricates one.
+        try:
+            spy_ret = await self._spy_126_return()
+            window = closes[-126:] if len(closes) >= 126 else closes
+            if len(window) >= 2 and window[0]:
+                symbol_ret = window[-1] / window[0] - 1
+                relative_strength = symbol_ret - spy_ret
+            else:
+                relative_strength = None
+        except Exception:
+            relative_strength = None
+
         # Desk analytics (all fail-closed to None): IV skew from the chain's
         # per-strike deltas, short interest via yfinance, and the earnings
         # implied-vs-realized move read. None of these can fabricate an edge
@@ -572,6 +608,7 @@ class BackgroundBrainScanner:
                 short_interest=short_interest,
                 earnings_move=earnings_move,
                 vol_risk_premium=vol_risk_premium,
+                relative_strength=relative_strength,
             )
             # Per-symbol 52w IV bounds from the symbol's own history replace
             # the Brain's fixed default band once enough samples exist.
@@ -602,6 +639,7 @@ class BackgroundBrainScanner:
                 "short_interest": (result.iv_signal or {}).get("short_interest"),
                 "earnings_move": (result.iv_signal or {}).get("earnings_move"),
                 "vol_risk_premium": (result.iv_signal or {}).get("vol_risk_premium"),
+                "relative_strength": result.relative_strength,
                 "top_signal": "",
             }, None
         except Exception:
@@ -682,6 +720,7 @@ class BackgroundBrainScanner:
                     "rv_band": data.get("rv_band"),
                     "expected_move_pct": data.get("expected_move_pct"),
                     "vol_risk_premium": data.get("vol_risk_premium"),
+                    "relative_strength": data.get("relative_strength"),
                 }
                 continue
 

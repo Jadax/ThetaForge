@@ -44,6 +44,8 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | `agents/trade_engine/recommender.py` | Authoritative candidate scoring and quality gates |
 | `agents/trade_engine/theoretical_edge.py` | Own BS model value vs CBOE mid → `theoretical_edge_pct` on recommendations |
 | `agents/trade_engine/historical_backtest.py` | Empirical win rate/expectancy/drawdown over realized credit-spread outcomes |
+| `agents/trade_engine/high_winrate.py` | Research-backed entry context vetoes (trend alignment, expected-move buffer, DTE band, earnings blackout, relative strength) — pure gates used by both the Brain and Recommender step 4c |
+| `agents/trade_engine/trade_manager.py` | Open-position management rules (50% take-profit, 21-DTE gamma, 2×-credit stop, pre-earnings, tested-strike review) + portfolio plan; recommended via `POST /api/advisor/positions/management`, never an order path |
 | `agents/volatility/desk_analytics.py` | Desk surfaces from the free chain: IV skew (RR25/BF25), earnings implied-vs-realized move, front-month straddle move |
 | `agents/volatility/iv_history.py` | Daily per-symbol ATM-IV snapshots → IV rank/percentile |
 | `agents/volatility/iv_metrics.py` | `calculate_iv_rank`, `calculate_iv_percentile`, realized vol |

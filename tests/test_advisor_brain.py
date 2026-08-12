@@ -199,3 +199,58 @@ def test_brain_rejects_unsafe_or_event_driven_default_strategies():
     assert extreme_vix["strategy"] == "no_trade"
     assert brain.HORIZON_STRATEGIES[TimeHorizon.SWING_1W] == []
     assert "short_strangle" not in brain.HORIZON_STRATEGIES[TimeHorizon.MONTHLY_1M]
+
+
+def _credit_spread_base(**overrides):
+    base = dict(
+        signal=SignalStrength.BUY,
+        regime="bullish",
+        iv_signal={"iv_rank": 60, "eff_iv_rank": 60},
+        sideways={"is_sideways": False},
+        symbol="TEST",
+        existing_positions=[],
+        confidence=80,
+    )
+    base.update(overrides)
+    return base
+
+
+def test_brain_refuses_bull_credit_spread_into_a_confirmed_downtrend():
+    result = AIBrain()._select_best_strategy(
+        days_to_earnings=None, vix=20, trend="bearish", **_credit_spread_base()
+    )
+    assert result["strategy"] == "no_trade"
+    assert result["reason_code"] == "trend_mismatch"
+
+
+def test_brain_refuses_bear_credit_spread_into_a_confirmed_uptrend():
+    result = AIBrain()._select_best_strategy(
+        days_to_earnings=None, vix=20, trend="bullish",
+        **_credit_spread_base(signal=SignalStrength.SELL)
+    )
+    assert result["strategy"] == "no_trade"
+    assert result["reason_code"] == "trend_mismatch"
+
+
+def test_brain_allows_bull_credit_spread_when_trend_confirms():
+    result = AIBrain()._select_best_strategy(
+        days_to_earnings=None, vix=20, trend="bullish", **_credit_spread_base()
+    )
+    assert result["strategy"] == "bull_put_credit"
+
+
+def test_brain_refuses_directional_premium_on_a_clear_market_laggard():
+    result = AIBrain()._select_best_strategy(
+        days_to_earnings=None, vix=20, trend="bullish",
+        relative_strength=-0.25, **_credit_spread_base()
+    )
+    assert result["strategy"] == "no_trade"
+    assert result["reason_code"] == "laggard"
+
+
+def test_brain_allows_bull_credit_spread_for_a_market_leader():
+    result = AIBrain()._select_best_strategy(
+        days_to_earnings=None, vix=20, trend="bullish",
+        relative_strength=0.05, **_credit_spread_base()
+    )
+    assert result["strategy"] == "bull_put_credit"

@@ -27,6 +27,7 @@ from agents.trade_engine.roi_calculator import ROICalculator
 from agents.trade_engine.analytics import OptionsAnalytics
 from agents.trade_engine.strategy_scorer import StrategyScorer
 from agents.trade_engine.theoretical_edge import estimate_structure_value
+from agents.trade_engine.high_winrate import evaluate_entry as hw_evaluate_entry
 from agents.risk_management.kelly_calculator import calculate_kelly
 from agents.risk_management.portfolio_limits import RiskManager
 
@@ -163,6 +164,16 @@ class TradeRecommender:
         all_candidates = [
             candidate for candidate in all_candidates
             if self._passes_touch_gate(candidate)
+        ]
+
+        # Step 4c: High-win-rate context gates (trade with the trend, sell
+        # premium only outside the 1-SD expected move, only at 21-60 DTE).
+        # A mechanically-perfect structure on a strong chain is still refused
+        # when the *context* — trend, distance to the expected move, time
+        # remaining — is wrong; high win rates come from context selection.
+        all_candidates = [
+            candidate for candidate in all_candidates
+            if self._passes_high_winrate_gate(candidate)
         ]
 
         # Step 5: Rank all candidates
@@ -461,6 +472,58 @@ class TradeRecommender:
                 stock_price, strike, iv, dte
             )
             if probability_of_touch > MAX_PROBABILITY_OF_TOUCH_SELL:
+                return False
+        return True
+
+    def _passes_high_winrate_gate(self, candidate: Dict[str, Any]) -> bool:
+        """Refuse candidates whose *context* is wrong for a high win rate.
+
+        Applies the research-backed vetoes from high_winrate.py on top of the
+        expiry-only quality gates:
+
+        - Trend alignment: a bull structure into a confirmed downtrend (or a
+          bear structure into an uptrend) is a losing-dice premium sale.
+        - Expected-move buffer: the short strike must sit at/outside the 1-SD
+          expected move, so the expiry POP is genuinely ~68%+.
+        - Entry DTE band: no new short premium inside the 21-DTE gamma window,
+          and nothing beyond 60 DTE where capital decays flat.
+
+        Earnings proximity is enforced by the Brain's authoritative path (which
+        owns that data); this gate is defense-in-depth where the data exists.
+        """
+        strategy = candidate.get("type")
+        if strategy not in ("bull_put", "bear_call", "iron_condor", "csp", "cc"):
+            return True
+        stock_price = float(candidate.get("stock_price", 0) or 0)
+        if stock_price <= 0:
+            return True
+        nvrp = candidate.get("nvrp", {}) or {}
+        trend = nvrp.get("trend", "neutral")
+        iv = float(nvrp.get("iv", 0.20) or 0.20)
+        dte = int(candidate.get("dte", 30) or 30)
+        rs_126 = candidate.get("relative_strength")
+
+        expected_move_1sd = None
+        if stock_price > 0 and iv > 0 and dte > 0:
+            expected_move_1sd = self.analytics.expected_move(
+                stock_price, iv, dte
+            ).get("expected_move_1sd")
+
+        short_strikes = [candidate.get("short_strike")]
+        if strategy == "iron_condor":
+            short_strikes = [candidate.get("put_short"), candidate.get("call_short")]
+
+        for strike in short_strikes:
+            ok, _ = hw_evaluate_entry(
+                strategy,
+                trend=trend,
+                short_strike=strike,
+                spot=stock_price,
+                expected_move_1sd=expected_move_1sd,
+                dte=dte,
+                rs_126=rs_126,
+            )
+            if not ok:
                 return False
         return True
 

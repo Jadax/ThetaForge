@@ -121,13 +121,42 @@ VIX curve is structurally toxic** (front-month fear premium). In `AIBrain`:
 
 `background_scanner._analyze_one` now feeds the Brain:
 `current_iv`, `hv_20`, `iv_percentile`, `expected_move_pct`,
-`vix_term_structure`, `days_to_earnings`, `iv_skew`, `short_interest`, and
-`earnings_move`.
+`vix_term_structure`, `days_to_earnings`, `iv_skew`, `short_interest`,
+`earnings_move`, and `relative_strength` (6-month return vs SPY, computed once
+per scan in `_spy_126_return` and shared across the fan-out).
 
 Fail-closed rule (v0.6.8, preserved): missing price, chain, VIX, or history is
 a recorded skip reason, never a placeholder trade signal. The volatility
 enrichments added in v0.7.0 degrade to `None` individually — one broken source
-must not manufacture (or block) a trade by itself.
+must not manufacture (or block) a trade by itself. The v1.6.0 high-win-rate
+gates keep this split: `relative_strength` is the *only* soft input (missing RS
+disables the laggard veto); trend, expected-move, DTE, and earnings proximity
+are hard gates that require their underlying data to exist.
+
+## High-Win-Rate Entry Gates (v1.6.0, keep intact)
+
+`agents/trade_engine/high_winrate.py` holds the research-backed context vetoes
+applied on top of the generic quality gates (POP, IVR, credit-to-width, POT):
+
+- `trend_alignment_ok`: a bull structure into a confirmed downtrend (or a bear
+  structure into an uptrend) is refused in both the Brain's
+  `_select_best_strategy` and the Recommender's step 4c.
+- `expected_move_buffer_ok`: new short-premium strikes must sit at/outside the
+  1-SD expected move (~68% expiry POP floor).
+- `entry_dte_ok`: no new short premium inside the 21-DTE gamma window or beyond
+  60 DTE; debit floors at 14 DTE.
+- `earnings_window_ok`: no new short premium into an earnings print
+  (`days_to_earnings <= 7`), mirroring the Brain's existing earnings veto.
+- `relative_strength_ok` (IBD "L"): directional short premium only on names
+  leading the market over 6 months. **This is the one soft gate** — missing RS
+  data disables it, never fabricates a reject.
+
+Management of *open* positions is `agents/trade_engine/trade_manager.py`:
+50%-of-credit take-profit, close/roll at 21 DTE, 2×-credit loss stop,
+pre-earnings close, tested-strike review, plus portfolio caps. The
+`POST /api/advisor/positions/management` endpoint only *recommends* actions —
+order submission stays exclusively in the Bridge, so there is still exactly one
+execution path.
 
 ## Behavior to Preserve
 

@@ -656,6 +656,46 @@ def test_touch_gate_applies_to_every_short_wing():
     assert not recommender._passes_touch_gate(tested)
 
 
+# ============================================================
+# High-Win-Rate Context Gates (step 4c)
+# ============================================================
+
+def test_high_winrate_gate_rejects_bull_put_in_a_downtrend():
+    recommender = TradeRecommender()
+    candidate = {"type": "bull_put", "stock_price": 100, "short_strike": 90, "long_strike": 85,
+                 "dte": 30, "nvrp": {"iv": 0.25, "trend": "bearish"}}
+    assert not recommender._passes_high_winrate_gate(candidate)
+
+
+def test_high_winrate_gate_rejects_short_strike_inside_the_expected_move():
+    recommender = TradeRecommender()
+    # 100 * 0.25 * sqrt(30/365) = 7.24 → the 95 strike is inside the 1-SD move.
+    candidate = {"type": "bull_put", "stock_price": 100, "short_strike": 95, "long_strike": 90,
+                 "dte": 30, "nvrp": {"iv": 0.25, "trend": "bullish"}}
+    assert not recommender._passes_high_winrate_gate(candidate)
+
+
+def test_high_winrate_gate_rejects_short_premium_inside_the_gamma_window():
+    recommender = TradeRecommender()
+    candidate = {"type": "bull_put", "stock_price": 100, "short_strike": 90, "long_strike": 85,
+                 "dte": 18, "nvrp": {"iv": 0.25, "trend": "bullish"}}
+    assert not recommender._passes_high_winrate_gate(candidate)
+
+
+def test_high_winrate_gate_accepts_a_textbook_credit_spread():
+    recommender = TradeRecommender()
+    candidate = {"type": "bull_put", "stock_price": 100, "short_strike": 90, "long_strike": 85,
+                 "dte": 35, "nvrp": {"iv": 0.25, "trend": "bullish"}}
+    assert recommender._passes_high_winrate_gate(candidate)
+
+
+def test_high_winrate_gate_ignores_debit_structures():
+    recommender = TradeRecommender()
+    candidate = {"type": "call_debit", "stock_price": 100, "short_strike": 105, "long_strike": 100,
+                 "dte": 30, "nvrp": {"iv": 0.25, "trend": "bearish"}}
+    assert recommender._passes_high_winrate_gate(candidate)
+
+
 def test_credit_spreads_require_round_trip_credit_floor():
     """Spreads whose credit cannot cover round-trip costs are skipped."""
     recommender = TradeRecommender()
