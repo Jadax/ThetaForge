@@ -103,32 +103,61 @@ def is_market_hours(moment: Optional[datetime] = None) -> bool:
 def _atm_iv(chain: List[Dict]) -> Optional[float]:
     """Best-effort ATM implied volatility from the nearest-expiry chain.
 
-    Uses the options closest to the 50% delta (or nearest strike to the money
-    when deltas are missing) across the first expiry with IV, averaging the
-    call and put IVs like a 0.50-delta straddle.
+    Order of preference, all on the front (nearest-dte) expiry:
+    1. average of the options closest to 50% delta (a 0.50-delta straddle);
+    2. if deltas are missing, the strike where call IV == put IV (IV parity
+       holds best at the money — a spot-free ATM estimate);
+    3. front-expiry median IV (never the whole-chain mean, which distorts
+       badly on wide chains via far-OTM inflated IVs).
     """
-    candidates = []
-    for opt in chain:
+    if not chain:
+        return None
+    front_dte = min((int(opt.get("dte") or 10**6) for opt in chain), default=None)
+    if front_dte is None:
+        return None
+    front = [opt for opt in chain if int(opt.get("dte") or 0) == front_dte]
+
+    delta_pairs = []
+    for opt in front:
         iv = opt.get("implied_volatility")
         if not iv or float(iv) <= 0:
             continue
         delta = opt.get("delta")
         if delta is not None:
             try:
-                candidates.append((abs(float(delta) - 0.5), float(iv)))
+                delta_pairs.append((abs(float(delta) - 0.5), float(iv)))
             except (TypeError, ValueError):
                 continue
-        else:
-            candidates.append((None, float(iv)))
-    if not candidates:
+    if delta_pairs:
+        near = [pair for pair in delta_pairs if pair[0] <= 0.05]
+        pool = near if near else [min(delta_pairs, key=lambda pair: pair[0])]
+        return sum(iv for _, iv in pool) / len(pool)
+
+    # No deltas: find the strike where the call and put IVs converge.
+    by_strike: Dict[float, Dict[str, float]] = {}
+    for opt in front:
+        iv = opt.get("implied_volatility")
+        strike = opt.get("strike")
+        if not iv or float(iv) <= 0 or strike is None:
+            continue
+        bucket = by_strike.setdefault(float(strike), {})
+        bucket[opt.get("option_type", "").lower()] = float(iv)
+    parity = [
+        (abs(bucket["call"] - bucket["put"]), (bucket["call"] + bucket["put"]) / 2)
+        for bucket in by_strike.values()
+        if "call" in bucket and "put" in bucket
+    ]
+    if parity:
+        return min(parity, key=lambda pair: pair[0])[1]
+
+    front_ivs = sorted(
+        float(opt["implied_volatility"])
+        for opt in front
+        if opt.get("implied_volatility")
+    )
+    if not front_ivs:
         return None
-    if candidates[0][0] is None:
-        return sum(iv for _, iv in candidates) / len(candidates)
-    # Near-zero delta offset = closest to the money.
-    nearest = min(candidates, key=lambda pair: pair[0])
-    near = [c for c in candidates if c[0] is not None and c[0] <= 0.05]
-    pool = near if near else [nearest]
-    return sum(iv for _, iv in pool) / len(pool)
+    return front_ivs[len(front_ivs) // 2]
 
 
 def _rv_band(iv: Optional[float], hv: Optional[float]) -> Optional[str]:
@@ -142,6 +171,30 @@ def _rv_band(iv: Optional[float], hv: Optional[float]) -> Optional[str]:
         float(hv) if hv is not None else None,
     )
     return (read or {}).get("band")
+
+
+def _no_trade_reason_code(strategy: str, reasoning: str) -> str:
+    """Short, tallyable reason a symbol is not tradeable.
+
+    The Brain emits a full prose ``reasoning`` string; this derives a stable
+    code so scan diagnostics can count how many symbols are paused by each
+    gate (the reason this pipeline went two weeks with zero trades undiagnosed
+    was that no-trade results were persisted without their reasoning).
+    """
+    if strategy != "no_trade":
+        return strategy
+    reason = (reasoning or "").lower()
+    if "insufficient confirmation" in reason:
+        return "low_confidence"
+    if "term structure inverted" in reason:
+        return "inverted_term_structure"
+    if "extreme" in reason and "vix" in reason:
+        return "high_vix"
+    if "earnings" in reason:
+        return "earnings_proximity"
+    if "differentiated edge" in reason:
+        return "no_edge"
+    return "other"
 
 
 def _flow_signals(chain: List[Dict]) -> Optional[Dict]:
@@ -192,8 +245,9 @@ LIQUID_OPTIONS_UNIVERSE = [
 SCAN_GALLERIES = {
     "wheel_candidates": {
         "label": "Wheel candidates",
-        "thesis": "High-IVR underlyings for cash-secured puts / covered calls",
-        "match": lambda r: (r.get("iv_rank") or 0) >= 50 and r.get("strategy") in {"cash_secured_put", "covered_call"},
+        "thesis": "Elevated-IVR underlyings for cash-secured puts / covered calls / put credit",
+        "match": lambda r: (r.get("iv_rank") or 0) >= 35
+        and r.get("strategy") in {"cash_secured_put", "covered_call", "bull_put_credit"},
     },
     "premium_flow": {
         "label": "Premium flow (rich vol)",
@@ -414,14 +468,18 @@ class BackgroundBrainScanner:
         expected_move_pct = None
         try:
             from agents.trade_engine.analytics import OptionsAnalytics
-            ivs = [
-                float(opt.get("implied_volatility") or 0)
-                for opt in chain
-                if opt.get("implied_volatility")
-            ]
-            current_iv = float(_atm_iv(chain)) if _atm_iv(chain) else (
-                sorted(ivs)[len(ivs) // 2] if ivs else None
-            )
+            # Prefer the delta-weighted ATM IV (average of the near-0.50-delta
+            # call and put). The median-over-all-strikes fallback distorts the
+            # read on wide chains because far-OTM strikes carry inflated IVs.
+            current_iv = _atm_iv(chain)
+            if not current_iv:
+                ivs = [
+                    float(opt.get("implied_volatility") or 0)
+                    for opt in chain
+                    if opt.get("implied_volatility")
+                ]
+                if ivs:
+                    current_iv = sorted(ivs)[len(ivs) // 2]
             if current_iv and current_iv > 0 and price > 0:
                 move = OptionsAnalytics().expected_move(price, current_iv, 30)
                 expected_move_pct = move.get("expected_move_pct")
@@ -429,11 +487,24 @@ class BackgroundBrainScanner:
             current_iv = None
 
         iv_percentile = None
+        iv_52w_bounds = None
+        vol_risk_premium = None
         try:
-            from agents.volatility.iv_history import IVHistoryStore
+            from agents.volatility.iv_history import IVHistoryStore, MIN_SAMPLES
             store = IVHistoryStore()
             store.record(symbol, current_iv, hv_20)
             iv_percentile = store.iv_percentile(symbol, current_iv)
+            # The symbol's own 52w IV bounds replace the Brain's fixed default
+            # band once enough history exists; otherwise the default band is
+            # left in place (the store's docstring: too thin to trust).
+            if store.sample_count(symbol) >= MIN_SAMPLES:
+                iv_52w_bounds = store.iv_52w_range(symbol, current_iv)
+            vrp_z = store.vrp_zscore(symbol, current_iv, hv_20)
+            vol_risk_premium = {
+                "vrp": round(current_iv - hv_20, 4) if current_iv and hv_20 else None,
+                "vrp_z": vrp_z,
+                "iv_change_5d": store.iv_change_5d(symbol),
+            }
         except Exception:
             iv_percentile = None
 
@@ -483,7 +554,7 @@ class BackgroundBrainScanner:
 
         try:
             brain = await self._lazy_brain()
-            result = brain.analyze(
+            analyze_kwargs = dict(
                 symbol=symbol,
                 stock_price=price,
                 option_chain=chain,
@@ -500,15 +571,27 @@ class BackgroundBrainScanner:
                 iv_skew=iv_skew,
                 short_interest=short_interest,
                 earnings_move=earnings_move,
+                vol_risk_premium=vol_risk_premium,
             )
+            # Per-symbol 52w IV bounds from the symbol's own history replace
+            # the Brain's fixed default band once enough samples exist.
+            if iv_52w_bounds:
+                analyze_kwargs["iv_52w_high"] = iv_52w_bounds["iv_52w_high"]
+                analyze_kwargs["iv_52w_low"] = iv_52w_bounds["iv_52w_low"]
+            result = brain.analyze(**analyze_kwargs)
             return {
                 "score": result.overall_score,
                 "signal": result.overall_signal.value,
                 "regime": result.regime,
                 "strategy": result.best_strategy,
                 "strategy_reasoning": result.best_strategy_reasoning,
+                "no_trade_reason": _no_trade_reason_code(result.best_strategy, result.best_strategy_reasoning),
+                "confidence": result.confidence,
+                "vix": vix,
+                "days_to_earnings": days_to_earnings,
                 "iv_rank": (result.iv_signal or {}).get("iv_rank"),
                 "iv_percentile": (result.iv_signal or {}).get("iv_percentile"),
+                "eff_iv_rank": (result.iv_signal or {}).get("eff_iv_rank"),
                 "iv_hv_ratio": (result.iv_signal or {}).get("ratio"),
                 "iv_hv_signal": (result.iv_signal or {}).get("signal"),
                 "rv_band": _rv_band(current_iv, hv_20),
@@ -518,6 +601,7 @@ class BackgroundBrainScanner:
                 "iv_skew": (result.iv_signal or {}).get("iv_skew"),
                 "short_interest": (result.iv_signal or {}).get("short_interest"),
                 "earnings_move": (result.iv_signal or {}).get("earnings_move"),
+                "vol_risk_premium": (result.iv_signal or {}).get("vol_risk_premium"),
                 "top_signal": "",
             }, None
         except Exception:
@@ -535,6 +619,7 @@ class BackgroundBrainScanner:
         new_count = 0
         results: Dict[str, dict] = {}
         skipped: Dict[str, int] = {}
+        no_trade_reasons: Dict[str, int] = {}
 
         # Clean old no_trade notifications so stale entries don't linger
         old_notifs = self._read_json(SCAN_NOTIFICATIONS_FILE)
@@ -571,13 +656,32 @@ class BackgroundBrainScanner:
                 skipped[reason] = skipped.get(reason, 0) + 1
                 continue
 
-            # Only alert on tradeable signals — skip no_trade
+            # Only alert on tradeable signals — skip no_trade. The no-trade
+            # rows keep their full analysis payload (reasoning, confidence,
+            # vol context) so the scan results answer *why* nothing traded —
+            # the exact gap that hid the confidence-gate blockage for weeks.
             if data["strategy"] in NON_ACTIONABLE_STRATEGIES:
+                reason_code = data.get("no_trade_reason") or data["strategy"]
+                no_trade_reasons[reason_code] = no_trade_reasons.get(reason_code, 0) + 1
                 results[symbol] = {
                     "score": data["score"],
                     "signal": data["signal"],
+                    "regime": data.get("regime"),
                     "strategy": data["strategy"],
                     "filtered": "no_trade",
+                    "strategy_reasoning": data.get("strategy_reasoning", ""),
+                    "no_trade_reason": reason_code,
+                    "confidence": data.get("confidence"),
+                    "vix": data.get("vix"),
+                    "days_to_earnings": data.get("days_to_earnings"),
+                    "iv_rank": data.get("iv_rank"),
+                    "iv_percentile": data.get("iv_percentile"),
+                    "eff_iv_rank": data.get("eff_iv_rank"),
+                    "iv_hv_signal": data.get("iv_hv_signal"),
+                    "term_structure": data.get("term_structure"),
+                    "rv_band": data.get("rv_band"),
+                    "expected_move_pct": data.get("expected_move_pct"),
+                    "vol_risk_premium": data.get("vol_risk_premium"),
                 }
                 continue
 
@@ -615,7 +719,17 @@ class BackgroundBrainScanner:
             results[symbol] = {
                 "score": data["score"],
                 "signal": data["signal"],
+                "regime": data.get("regime"),
                 "strategy": data["strategy"],
+                "iv_rank": data.get("iv_rank"),
+                "iv_percentile": data.get("iv_percentile"),
+                "eff_iv_rank": data.get("eff_iv_rank"),
+                "iv_hv_signal": data.get("iv_hv_signal"),
+                "rv_band": data.get("rv_band"),
+                "expected_move_pct": data.get("expected_move_pct"),
+                "term_structure": data.get("term_structure"),
+                "flow_signals": data.get("flow_signals"),
+                "vol_risk_premium": data.get("vol_risk_premium"),
             }
 
         self._write_json(SCAN_RESULTS_FILE, {
@@ -637,6 +751,7 @@ class BackgroundBrainScanner:
             "input_symbols": len(symbols),
             "analyzed_symbols": len(results),
             "skipped_symbols": skipped,
+            "no_trade_reasons": dict(sorted(no_trade_reasons.items())),
         }
         state["errors"] = [
             f"{count} symbols skipped: {reason.replace('_', ' ')}"

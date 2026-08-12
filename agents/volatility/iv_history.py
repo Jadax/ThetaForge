@@ -105,3 +105,51 @@ class IVHistoryStore:
             "iv_52w_high": max(max(history), current),
             "iv_52w_low": min(min(history), current),
         }
+
+    def vrp_zscore(
+        self,
+        symbol: str,
+        current_iv: Optional[float] = None,
+        hv_20: Optional[float] = None,
+    ) -> Optional[float]:
+        """Z-score of today's IV-minus-RV premium vs the symbol's own history.
+
+        The volatility risk premium (VRP = ATM IV − realized vol) is the
+        institutional premium-harvesting metric (Bondarenko 2019; FlashAlpha;
+        VolatilityBox). Each stored snapshot carries its own iv + hv_20, so the
+        trailing VRP series is available from the same store that already
+        computes IV rank. Returns None until MIN_SAMPLES snapshots exist.
+        """
+        history = self._read().get(symbol.upper(), [])
+        points = [
+            entry for entry in history
+            if entry.get("iv") and entry.get("hv_20")
+        ]
+        if len(points) < MIN_SAMPLES:
+            return None
+        premium = [float(entry["iv"]) - float(entry["hv_20"]) for entry in points]
+        if current_iv is None:
+            current_iv = float(points[-1]["iv"])
+        if hv_20 is None:
+            hv_20 = float(points[-1]["hv_20"])
+        current = float(current_iv) - float(hv_20)
+        mean = sum(premium) / len(premium)
+        variance = sum((value - mean) ** 2 for value in premium) / len(premium)
+        std = variance ** 0.5
+        if std <= 1e-6:
+            return 0.0
+        return round((current - mean) / std, 2)
+
+    def iv_change_5d(self, symbol: str) -> Optional[float]:
+        """Fractional 5-trading-day change in the symbol's ATM IV.
+
+        IV momentum (rising vs falling vol) is a standard screener column
+        (Barchart, TanukiTrade). Computed from the same daily snapshots.
+        """
+        ivs = self._ivs(symbol)
+        if len(ivs) < 6:
+            return None
+        base = ivs[-6]
+        if base <= 0:
+            return None
+        return round((ivs[-1] - base) / base, 4)

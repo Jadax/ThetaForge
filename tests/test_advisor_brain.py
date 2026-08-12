@@ -110,6 +110,62 @@ def test_brain_missing_desk_analytics_stays_neutral():
     assert "short_interest" not in sources
 
 
+def test_brain_confidence_uses_informative_signals_only():
+    brain = AIBrain()
+    # Flat, short history: technical/sideways engines skip, CPR is neutral,
+    # and IV sits exactly at HV (neutral) — every signal strength ~0.
+    prices = [100.0] * 20
+
+    output = brain.analyze(
+        symbol="TEST", stock_price=100.0, option_chain=[],
+        historical_prices=prices, high_prices=[100.0] * 20, low_prices=[100.0] * 20,
+        current_iv=0.25, hv_20=0.25, vix=20.0,
+        vix_term_structure={"VIX9D": 11, "VIX3M": 13},
+    )
+
+    # No informative signal → fail-closed confidence, below the strategy floor.
+    assert output.confidence == 35.0
+    assert output.best_strategy == "no_trade"
+
+
+def test_brain_vrp_signal_refines_rich_premium():
+    brain = AIBrain()
+    prices = [100.0] * 60
+    vrp = {"vrp": 0.10, "vrp_z": 2.0, "iv_change_5d": 0.05}
+
+    output = brain.analyze(
+        symbol="TEST", stock_price=100.0, option_chain=[],
+        historical_prices=prices, high_prices=[101.0] * 60, low_prices=[99.0] * 60,
+        current_iv=0.30, hv_20=0.20, vix=20.0,
+        vix_term_structure={"VIX9D": 11, "VIX3M": 13},
+        vol_risk_premium=vrp,
+    )
+
+    assert output.iv_signal["vol_risk_premium"] == vrp
+    vrp_sig = next(signal for signal in output.all_signals if signal["source"] == "vrp")
+    assert vrp_sig["signal"] == "vrp_rich"
+    assert vrp_sig["strength"] == 0.15
+    assert vrp_sig["confidence"] == 70
+
+
+def test_brain_vrp_without_sell_premium_stays_neutral():
+    brain = AIBrain()
+    prices = [100.0] * 20
+    vrp = {"vrp": 0.05, "vrp_z": 2.0, "iv_change_5d": None}
+
+    output = brain.analyze(
+        symbol="TEST", stock_price=100.0, option_chain=[],
+        historical_prices=prices, high_prices=[100.0] * 20, low_prices=[100.0] * 20,
+        current_iv=0.25, hv_20=0.25, vix=20.0,
+        vix_term_structure={"VIX9D": 11, "VIX3M": 13},
+        vol_risk_premium=vrp,
+    )
+
+    vrp_sig = next(signal for signal in output.all_signals if signal["source"] == "vrp")
+    assert vrp_sig["signal"] == "vrp_neutral"
+    assert vrp_sig["strength"] == 0.0
+
+
 @pytest.mark.asyncio
 async def test_brain_rejects_missing_market_price(monkeypatch):
     monkeypatch.setattr(advisor.provider, "get_stock_price", AsyncMock(return_value=None))

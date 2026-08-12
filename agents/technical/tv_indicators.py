@@ -152,7 +152,10 @@ class TradingViewIndicators:
         if hv_20 <= 0:
             return {"ratio": 1.0, "signal": "neutral", "reasoning": "No HV data"}
         ratio = iv / hv_20
-        if ratio > 1.25:
+        # FlashAlpha's published sell checklist uses IV/RV > 1.15 as the rich
+        # threshold (the recommender's execution gate already only requires
+        # iv > hv, so 1.25 here was stricter than the rest of the pipeline).
+        if ratio > 1.15:
             signal = "sell_premium"
             reasoning = f"IV ({iv:.1%}) significantly above HV ({hv_20:.1%}) → options expensive, sell premium"
         elif ratio < 0.85:

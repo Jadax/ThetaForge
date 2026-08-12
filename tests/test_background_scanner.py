@@ -5,7 +5,11 @@ from datetime import datetime, timezone
 import pytest
 
 from agents.trade_engine import background_scanner as scanner_module
-from agents.trade_engine.background_scanner import is_market_hours
+from agents.trade_engine.background_scanner import (
+    _atm_iv,
+    _no_trade_reason_code,
+    is_market_hours,
+)
 
 
 @pytest.fixture
@@ -68,6 +72,67 @@ def test_no_trade_cannot_pass_new_trade_gate(scanner):
     assert scanner._is_new_trade(
         "SPY", 80, "strong_buy", "bull_put_spread", "bullish"
     )
+
+
+# ── No-trade reason codes (diagnostics) ──────────────────────────────────
+
+
+def test_no_trade_reason_code_classifies_gates():
+    assert _no_trade_reason_code("no_trade", "Signal agreement is only 35% — insufficient confirmation") == "low_confidence"
+    assert _no_trade_reason_code("no_trade", "IVR 60 but VIX term structure inverted") == "inverted_term_structure"
+    assert _no_trade_reason_code("no_trade", "VIX 45 is extreme; wait for confirmation") == "high_vix"
+    assert _no_trade_reason_code("no_trade", "earnings within 7 days") == "earnings_proximity"
+    assert _no_trade_reason_code("no_trade", "No strategy has a sufficiently differentiated edge in the current regime") == "no_edge"
+    assert _no_trade_reason_code("no_trade", "unrecognized reason text") == "other"
+    assert _no_trade_reason_code("bull_put_credit", "some reasoning") == "bull_put_credit"
+
+
+# ── ATM IV extraction ────────────────────────────────────────────────────
+
+
+def _opt(strike, iv, dte=30, delta=None, opt_type="call"):
+    return {
+        "strike": strike,
+        "dte": dte,
+        "option_type": opt_type,
+        "implied_volatility": iv,
+        "delta": delta,
+    }
+
+
+def test_atm_iv_uses_front_expiry_delta_fifty():
+    chain = [
+        _opt(100, 0.45, dte=7, delta=0.52),
+        _opt(105, 0.50, dte=7, delta=0.48),
+        _opt(110, 0.65, dte=7, delta=0.30),
+        _opt(100, 0.55, dte=45, delta=0.50),  # back expiry ignored
+    ]
+    assert _atm_iv(chain) == pytest.approx(0.475, abs=0.001)
+
+
+def test_atm_iv_uses_parity_when_deltas_missing():
+    # No deltas: the strike where call IV ≈ put IV wins over far-OTM noise.
+    chain = [
+        _opt(100, 0.20, dte=7, opt_type="call"),
+        _opt(100, 0.22, dte=7, opt_type="put"),
+        _opt(140, 0.90, dte=7, opt_type="call"),  # far-OTM inflated IV
+        _opt(140, 0.95, dte=7, opt_type="put"),
+    ]
+    assert _atm_iv(chain) == pytest.approx(0.21, abs=0.001)
+
+
+def test_atm_iv_falls_back_to_front_expiry_median():
+    chain = [
+        _opt(100, 0.20, dte=7, opt_type="call"),
+        _opt(120, 0.60, dte=7, opt_type="call"),
+        _opt(80, 0.40, dte=7, opt_type="put"),
+        _opt(90, 0.70, dte=45, opt_type="call"),  # back expiry ignored
+    ]
+    assert _atm_iv(chain) == pytest.approx(0.40, abs=0.001)
+
+
+def test_atm_iv_returns_none_for_empty_chain():
+    assert _atm_iv([]) is None
 
 
 # ── Market-hours gating ──────────────────────────────────────────────────

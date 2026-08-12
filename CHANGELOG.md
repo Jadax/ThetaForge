@@ -1,5 +1,42 @@
 # ThetaForge Changelog
 
+## v1.4.0 - 2026-08-13
+
+Rebalanced the Brain's strategy gates after a two-week live-testing dry spell
+in which zero trades fired. Root cause was traced to the signal-agreement
+(confidence) gate: it averaged in every *neutral* read (data-absence, strength
+~0) as agreement, dragging every symbol below the floor regardless of any real
+directional/vol edge — the exact failure the user surfaced. Confirmed live
+before the fix: SPY 43.8, NVDA 30.0, XLF 46.2 confidence, all `no_trade`.
+
+- Confidence is now the average of **informative signals only** (|strength| ≥
+  0.05); no informative signal at all → 35.0, fail-closed below the floor.
+  Strategy-selection floor eased 55 → 45 (`MIN_STRATEGY_CONFIDENCE`).
+- IV/HV "sell premium" threshold aligned to FlashAlpha's published IV/RV >
+  1.15 sell checklist (was 1.25, stricter than the recommender's own 1.0
+  execution gate).
+- Directional credit spreads now trigger at IVR ≥ 40 (was 50); iron condor
+  VIX band widened to 18–28 (was 15–25).
+- Per-symbol trailing VRP (IV−RV premium) z-score added to `IVHistoryStore`
+  (`vrp_zscore`, `iv_change_5d`); the scanner computes a `vol_risk_premium`
+  payload from the same store and feeds it to the Brain as a scored
+  refinement of an existing sell-premium edge (never a standalone gate).
+- Scanner now passes the symbol's own 52-week IV bounds from `IVHistoryStore`
+  (once ≥10 samples exist) instead of the Brain's fixed 0.40/0.12 default
+  band; `_atm_iv` hardened to a delta-50 straddle → call/put-IV parity →
+  front-expiry median (never the whole-chain mean, which distorted
+  `current_iv` badly on wide chains, e.g. XLF 0.859).
+- No-trade rows now persist their full analysis payload plus a stable
+  `no_trade_reason` code; scan state tallies `no_trade_reasons` so the funnel
+  answers *why* nothing traded. Live scan after the change: 130 inputs, 125
+  analyzed, 19 actionable symbols (bull/bear credit spreads, debit spreads)
+  across a diversified set — previously 0.
+- `wheel_candidates` gallery relaxed to IVR ≥ 35 and now also matches Brain
+  credit-spread strategies (its CSP/CC-only set was unreachable: the Brain
+  emits `bull_put_credit`, not `cash_secured_put`).
+- Kept intentional invariants: inverted VIX term structure still = `no_trade`
+  for premium selling; fail-closed on missing price/chain/VIX/history.
+
 ## v1.3.1 - 2026-08-12
 
 Moved the public journal to a custom domain, `https://journal.astraiva.app/`,
