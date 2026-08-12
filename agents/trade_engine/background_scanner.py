@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone, date
 from zoneinfo import ZoneInfo
 
 import httpx
+import pandas_market_calendars as mcal
 
 from agents.data_ingestion.free_data import FreeDataProvider
 
@@ -40,27 +41,59 @@ NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
 SCAN_CONCURRENCY = 20
 
 _EASTERN = ZoneInfo("America/New_York")
-_MARKET_OPEN = (9, 30)
-_MARKET_CLOSE = (16, 0)
+_NYSE_CALENDAR = mcal.get_calendar("NYSE")
+# Per-day cache of (market_open, market_close) as tz-aware UTC datetimes, or
+# None on a weekend/holiday. A day's session never changes once computed, and
+# this is checked on every scan-loop tick plus every dashboard status poll,
+# so caching avoids re-querying the calendar library dozens of times a day
+# for an answer that cannot have changed. Trimmed so a long-running process
+# can't grow this unbounded.
+_schedule_cache: Dict[date, Optional[Tuple[datetime, datetime]]] = {}
+_SCHEDULE_CACHE_MAX_DAYS = 30
 
 
 def is_market_hours(moment: Optional[datetime] = None) -> bool:
-    """Whether the NYSE regular session is open (Mon-Fri, 9:30-16:00 ET).
+    """Whether the NYSE regular session is open at *moment* (default: now).
 
-    A plain weekday + clock-time check, not a full holiday calendar. A scan
-    that fires on a market holiday cannot fabricate a signal -- every
-    downstream price/chain fetch already fails closed to a skip reason -- it
-    just wastes a few minutes of the free-tier compute budget a handful of
-    times a year. Deliberately timezone-aware via zoneinfo rather than the
-    host's local clock, since the host (Render, or a laptop in any timezone)
-    should not have to be set to US Eastern for this to be correct.
+    Uses pandas_market_calendars' real NYSE calendar rather than a hand-rolled
+    weekday + 9:30-16:00 ET check, so this gets holidays right -- including
+    observed-date shifts (July 4 falling on a Saturday closes the preceding
+    Friday) and half days (the day after Thanksgiving closes at 1pm ET) --
+    without needing yearly maintenance. Falls back to the plain weekday/clock
+    check only if the calendar lookup itself errors, so a bug in that library
+    degrades this rather than silently stopping the scanner.
     """
-    now_et = (moment or datetime.now(timezone.utc)).astimezone(_EASTERN)
-    if now_et.weekday() >= 5:  # Saturday, Sunday
-        return False
-    open_time = now_et.replace(hour=_MARKET_OPEN[0], minute=_MARKET_OPEN[1], second=0, microsecond=0)
-    close_time = now_et.replace(hour=_MARKET_CLOSE[0], minute=_MARKET_CLOSE[1], second=0, microsecond=0)
-    return open_time <= now_et <= close_time
+    now_utc = moment or datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+
+    try:
+        today = now_utc.astimezone(_EASTERN).date()
+        if today not in _schedule_cache:
+            schedule = _NYSE_CALENDAR.schedule(start_date=today, end_date=today)
+            if schedule.empty:
+                _schedule_cache[today] = None
+            else:
+                _schedule_cache[today] = (
+                    schedule.iloc[0]["market_open"].to_pydatetime(),
+                    schedule.iloc[0]["market_close"].to_pydatetime(),
+                )
+            if len(_schedule_cache) > _SCHEDULE_CACHE_MAX_DAYS:
+                del _schedule_cache[min(_schedule_cache)]
+
+        session = _schedule_cache[today]
+        if session is None:
+            return False
+        market_open, market_close = session
+        return market_open <= now_utc <= market_close
+    except Exception:
+        logger.exception("NYSE calendar lookup failed; falling back to a plain weekday/clock check")
+        now_et = now_utc.astimezone(_EASTERN)
+        if now_et.weekday() >= 5:
+            return False
+        open_time = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+        close_time = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+        return open_time <= now_et <= close_time
 
 
 def _atm_iv(chain: List[Dict]) -> Optional[float]:

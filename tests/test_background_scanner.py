@@ -95,6 +95,42 @@ def test_is_market_hours_inclusive_of_open_and_close_boundaries():
     assert is_market_hours(close_boundary)
 
 
+def test_is_market_hours_false_on_christmas():
+    christmas_midday = datetime(2026, 12, 25, 16, 0, tzinfo=timezone.utc)
+    assert not is_market_hours(christmas_midday)
+
+
+def test_is_market_hours_false_on_a_holiday_observed_for_a_weekend_date():
+    # July 4, 2026 falls on a Saturday; NYSE observes the holiday on the
+    # preceding Friday. A plain weekday check alone would miss this.
+    july_3_friday = datetime(2026, 7, 3, 16, 0, tzinfo=timezone.utc)
+    assert july_3_friday.weekday() == 4  # confirms this date is a Friday
+    assert not is_market_hours(july_3_friday)
+
+
+def test_is_market_hours_respects_a_half_day_early_close():
+    # The day after Thanksgiving 2026 (Nov 27) is a half day: NYSE closes at
+    # 1pm ET instead of 4pm. A plain 9:30-16:00 check would wrongly call
+    # 2pm ET "open".
+    half_day_morning = datetime(2026, 11, 27, 16, 0, tzinfo=timezone.utc)  # 11am ET
+    half_day_afternoon = datetime(2026, 11, 27, 19, 0, tzinfo=timezone.utc)  # 2pm ET
+    assert is_market_hours(half_day_morning)
+    assert not is_market_hours(half_day_afternoon)
+
+
+def test_is_market_hours_falls_back_when_calendar_lookup_errors(monkeypatch):
+    def broken_schedule(*_args, **_kwargs):
+        raise RuntimeError("calendar library unavailable")
+
+    monkeypatch.setattr(scanner_module._NYSE_CALENDAR, "schedule", broken_schedule)
+    scanner_module._schedule_cache.clear()
+
+    wednesday_10am_et = datetime(2026, 8, 12, 14, 0, tzinfo=timezone.utc)
+    wednesday_8pm_et = datetime(2026, 8, 13, 0, 0, tzinfo=timezone.utc)
+    assert is_market_hours(wednesday_10am_et)
+    assert not is_market_hours(wednesday_8pm_et)
+
+
 @pytest.mark.asyncio
 async def test_status_reports_live_market_open_flag(scanner, monkeypatch):
     monkeypatch.setattr(scanner_module, "is_market_hours", lambda: False)

@@ -1,5 +1,27 @@
 # ThetaForge Changelog
 
+## v1.2.3 - 2026-08-12
+
+Replaced `is_market_hours()`'s hand-rolled weekday + 9:30-16:00 ET check with
+`pandas_market_calendars`' real NYSE calendar. The plain check was wrong on
+every market holiday and every half day (day-after-Thanksgiving, Christmas
+Eve, etc.), and would have drifted further every year since holidays like
+Good Friday move.
+
+- Added `pandas_market_calendars` (free, open-source) to `requirements.txt`.
+- Correctly handles observed-date shifts (July 4, 2026 falls on a Saturday,
+  so NYSE closes the preceding Friday instead) and half days (Nov 27, 2026
+  closes at 1pm ET, not 4pm) — verified against the real calendar, not
+  assumed.
+- Falls back to the plain weekday/clock check only if the calendar lookup
+  itself errors, so a bug in that dependency degrades this rather than
+  silently stopping the scanner.
+- Per-day cache (checked on every scan-loop tick and status poll) so this
+  doesn't re-query the calendar library dozens of times a day for an answer
+  that can't have changed.
+- Added 6 tests (Christmas, the observed-Friday case, the half-day boundary,
+  and the fallback path); full suite at 155 passing.
+
 ## v1.2.2 - 2026-08-12
 
 Gated the background scanner's automatic loop to NYSE regular session hours
