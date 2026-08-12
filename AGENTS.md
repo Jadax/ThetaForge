@@ -55,7 +55,7 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | `deployment/vm_auto_executor.py` | Autonomous paper-order executor, runs on the Oracle VM beside the Bridge |
 | `deployment/market_hours_supervisor.sh` | Starts/stops Gateway+Bridge+executor on the VM around real market hours |
 | `deployment/journal_sync_push.sh` | Auto-publishes the journal from the VM's ledger after an autonomous fill |
-| `journal/` | Public trade journal — static site served at `https://jadax.github.io/ThetaForge/`; only entries placed on TWS from the paper-order ledger |
+| `journal/` | Public trade journal — static site served at `https://journal.astraiva.app/` (custom domain on the `gh-pages` branch, `CNAME` file); only entries placed on TWS from the paper-order ledger |
 | `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger (single source of truth) |
 | `scripts/add_trade.py` | Journal narrative input CLI; `--from-ledger` attaches to a TWS-placed trade |
 | `scripts/journal_common.py` | Shared ledger→journal leg mapping used by `add_trade.py` and `sync_journal.py` |

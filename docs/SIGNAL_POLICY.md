@@ -80,7 +80,7 @@ passes them to `AIBrain.analyze`; the notification payload and the advisor
 
 `journal/` is a standalone static site (index.html + styles.css + app.js +
 trades.json) hosted on GitHub Pages at
-`https://jadax.github.io/ThetaForge/` — the ONLY public surface. The private
+`https://journal.astraiva.app/` — the ONLY public surface. The private
 dashboard/terminal is NOT deployed to Pages; it runs locally and stays
 token-gated. The journal shows only trades that the project recommended AND
 that were placed on the TWS terminal, sourced from the paper-order ledger.

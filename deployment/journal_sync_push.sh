@@ -8,8 +8,9 @@
 # via its file layout matching the live URLs with no /journal/ prefix), not
 # from main -- and there is no existing automation that mirrors journal/ on
 # main into gh-pages. Pushing only to main would update history but never
-# actually appear on https://jadax.github.io/ThetaForge/. This script does
-# both: commits the regenerated journal to main (preserving that as the
+# actually appear on https://journal.astraiva.app/ (custom domain via the
+# CNAME file on gh-pages; the github.io URL still resolves too). This script
+# does both: commits the regenerated journal to main (preserving that as the
 # source-of-truth history, same as the existing manual workflow), then
 # mirrors the same files into a separate gh-pages checkout and pushes that
 # too, since that's what is actually served.
@@ -53,4 +54,4 @@ fi
 git add -A
 git commit -m "Publish journal update ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
 git push origin gh-pages
-echo "journal published to https://jadax.github.io/ThetaForge/"
+echo "journal published to https://journal.astraiva.app/"

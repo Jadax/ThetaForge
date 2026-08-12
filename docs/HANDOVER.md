@@ -43,8 +43,9 @@ Dashboard (GitHub Pages or localhost)
   always-on VM — see `docs/AUTONOMOUS_TRADING.md` for the full pipeline,
   including why the paper-only lock must not be weakened for this.
 - `journal/` is the public trade journal: a standalone static site
-  (`index.html`, `styles.css`, `app.js`, `trades.json`, `.nojekyll`) served from
-  the gh-pages branch root at `https://jadax.github.io/ThetaForge/`. Metrics
+  (`index.html`, `styles.css`, `app.js`, `trades.json`, `.nojekyll`) served
+  from the `gh-pages` branch root at `https://journal.astraiva.app/` — a
+  custom domain via a `CNAME` file on that branch, DNS at Spaceship. Metrics
   are computed client-side from `trades.json`, never hardcoded.
 - `scripts/sync_journal.py` is the journal's single source of truth: it
   regenerates `journal/trades.json` from the paper-order ledger

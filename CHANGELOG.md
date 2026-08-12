@@ -1,5 +1,29 @@
 # ThetaForge Changelog
 
+## v1.3.1 - 2026-08-12
+
+Moved the public journal to a custom domain, `https://journal.astraiva.app/`,
+off the `jadax.github.io` URL. `astraiva.app`'s root domain was already on
+GitHub Pages (a different repo, the owner's company site), so this reuses
+infrastructure already proven to work rather than introducing anything new —
+just a `CNAME` file on the `gh-pages` branch plus one DNS record at the
+existing DNS provider (Spaceship), scoped to the `journal` subdomain only so
+it can't affect the root domain's existing site.
+
+- Added `CNAME` (containing `journal.astraiva.app`) to the `gh-pages` branch
+  root.
+- Updated every genuine journal-link reference (`AGENTS.md`,
+  `docs/HANDOVER.md`, `docs/SIGNAL_POLICY.md`, the dashboard's "Public
+  journal" link, `deployment/journal_sync_push.sh`'s comments/output) to the
+  new domain. Left the CORS origin allowlists (`.env.example`,
+  `bridge/main.py`, `orchestrator/main.py`, `render.yaml`) and past
+  `CHANGELOG.md` entries untouched — the former are unrelated Advisor/Bridge
+  config the journal never calls, the latter is historical record.
+- Confirmed `journal_sync_push.sh`'s existing `cp` step only copies specific
+  named files into the `gh-pages` checkout and never wipes the directory, so
+  the new `CNAME` file survives future automated journal publishes
+  untouched — no script logic change needed there.
+
 ## v1.3.0 - 2026-08-12
 
 Added a fully autonomous paper-trading pipeline running on an always-on

@@ -172,7 +172,7 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v1.3.0";
+const VERSION = "v1.3.1";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -585,7 +585,7 @@ export default function Home() {
       <nav>
         <div className="brand"><span>θ</span> ThetaForge <small>PERSONAL TERMINAL · {VERSION}</small></div>
         <div className="nav-right">
-          <a className="terminal-link" href="https://jadax.github.io/ThetaForge/" target="_blank" rel="noreferrer">Public journal ↗</a>
+          <a className="terminal-link" href="https://journal.astraiva.app/" target="_blank" rel="noreferrer">Public journal ↗</a>
           <div className="notif-bell" onClick={() => setShowNotifications(!showNotifications)}>
             🔔{notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
           </div>
