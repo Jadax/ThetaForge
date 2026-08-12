@@ -21,11 +21,12 @@ from agents.trade_engine.recommender import (
     TradeRecommender, MIN_COMPOSITE_SCORE, MIN_IV_RANK_SELL,
     MIN_IV_RANK_BUY, MAX_VIX_SELL, MIN_IRON_CONDOR_CREDIT_TO_WIDTH,
     MIN_CREDIT_SPREAD_CREDIT_TO_WIDTH, MIN_CREDIT_SPREAD_LEG_OI,
-    MIN_SINGLE_LEG_OI,
+    MIN_SINGLE_LEG_OI, MAX_CORRELATED_POSITIONS,
 )
 from agents.flow_analysis.unusual_activity import UnusualActivityDetector
 from agents.trade_engine import alerts as alerts_module
 from agents.trade_engine import signal_tracker as tracker_module
+from agents.trade_engine import recommender as recommender_module
 from agents.trade_engine.alerts import AlertEngine, AlertType
 from agents.trade_engine.signal_tracker import SignalTracker
 
@@ -621,6 +622,85 @@ def test_risk_budget_binds_max_loss_not_capital_outlay():
     # A candidate whose max loss exceeds the budget is rejected.
     too_big = dict(candidate, max_loss=2500)
     assert recommender._select_recommendations([too_big], account, {"net_delta": 0, "net_vega": 0}, 2000) == []
+
+
+def test_correlation_cap_limits_sector_concentration():
+    """No more than MAX_CORRELATED_POSITIONS per sector bucket."""
+    recommender = TradeRecommender()
+    account = AccountInfo(
+        total_equity=100000, buying_power=200000, cash_available=100000,
+        risk_tolerance=RiskTolerance.MODERATE, max_positions=8,
+    )
+    candidates = [
+        {"symbol": symbol, "capital_required": 500, "delta_impact": 0.01,
+         "vega_impact": 0.001, "max_loss": 400,
+         "legs": [{"action": "SELL", "delta": -0.1, "vega": -0.01}]}
+        for symbol in ("AAPL", "MSFT", "NVDA", "AMD", "JPM")
+    ]
+    portfolio = {"net_delta": 0, "net_vega": 0}
+    selected = recommender._select_recommendations(candidates, account, portfolio, 2000)
+
+    # 4 tech names capped at MAX_CORRELATED_POSITIONS; the bank still fits.
+    symbols = [cand["symbol"] for cand in selected]
+    assert len(selected) == MAX_CORRELATED_POSITIONS + 1
+    assert symbols.count("AMD") == 0  # the 4th tech name was refused
+    assert "JPM" in symbols  # unrelated sector not punished
+
+
+def test_correlation_cap_does_not_fabricate_correlations():
+    """Unknown symbols are uncorrelated singletons — never lumped in."""
+    recommender = TradeRecommender()
+    account = AccountInfo(
+        total_equity=100000, buying_power=200000, cash_available=100000,
+        risk_tolerance=RiskTolerance.MODERATE, max_positions=8,
+    )
+    candidates = [
+        {"symbol": symbol, "capital_required": 500, "delta_impact": 0.01,
+         "vega_impact": 0.001, "max_loss": 400,
+         "legs": [{"action": "SELL", "delta": -0.1, "vega": -0.01}]}
+        for symbol in ("ZZZZ", "YYYY", "XXXX")
+    ]
+    portfolio = {"net_delta": 0, "net_vega": 0}
+    selected = recommender._select_recommendations(candidates, account, portfolio, 2000)
+    assert len(selected) == 3
+
+
+# ── empirical outcome gate (realized journal evidence) ─────────────────────
+
+def test_empirical_gate_fails_open_without_evidence(monkeypatch):
+    """A fetch failure (or an empty journal) must never mint a rejection."""
+    def boom(*args, **kwargs):
+        raise OSError("network down")
+    monkeypatch.setattr("httpx.get", boom)
+
+    recommender = TradeRecommender()
+    recommender_module._EMPIRICAL_CACHE["at"] = 0.0
+    recommender_module._EMPIRICAL_CACHE["stats"] = None
+    assert recommender._passes_empirical_gate({"type": "bull_put"}) is True
+
+
+def test_empirical_gate_skips_non_sell_structures():
+    recommender = TradeRecommender()
+    recommender_module._EMPIRICAL_CACHE["at"] = 1000.0
+    recommender_module._EMPIRICAL_CACHE["stats"] = {"win_rate": 10.0, "expectancy": -50.0, "n": 40}
+    # Debit structures are not judged against the short-premium track record.
+    assert recommender._passes_empirical_gate({"type": "call_debit"}) is True
+
+
+def test_empirical_gate_rejects_persistently_losing_strategy():
+    import time
+    recommender = TradeRecommender()
+    recommender_module._EMPIRICAL_CACHE["at"] = time.time()
+    recommender_module._EMPIRICAL_CACHE["stats"] = {"win_rate": 30.0, "expectancy": -12.0, "n": 40}
+    assert recommender._passes_empirical_gate({"type": "iron_condor"}) is False
+
+
+def test_empirical_gate_passes_winning_strategy():
+    import time
+    recommender = TradeRecommender()
+    recommender_module._EMPIRICAL_CACHE["at"] = time.time()
+    recommender_module._EMPIRICAL_CACHE["stats"] = {"win_rate": 75.0, "expectancy": 40.0, "n": 40}
+    assert recommender._passes_empirical_gate({"type": "bull_put"}) is True
 
 
 # ============================================================

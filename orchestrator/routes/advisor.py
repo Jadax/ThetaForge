@@ -35,6 +35,7 @@ from agents.trade_engine.trade_manager import (
     evaluate_position,
     portfolio_plan,
 )
+from agents.trade_engine.macro_calendar import macro_days_until
 
 # Every Advisor route reads or mutates one shared, single-user state set, so
 # authentication is applied at the router rather than per endpoint.
@@ -286,8 +287,13 @@ async def brain_analyze(request: BrainAnalysisRequest):
 
     # Run Brain
     brain_snapshot = {key: value for key, value in snapshot.items() if key != "technical_data"}
+    try:
+        days_to_macro = macro_days_until()
+    except Exception:
+        days_to_macro = None
     output = brain.analyze(
         symbol=symbol,
+        days_to_macro=days_to_macro,
         **brain_snapshot,
     )
 
@@ -684,6 +690,7 @@ class PositionInput(BaseModel):
     dte: Optional[int] = Field(None, ge=0, le=365)
     short_leg_value: Optional[float] = Field(None, ge=0)
     days_to_earnings: Optional[int] = Field(None, ge=0, le=365)
+    days_to_macro: Optional[int] = Field(None, ge=0, le=90)
     capital_required: Optional[float] = Field(None, ge=0)
 
 
@@ -729,8 +736,9 @@ async def positions_management(request: ManagementRequest):
     """Evaluate open short-premium positions against the exit framework.
 
     Applies the trade-management rules — 50% of max credit take-profit,
-    the 21-DTE gamma window, the 2x-credit loss stop, and the pre-earnings
-    exit — plus the portfolio plan (position cap, per-symbol capital slice,
+    the 21-DTE gamma window, the 2x-credit loss stop, the pre-earnings exit,
+    and the pre-macro exit (no short vega through a scheduled FOMC/CPI/NFP
+    print) — plus the portfolio plan (position cap, per-symbol capital slice,
     trailing-drawdown breaker). Missing spots and short-leg values are
     refreshed from free data; anything still unknown is left null so the
     management engine fails open on enrichment, never on safety inputs.
@@ -738,6 +746,14 @@ async def positions_management(request: ManagementRequest):
     This endpoint only *recommends* management actions — order submission
     remains exclusively in the Bridge, so there is no second execution path.
     """
+    # Days until the next scheduled macro print is market-wide, so it is
+    # computed once for every position. None (schedule exhausted or calendar
+    # failure) fails open: no macro exit is minted from missing data.
+    try:
+        days_to_macro = macro_days_until()
+    except Exception:
+        days_to_macro = None
+
     actions = []
     for pos in request.positions:
         spot = pos.spot
@@ -775,10 +791,15 @@ async def positions_management(request: ManagementRequest):
             dte=pos.dte,
             short_leg_value=short_leg_value,
         )
-        result = evaluate_position(open_position, days_to_earnings=days_to_earnings)
+        result = evaluate_position(
+            open_position,
+            days_to_earnings=days_to_earnings,
+            days_to_macro=days_to_macro,
+        )
         result["spot"] = spot
         result["short_leg_value"] = short_leg_value
         result["days_to_earnings"] = days_to_earnings
+        result["days_to_macro"] = days_to_macro
         actions.append(result)
 
     plan = portfolio_plan(

@@ -42,12 +42,13 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | `agents/data_ingestion/cboe_data.py` | Free no-key CBOE delayed quotes: option chains (Greeks+IV), quotes, VIX term structure |
 | `agents/data_ingestion/free_data.py` | Multi-source provider: IBKR > CBOE > Alpaca > yfinance; VIX term structure, contango, earnings date, short interest |
 | `agents/trade_engine/background_scanner.py` | Universe discovery + `_analyze_one` (feeds all vol inputs to Brain); bounded-concurrency scan (`SCAN_CONCURRENCY`) |
-| `agents/trade_engine/ai_brain.py` | Regime, signal aggregation, `iv_signal` (rank/percentile/term-structure/iv_skew/short_interest/earnings_move), strategy selection gates |
-| `agents/trade_engine/recommender.py` | Authoritative candidate scoring and quality gates |
+| `agents/trade_engine/ai_brain.py` | Regime, signal aggregation, `iv_signal` (rank/percentile/term-structure/iv_skew/short_interest/earnings_move), strategy selection gates incl. the `macro_proximity` veto |
+| `agents/trade_engine/macro_calendar.py` | Offline scheduled FOMC/CPI/NFP calendar (`macro_days_until`, `macro_blackout`); 2027 CPI absent by design → missing schedule fails open, never fabricates a veto |
+| `agents/trade_engine/recommender.py` | Authoritative candidate scoring and quality gates; sector correlation cap (`MAX_CORRELATED_POSITIONS` + `SYMBOL_SECTOR`) and empirical outcome gate over published journal trades |
 | `agents/trade_engine/theoretical_edge.py` | Own BS model value vs CBOE mid → `theoretical_edge_pct` on recommendations |
 | `agents/trade_engine/historical_backtest.py` | Empirical win rate/expectancy/drawdown over realized credit-spread outcomes |
 | `agents/trade_engine/high_winrate.py` | Research-backed entry context vetoes (trend alignment, expected-move buffer, DTE band, earnings blackout, relative strength) — pure gates used by both the Brain and Recommender step 4c |
-| `agents/trade_engine/trade_manager.py` | Open-position management rules (50% take-profit, 21-DTE gamma, 2×-credit stop, pre-earnings, tested-strike review) + portfolio plan; recommended via `POST /api/advisor/positions/management`, never an order path |
+| `agents/trade_engine/trade_manager.py` | Open-position management rules (50% take-profit, 21-DTE gamma, 2×-credit stop, pre-earnings, pre-macro, tested-strike review) + portfolio plan; recommended via `POST /api/advisor/positions/management`, never an order path |
 | `agents/volatility/desk_analytics.py` | Desk surfaces from the free chain: IV skew (RR25/BF25), earnings implied-vs-realized move, front-month straddle move |
 | `agents/volatility/iv_history.py` | Daily per-symbol ATM-IV snapshots → IV rank/percentile |
 | `agents/volatility/iv_metrics.py` | `calculate_iv_rank`, `calculate_iv_percentile`, realized vol |

@@ -304,6 +304,7 @@ def test_close_exit_notes_map_all_management_reasons(tmp_path):
         ("close_loss", "Auto-closed at the 2x-credit loss stop."),
         ("close_time", "Auto-closed at the 21-DTE gamma management window."),
         ("close_pre_earnings", "Auto-closed before the earnings event."),
+        ("close_pre_macro", "Auto-closed before the scheduled macro event (FOMC/CPI/NFP)."),
         ("managed_exit", "Closed by the ThetaForge management loop."),
     ]
     for reason, expected in cases:

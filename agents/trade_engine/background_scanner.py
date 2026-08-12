@@ -18,6 +18,7 @@ import httpx
 import pandas_market_calendars as mcal
 
 from agents.data_ingestion.free_data import FreeDataProvider
+from agents.trade_engine.macro_calendar import macro_days_until
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +189,8 @@ def _no_trade_reason_code(strategy: str, reasoning: str) -> str:
         return "low_confidence"
     if "term structure inverted" in reason:
         return "inverted_term_structure"
+    if "macro event" in reason:
+        return "macro_proximity"
     if "extreme" in reason and "vix" in reason:
         return "high_vix"
     if "earnings" in reason:
@@ -544,6 +547,14 @@ class BackgroundBrainScanner:
         except Exception:
             days_to_earnings = None
 
+        # Days until the next scheduled FOMC/CPI/NFP print — market-wide, so
+        # the same value feeds every symbol. None (no known future event) fails
+        # open: the Brain treats it as neutral, never as a veto.
+        try:
+            days_to_macro = macro_days_until()
+        except Exception:
+            days_to_macro = None
+
         # Relative strength vs the market (IBD "L" rule): the symbol's 6-month
         # (126-trading-day) return minus SPY's. Fed to the Brain as a hard veto
         # on directional short premium against clear laggards. Missing data is
@@ -605,6 +616,7 @@ class BackgroundBrainScanner:
                 current_iv=current_iv if current_iv else 0.20,
                 hv_20=hv_20 if hv_20 else 0.18,
                 days_to_earnings=days_to_earnings,
+                days_to_macro=days_to_macro,
                 vix_term_structure=vix_term_structure,
                 expected_move_pct=expected_move_pct,
                 iv_percentile=iv_percentile,
@@ -630,6 +642,7 @@ class BackgroundBrainScanner:
                 "confidence": result.confidence,
                 "vix": vix,
                 "days_to_earnings": days_to_earnings,
+                "macro_days_until": days_to_macro,
                 "iv_rank": (result.iv_signal or {}).get("iv_rank"),
                 "iv_percentile": (result.iv_signal or {}).get("iv_percentile"),
                 "eff_iv_rank": (result.iv_signal or {}).get("eff_iv_rank"),

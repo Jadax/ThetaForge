@@ -1,5 +1,36 @@
 # ThetaForge Changelog
 
+## v1.8.0 - 2026-08-13
+
+Brain hardening: macro-event awareness, correlation concentration, and an
+empirical check that realized outcomes (not just model POP) authorize selling
+premium. All four changes run through the existing gates — no second decision
+or order path.
+
+- New `agents/trade_engine/macro_calendar.py`: offline, free macro calendar
+  (FOMC decision days 2026+2027, CPI 2026, NFP by the standing first-Friday
+  rule). The Brain refuses new positions inside a 4-day blackout before a
+  print (`macro_proximity` reason, tallied by the scanner); the trade manager
+  exits open short vega with a new `close_pre_macro` rule (fired through
+  `POST /api/advisor/positions/management` and auto-submitted by the VM
+  auto-manager; `sync_journal` writes a matching exit note). 2027 CPI is not
+  yet scheduled by BLS and is deliberately absent — missing schedule data
+  fails open, it never fabricates a veto.
+- Recommender correlation cap: `MAX_CORRELATED_POSITIONS` (previously dead
+  code) now binds. A curated `SYMBOL_SECTOR` map over the liquid-options
+  universe limits the book to 3 positions per sector; unknown symbols are
+  uncorrelated singletons, so the cap never assumes a correlation it cannot
+  source.
+- Recommender empirical gate: a short-premium strategy whose realized record on
+  the public journal is losing (win rate < 50% or non-positive expectancy over
+  >= 10 closed trades) is refused even when model POP clears every other gate.
+  TTL-cached, and it fails open below the sample floor and on any fetch error.
+- VIX ceiling aligned: `MAX_VIX_SELL` 35 → 30 so the recommender and the
+  Brain's extreme-VIX veto agree on the same crash-regime line.
+- Docs: `AGENTS.md` module map + changelog. VERSION → v1.8.0.
+- Tests: 261 pass (was 230). New calendar, brain-veto, pre-macro exit,
+  correlation-cap, empirical-gate, and auto-manager tests.
+
 ## v1.7.0 - 2026-08-13
 
 Closed the loop on the exit framework: the management engine can now *execute*

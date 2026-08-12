@@ -15,6 +15,8 @@ Implements the exit framework with the strongest published support
   (in ~90% of cases, holding to expiry would make it worse).
 - **Earnings exit**: a short-premium position held through an earnings print
   is a different, binary trade; close before the event.
+- **Macro exit**: FOMC/CPI/NFP prints are market-wide scheduled vol events; no
+  short vega through the print — close inside the blackout window.
 - **Tested short strike**: a breached strike is where premium sellers lose
   money; if the loss is inside the stop it becomes a flagged review (close or
   roll), otherwise it closes.
@@ -30,6 +32,8 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from agents.trade_engine.macro_calendar import MACRO_BLACKOUT_DAYS
+
 # --- exit thresholds --------------------------------------------------------
 
 # Fraction of max credit captured that triggers a take-profit close.
@@ -40,6 +44,9 @@ MANAGE_DTE = 21
 LOSS_TO_CREDIT_STOP = 2.0
 # Close short premium before an earnings print within this many days.
 EARNINGS_EXIT_DAYS = 7
+# Close short premium before a scheduled FOMC/CPI/NFP print inside the macro
+# blackout window (same window the Brain uses to refuse new entries).
+MACRO_EXIT_DAYS = MACRO_BLACKOUT_DAYS
 # Portfolio rules (r/thetagang + Tastytrade sizing guidance).
 MAX_POSITIONS = 8
 MAX_CAPITAL_SLICE_PCT = 0.30
@@ -93,9 +100,14 @@ def _days_to_earnings(days_to_earnings: Optional[int]) -> bool:
     return days_to_earnings is not None and 0 < days_to_earnings <= EARNINGS_EXIT_DAYS
 
 
+def _days_to_macro(days_to_macro: Optional[int]) -> bool:
+    return days_to_macro is not None and 0 <= days_to_macro <= MACRO_EXIT_DAYS
+
+
 def evaluate_position(
     position: OpenPosition,
     days_to_earnings: Optional[int] = None,
+    days_to_macro: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Decide one action for one open position.
 
@@ -104,8 +116,9 @@ def evaluate_position(
       2. close_time        — inside the 21-DTE gamma window
       3. close_loss        — short leg worth >= 2x the credit
       4. close_pre_earnings— earnings print inside the blackout window
-      5. review_tested     — short strike breached but loss still inside stop
-      6. hold              — nothing fired
+      5. close_pre_macro   — FOMC/CPI/NFP print inside the blackout window
+      6. review_tested     — short strike breached but loss still inside stop
+      7. hold              — nothing fired
     """
     action = "hold"
     reason = "No management trigger fired"
@@ -142,6 +155,13 @@ def evaluate_position(
     elif _days_to_earnings(days_to_earnings):
         action = "close_pre_earnings"
         reason = f"earnings in {days_to_earnings} days — no short premium through the event"
+        urgency = "high"
+    elif _days_to_macro(days_to_macro):
+        action = "close_pre_macro"
+        reason = (
+            f"scheduled macro event in {days_to_macro} day"
+            f"{'s' if days_to_macro != 1 else ''} — no short premium through the print"
+        )
         urgency = "high"
     elif tested:
         action = "review_tested"

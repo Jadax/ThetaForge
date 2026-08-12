@@ -6,6 +6,7 @@ import pytest
 
 from orchestrator.routes import advisor
 from agents.trade_engine.ai_brain import AIBrain, SignalStrength, TimeHorizon
+from agents.trade_engine.macro_calendar import MACRO_BLACKOUT_DAYS
 
 
 class _Tracker:
@@ -56,6 +57,59 @@ async def test_brain_analyze_uses_async_provider_and_all_available_signals(monke
     }
     assert response["cpr_signal"]
     assert response["recommendations_1m"]
+
+
+# ── macro-event blackout ───────────────────────────────────────────────────
+
+def _sellable_brain_inputs(**overrides):
+    args = dict(
+        signal=SignalStrength.BUY,
+        regime="bull",
+        iv_signal={"eff_iv_rank": 70, "term_structure": "contango"},
+        sideways={"is_sideways": False},
+        vix=20.0,
+        days_to_earnings=None,
+        symbol="AAPL",
+        confidence=80,
+        trend="bullish",
+    )
+    args.update(overrides)
+    return args
+
+
+def test_brain_vetoes_new_positions_inside_macro_blackout():
+    brain = AIBrain()
+    result = brain._select_best_strategy(
+        **_sellable_brain_inputs(days_to_macro=2),
+    )
+    assert result["strategy"] == "no_trade"
+    assert result["reason_code"] == "macro_proximity"
+    assert "macro" in result["reasoning"].lower()
+
+
+def test_brain_vetoes_on_the_macro_event_day():
+    brain = AIBrain()
+    result = brain._select_best_strategy(
+        **_sellable_brain_inputs(days_to_macro=0),
+    )
+    assert result["strategy"] == "no_trade"
+    assert result["reason_code"] == "macro_proximity"
+
+
+def test_brain_allows_positions_outside_macro_blackout():
+    brain = AIBrain()
+    result = brain._select_best_strategy(
+        **_sellable_brain_inputs(days_to_macro=MACRO_BLACKOUT_DAYS + 1),
+    )
+    assert result["strategy"] == "bull_put_credit"
+
+
+def test_brain_fails_open_without_macro_schedule():
+    brain = AIBrain()
+    result = brain._select_best_strategy(
+        **_sellable_brain_inputs(days_to_macro=None),
+    )
+    assert result["strategy"] == "bull_put_credit"
 
 
 def test_brain_consumes_desk_analytics_and_emits_new_signals():

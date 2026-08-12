@@ -7,6 +7,7 @@ from agents.trade_engine.trade_manager import (
     MANAGE_DTE,
     LOSS_TO_CREDIT_STOP,
     EARNINGS_EXIT_DAYS,
+    MACRO_EXIT_DAYS,
     MAX_POSITIONS,
     MAX_CAPITAL_SLICE_PCT,
 )
@@ -59,6 +60,33 @@ def test_pre_earnings_exit_for_short_premium():
         days_to_earnings=EARNINGS_EXIT_DAYS,
     )
     assert result["action"] == "close_pre_earnings"
+
+
+def test_pre_macro_exit_for_short_premium():
+    result = evaluate_position(
+        _position(short_leg_value=1.0),
+        days_to_macro=MACRO_EXIT_DAYS,
+    )
+    assert result["action"] == "close_pre_macro"
+    assert result["urgency"] == "high"
+
+
+def test_macro_exit_fires_on_the_event_day():
+    result = evaluate_position(_position(short_leg_value=1.0), days_to_macro=0)
+    assert result["action"] == "close_pre_macro"
+
+
+def test_macro_exit_holds_outside_the_window():
+    result = evaluate_position(
+        _position(short_leg_value=1.0),
+        days_to_macro=MACRO_EXIT_DAYS + 1,
+    )
+    assert result["action"] == "hold"
+
+
+def test_macro_exit_fails_open_without_schedule():
+    result = evaluate_position(_position(short_leg_value=1.0), days_to_macro=None)
+    assert result["action"] == "hold"
 
 
 def test_tested_short_strike_flags_review_when_loss_inside_stop():

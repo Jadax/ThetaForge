@@ -155,3 +155,25 @@ def test_submit_close_ok_and_rejection():
     bad_client = FakeClient([FakeResponse(422, {"detail": "Position not filled"})])
     ok, message = m.submit_close(bad_client, "open-1", "close_time")
     assert not ok and "bridge rejected close" in message and "Position not filled" in message
+
+
+def test_close_pre_macro_is_an_auto_submittable_exit():
+    assert "close_pre_macro" in m.CLOSE_ACTIONS
+    # review_tested stays human-only; it must never become auto-submittable.
+    assert "review_tested" not in m.CLOSE_ACTIONS
+
+
+def test_run_once_auto_submits_close_pre_macro():
+    manager = _load_manager()
+    manager.AUTO_CLOSE_ENABLED = True
+    client = FakeClient([
+        FakeResponse(200, {"market_open": True}),
+        FakeResponse(200, {"capital_reserved": 1500, "orders": [_entry("open-1")]}),
+        FakeResponse(200, {"actions": [{
+            "action": "close_pre_macro", "reason": "macro event in 2 days",
+        }]}),
+        FakeResponse(200, {"status": "Submitted", "cost_to_close": 25.0, "realized_pnl": 275.0}),
+    ])
+    submitted = manager.run_once(client)
+    assert submitted == 1
+    assert any("close-combo" in url for _, url, _ in client.calls)

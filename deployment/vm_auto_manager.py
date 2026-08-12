@@ -10,9 +10,9 @@ Division of responsibility, so no second decision or order path exists:
   * The Advisor's POST /api/advisor/positions/management endpoint is the only
     place exit decisions are made. It refreshes live spot and short-leg mid
     from free data and runs the rule engine (50% take-profit, 21-DTE gamma
-    window, 2x-credit stop, pre-earnings exit, tested-strike review). This
-    script sends it open positions from the Bridge ledger and relays nothing
-    else.
+    window, 2x-credit stop, pre-earnings and pre-macro exits, tested-strike
+    review). This script sends it open positions from the Bridge ledger and
+    relays nothing else.
   * The Bridge's POST /orders/close-combo is the only exit execution path. It
     mirrors the entry's own ledger record, re-verifies live IBKR bid/ask,
     proves structure continuity with a previously-proven defined-risk entry,
@@ -61,7 +61,7 @@ RESERVING_ORDER_STATUSES = {
     "ApiPending", "PendingSubmit", "PreSubmitted", "Submitted",
     "PendingCancel", "Filled", "Unknown",
 }
-CLOSE_ACTIONS = {"close_profit", "close_time", "close_loss", "close_pre_earnings"}
+CLOSE_ACTIONS = {"close_profit", "close_time", "close_loss", "close_pre_earnings", "close_pre_macro"}
 MANAGED_TOKENS = (
     "bull_put", "bear_call", "iron_condor", "cash_secured",
     "covered_call", "strangle", "straddle", "condor",

@@ -196,6 +196,8 @@ def _exit_note(reason: str) -> str:
         return "Auto-closed at the 2x-credit loss stop."
     if "close_pre_earnings" in key or "earnings" in key:
         return "Auto-closed before the earnings event."
+    if "close_pre_macro" in key or "macro" in key:
+        return "Auto-closed before the scheduled macro event (FOMC/CPI/NFP)."
     return "Closed by the ThetaForge management loop."
 
 

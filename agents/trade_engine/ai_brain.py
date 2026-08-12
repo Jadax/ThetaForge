@@ -27,6 +27,7 @@ from agents.trade_engine.high_winrate import (
     relative_strength_ok as hw_relative_strength_ok,
     strategy_bias as hw_strategy_bias,
 )
+from agents.trade_engine import macro_calendar
 
 
 class TimeHorizon(str, Enum):
@@ -218,6 +219,7 @@ class AIBrain:
         flow_data: Dict = None,
         pcr_data: Dict = None,
         days_to_earnings: int = None,
+        days_to_macro: int = None,
         portfolio_context: Dict = None,
         vix_term_structure: Dict = None,
         expected_move_pct: float = None,
@@ -241,6 +243,11 @@ class AIBrain:
         vol_risk_premium: {"vrp": float, "vrp_z": float, "iv_change_5d": float} — the
             symbol's own IV-minus-RV premium and its z-score over the IV-history
             store. Scored refinement of the vol edge, never a standalone gate.
+        days_to_macro: calendar days until the next scheduled FOMC/CPI/NFP print
+            (macro_calendar.macro_days_until(), market-wide, same for every
+            symbol). Inside the blackout window the Brain vetoes new positions
+            entirely — a macro print is the largest scheduled overnight-vol
+            event of its week and is not a symbol-specific risk.
         """
         closes = historical_prices or [stock_price]
         highs = high_prices or [stock_price * 1.01]
@@ -646,6 +653,7 @@ class AIBrain:
             overall_signal, regime, iv_signal, sideways, vix, days_to_earnings,
             symbol=symbol, existing_positions=existing_positions, confidence=avg_confidence,
             trend=trend, relative_strength=relative_strength,
+            days_to_macro=days_to_macro,
         )
         skew_note = self._skew_reasoning(iv_signal)
         if skew_note:
@@ -748,14 +756,15 @@ class AIBrain:
         confidence: float = 0,
         trend: str = "neutral",
         relative_strength: float = None,
+        days_to_macro: Optional[int] = None,
     ) -> Dict[str, str]:
         """Select the best strategy based on all signals + portfolio context.
 
         Gate order is deliberate: the market-wide vetoes (earnings proximity,
-        inverted term structure, extreme VIX) fire before any strategy branch,
-        so a single bad regime input can never mint a trade. The return dict
-        carries a ``reason_code`` so the scanner can tally *why* symbols are
-        paused without parsing prose.
+        macro-event proximity, inverted term structure, extreme VIX) fire
+        before any strategy branch, so a single bad regime input can never mint
+        a trade. The return dict carries a ``reason_code`` so the scanner can
+        tally *why* symbols are paused without parsing prose.
 
         Trend alignment (IBD "trade with the market") and relative strength
         ("L" = leaders only) are hard vetoes on the *directional* branches:
@@ -789,6 +798,29 @@ class AIBrain:
                 "strategy": "avoid_new_positions",
                 "reason_code": "earnings_proximity",
                 "reasoning": f"Earnings in {days_to_earnings} days → too close, avoid new positions",
+            }
+
+        # Scheduled macro print (FOMC/CPI/NFP) inside the blackout window — the
+        # largest scheduled overnight-vol event of its week. Unlike earnings,
+        # this is market-wide: every symbol carries the same print risk, so the
+        # veto fires before any strategy branch. None (unknown schedule) fails
+        # open — a missing calendar never mints a veto.
+        if days_to_macro is not None and 0 <= days_to_macro <= macro_calendar.MACRO_BLACKOUT_DAYS:
+            macro_label = "scheduled macro event"
+            try:
+                event = macro_calendar.next_macro_event()
+                if event:
+                    macro_label = event["label"]
+            except Exception:
+                macro_label = macro_label
+            return {
+                "strategy": "no_trade",
+                "reason_code": "macro_proximity",
+                "reasoning": (
+                    f"Macro event ({macro_label}) in {days_to_macro} day"
+                    f"{'s' if days_to_macro != 1 else ''} → no new positions "
+                    "through the print"
+                ),
             }
 
         # Inverted VIX term structure = front-month fear. Selling premium into

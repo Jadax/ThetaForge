@@ -40,7 +40,44 @@ MAX_RISK_PCT = {
 }
 MAX_PORTFOLIO_DELTA = 20
 MAX_PORTFOLIO_VEGA = 5.0
+# Concentration cap: no more than this many selected positions may share one
+# sector bucket (see SYMBOL_SECTOR). Correlated names trade together, so the
+# cap keeps a single macro/sector shock from hitting the whole book at once.
 MAX_CORRELATED_POSITIONS = 3
+# Broad sector buckets for the correlation cap (no paid data — a curated
+# static map over the liquid-options universe). Symbols absent from the map
+# are treated as their own uncorrelated singleton, so an unknown name is never
+# silently lumped into a sector it may not belong to.
+SYMBOL_SECTOR = {
+    # Mega-cap tech / software / semis
+    "AAPL": "tech", "MSFT": "tech", "NVDA": "tech", "AMD": "tech", "INTC": "tech",
+    "QCOM": "tech", "CSCO": "tech", "ORCL": "tech", "ADBE": "tech", "CRM": "tech",
+    "META": "tech", "GOOGL": "tech", "NFLX": "tech", "AVGO": "tech", "PLTR": "tech",
+    "SMCI": "tech", "XLK": "tech",
+    # Banks / financials
+    "JPM": "banks", "BAC": "banks", "WFC": "banks", "GS": "banks", "MS": "banks",
+    "XLF": "financials",
+    # Payments / fintech / crypto
+    "V": "payments", "MA": "payments", "AXP": "payments",
+    "COIN": "crypto", "HOOD": "brokers",
+    # Healthcare / pharma / biotech
+    "LLY": "healthcare", "UNH": "healthcare", "JNJ": "healthcare", "MRK": "healthcare",
+    "ABBV": "healthcare", "PFE": "healthcare", "AMGN": "healthcare", "TMO": "healthcare",
+    "ISRG": "healthcare", "XLV": "healthcare",
+    # Energy
+    "XOM": "energy", "CVX": "energy", "OXY": "energy", "SLB": "energy", "XLE": "energy",
+    # Industrials / defense / aero
+    "CAT": "industrials", "DE": "industrials", "GE": "industrials", "BA": "industrials",
+    "LMT": "industrials", "XLI": "industrials",
+    # Consumer (discretionary + staples) / retail / autos / media
+    "TSLA": "consumer", "AMZN": "consumer", "NKE": "consumer", "COST": "consumer",
+    "WMT": "consumer", "HD": "consumer", "MCD": "consumer", "SBUX": "consumer",
+    "DIS": "consumer", "UBER": "consumer", "XLY": "consumer", "XLP": "consumer",
+    # Broad index / macro ETFs
+    "SPY": "broad_index", "QQQ": "broad_index", "IWM": "broad_index", "DIA": "broad_index",
+    # Remaining sector ETFs
+    "XLC": "communications", "XLU": "utilities", "XLB": "materials",
+}
 # A candidate must demonstrate strong agreement across the strategy scorer's
 # inputs before it is eligible for the dashboard. Ranking alone is never enough.
 MIN_COMPOSITE_SCORE = 75.0
@@ -61,7 +98,10 @@ MIN_CREDIT_SPREAD_LEG_OI = 250
 # to every scored candidate so no structure slips through on rank alone.
 MIN_IV_RANK_SELL = 30
 MIN_IV_RANK_BUY = 25
-MAX_VIX_SELL = 35
+# VIX ceiling for selling premium. Aligned with the Brain's extreme-VIX veto
+# (ai_brain._select_best_strategy returns no_trade above 30), so the Brain and
+# the recommender agree on the same crash-regime line.
+MAX_VIX_SELL = 30
 # An iron condor collecting less than a third of its wing width is a
 # lottery-ticket structure with a huge max-loss tail — not a core book trade.
 MIN_IRON_CONDOR_CREDIT_TO_WIDTH = 0.33
@@ -76,6 +116,23 @@ MIN_SPREAD_CREDIT = 0.15
 # execution-quality floor complements (rather than replaces) the commission
 # floor above.
 MIN_CREDIT_SPREAD_CREDIT_TO_WIDTH = 0.25
+
+# ── Empirical outcome gate ─────────────────────────────────────────────────
+# Model POP is a probability; realized outcomes are the ground truth. The gate
+# reads the published journal (the single source of truth — only actually
+# placed paper trades) and refuses a short-premium strategy whose realized
+# record is persistently losing. Too few samples or any fetch failure fail
+# open — the gate never mints a rejection from unavailable data, and a cached
+# TTL keeps the scan path off the network except on first use.
+EMPIRICAL_JOURNAL_URL = "https://journal.astraiva.app/trades.json"
+MIN_EMPIRICAL_SAMPLES = 10
+MIN_EMPIRICAL_WIN_RATE = 50.0
+EMPIRICAL_CACHE_TTL_SECONDS = 6 * 3600
+_EMPIRICAL_CACHE: Dict[str, Any] = {"at": 0.0, "stats": None}
+_EMPIRICAL_SELL_STRATEGIES = (
+    "bull_put", "bear_call", "iron_condor", "cash_secured",
+    "covered_call", "strangle", "straddle", "condor",
+)
 
 
 class TradeRecommender:
@@ -174,6 +231,16 @@ class TradeRecommender:
         all_candidates = [
             candidate for candidate in all_candidates
             if self._passes_high_winrate_gate(candidate)
+        ]
+
+        # Step 4d: Empirical outcome gate — model POP is a probability, not a
+        # track record. A short-premium strategy that is *actually losing* on
+        # the paper journal is refused here even when its expiry POP clears
+        # every model gate. Fails open below MIN_EMPIRICAL_SAMPLES and on any
+        # fetch failure, so it can never fabricate a rejection.
+        all_candidates = [
+            candidate for candidate in all_candidates
+            if self._passes_empirical_gate(candidate)
         ]
 
         # Step 5: Rank all candidates
@@ -526,6 +593,68 @@ class TradeRecommender:
             if not ok:
                 return False
         return True
+
+    def _passes_empirical_gate(self, candidate: Dict[str, Any]) -> bool:
+        """Refuse short-premium strategies whose *realized* record is losing.
+
+        Model probability of profit is not the same thing as a win rate; this
+        gate checks the journal of actually-placed paper trades. It fails open
+        below MIN_EMPIRICAL_SAMPLES and on any fetch error, so a new or
+        unverifiable book never gets a fabricated rejection — the gate only
+        acts when there is real evidence of a losing strategy.
+        """
+        strategy = candidate.get("type")
+        key = (strategy or "").lower()
+        if not any(token in key for token in _EMPIRICAL_SELL_STRATEGIES):
+            return True
+        stats = self._realized_outcome_stats()
+        if stats is None:
+            return True
+        if stats["win_rate"] < MIN_EMPIRICAL_WIN_RATE or stats["expectancy"] <= 0:
+            return False
+        return True
+
+    def _realized_outcome_stats(self) -> Optional[Dict]:
+        """Summarized P&L over closed short-premium trades in the journal.
+
+        TTL-cached; None means "insufficient or unavailable evidence" and
+        callers must fail open. The journal is regenerated from the paper
+        ledger by scripts/sync_journal.py, so these are only real outcomes.
+        """
+        import time as _time
+
+        cached_age = _time.time() - float(_EMPIRICAL_CACHE.get("at", 0.0))
+        if cached_age < EMPIRICAL_CACHE_TTL_SECONDS and _EMPIRICAL_CACHE.get("stats"):
+            return _EMPIRICAL_CACHE["stats"]
+
+        stats = None
+        try:
+            import httpx
+            response = httpx.get(EMPIRICAL_JOURNAL_URL, timeout=10)
+            response.raise_for_status()
+            journal = response.json()
+            trades = journal.get("trades", []) if isinstance(journal, dict) else []
+            pnls = []
+            for trade in trades:
+                if str(trade.get("status", "")) != "closed":
+                    continue
+                strat_key = str(trade.get("strategy", "")).lower()
+                if not any(token in strat_key for token in _EMPIRICAL_SELL_STRATEGIES):
+                    continue
+                try:
+                    pnl = float(trade.get("net_pnl", 0) or 0)
+                except (TypeError, ValueError):
+                    continue
+                pnls.append(pnl)
+            if len(pnls) >= MIN_EMPIRICAL_SAMPLES:
+                from agents.trade_engine.historical_backtest import summarize_outcomes
+                stats = summarize_outcomes(pnls)
+        except Exception:
+            stats = None
+
+        _EMPIRICAL_CACHE["at"] = _time.time()
+        _EMPIRICAL_CACHE["stats"] = stats
+        return stats
 
     def _structure_expected_value(self, candidate: Dict[str, Any], roi_data: Dict[str, Any]) -> float:
         """Option Alpha-style expected value over three outcome zones.
@@ -1096,6 +1225,7 @@ class TradeRecommender:
         current_delta = portfolio_greeks.get("net_delta", 0)
         current_vega = portfolio_greeks.get("net_vega", 0)
         selected_symbols = set()
+        selected_sector_counts: Dict[str, int] = {}
 
         for cand in ranked:
             if len(selected) >= account.max_positions:
@@ -1106,6 +1236,15 @@ class TradeRecommender:
             # passes the identical capital, score, liquidity, and Greeks
             # requirements below.
             if diversify_underlyings and cand.get("symbol", "").upper() in selected_symbols:
+                continue
+
+            # Correlation cap: never concentrate more than
+            # MAX_CORRELATED_POSITIONS in one sector bucket. Unknown symbols
+            # are their own singleton bucket, so the cap never assumes a
+            # correlation it cannot source.
+            symbol_upper = cand.get("symbol", "").upper()
+            sector = SYMBOL_SECTOR.get(symbol_upper, symbol_upper)
+            if selected_sector_counts.get(sector, 0) >= MAX_CORRELATED_POSITIONS:
                 continue
 
             capital_needed = cand.get("capital_required", 0)
@@ -1146,6 +1285,7 @@ class TradeRecommender:
 
             selected.append(cand)
             selected_symbols.add(cand.get("symbol", "").upper())
+            selected_sector_counts[sector] = selected_sector_counts.get(sector, 0) + 1
             remaining_capital -= capital_needed
             remaining_risk -= max_loss
             current_delta += est_delta
