@@ -132,6 +132,14 @@ def _bs_greeks(is_call: bool, spot: float, strike: float, t: float, r: float, iv
     return {"delta": delta, "gamma": gamma, "theta": theta, "vega": vega}
 
 ib: IB | None = None
+# All requests share one IB connection, and IBKR's message-pacing limit is
+# per-connection, not per-request. Without this, concurrent requests (the
+# live scanner fans out several symbols at once) each fire their own burst
+# of reqMktData calls on the same connection simultaneously, blowing well
+# past the pacing limit and getting the whole burst rejected with Error
+# 10091 across every in-flight request -- this was mistaken for account/
+# entitlement flakiness before the concurrency was the actual cause.
+_chain_lock = asyncio.Lock()
 
 
 @asynccontextmanager
@@ -183,9 +191,18 @@ async def health():
 @app.get("/option-chain/{symbol}")
 async def option_chain(symbol: str, _: None = Depends(require_token)):
     try:
-        return await asyncio.wait_for(_fetch_option_chain(symbol), timeout=REQUEST_TIMEOUT_SECONDS)
+        # The timeout has to cover time spent waiting for the lock too, not
+        # just the fetch itself -- otherwise a request stuck behind several
+        # others in the queue could wait far longer than REQUEST_TIMEOUT_SECONDS
+        # before its own clock even starts.
+        return await asyncio.wait_for(_locked_fetch_option_chain(symbol), timeout=REQUEST_TIMEOUT_SECONDS)
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail=f"Timed out fetching chain for {symbol.upper()}")
+
+
+async def _locked_fetch_option_chain(symbol: str) -> list[dict[str, Any]]:
+    async with _chain_lock:
+        return await _fetch_option_chain(symbol)
 
 
 async def _fetch_option_chain(symbol: str) -> list[dict[str, Any]]:
@@ -199,25 +216,29 @@ async def _fetch_option_chain(symbol: str) -> list[dict[str, Any]]:
         raise HTTPException(status_code=422, detail=f"Could not qualify {symbol}")
     stock = qualified[0]
 
-    # Try live data first (type 1); this paper account has no live-data
-    # subscription for most symbols, so this deliberately falls back to
-    # IBKR's free delayed feed (type 3) rather than failing outright --
-    # delayed-but-from-our-own-dedicated-connection is still a real upgrade
-    # over CBOE's public endpoint, which Render's IP gets rate-limited on
-    # under load (see SCAN_CONCURRENCY's comment in background_scanner.py).
+    # Snapshot requests (one update, auto-closes) instead of a streaming
+    # subscription you have to babysit and cancel -- this is the pattern
+    # IBKR itself recommends for "poll the current price and move on"
+    # use cases, and streaming tickers here were intermittently never
+    # populating even in isolated single-request tests, for reasons that
+    # never showed up as a clean error. Try live data first (type 1); this
+    # paper account has no live-data subscription for most symbols, so this
+    # deliberately falls back to IBKR's free delayed feed (type 3) rather
+    # than failing outright -- delayed-but-from-our-own-dedicated-connection
+    # is still a real upgrade over CBOE's public endpoint, which Render's IP
+    # gets rate-limited on under load (see SCAN_CONCURRENCY's comment in
+    # background_scanner.py).
     data_quality = "live"
     ib.reqMarketDataType(1)
-    ticker = ib.reqMktData(stock, "", False, False)
-    await asyncio.sleep(3.0)
+    ticker = ib.reqMktData(stock, "", True, False)
+    await asyncio.sleep(2.0)
     spot = ticker.marketPrice()
-    ib.cancelMktData(stock)
     if not spot or not math.isfinite(spot) or spot <= 0:
         data_quality = "delayed"
         ib.reqMarketDataType(3)
-        ticker = ib.reqMktData(stock, "", False, False)
-        await asyncio.sleep(3.0)
+        ticker = ib.reqMktData(stock, "", True, False)
+        await asyncio.sleep(2.0)
         spot = ticker.marketPrice()
-        ib.cancelMktData(stock)
     if not spot or not math.isfinite(spot) or spot <= 0:
         raise HTTPException(status_code=422, detail=f"No live or delayed price available for {symbol}")
 
@@ -255,7 +276,7 @@ async def _fetch_option_chain(symbol: str) -> list[dict[str, Any]]:
     if not qualified_contracts:
         raise HTTPException(status_code=422, detail=f"No option contracts qualified for {symbol}")
 
-    tickers = [ib.reqMktData(c, "", False, False) for c in qualified_contracts]
+    tickers = [ib.reqMktData(c, "", True, False) for c in qualified_contracts]
     await asyncio.sleep(QUOTE_WAIT_SECONDS)
 
     result: list[dict[str, Any]] = []
@@ -299,8 +320,5 @@ async def _fetch_option_chain(symbol: str) -> list[dict[str, Any]]:
             "vega": _finite(greeks["vega"] if greeks else None),
             "rho": 0.0,
         })
-
-    for c in qualified_contracts:
-        ib.cancelMktData(c)
 
     return result
