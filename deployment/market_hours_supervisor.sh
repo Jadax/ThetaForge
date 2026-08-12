@@ -1,9 +1,10 @@
 #!/bin/bash
-# Starts ibgateway -> thetaforge-bridge -> thetaforge-auto-executor when the
-# market opens, and stops them in reverse order when it closes. Run
-# frequently (every 5 minutes, via the paired systemd timer) rather than
-# relying on exact-time triggers, so this is correct regardless of the VM's
-# local timezone/DST setting and self-heals after any missed tick.
+# Starts ibgateway -> thetaforge-bridge -> thetaforge-auto-executor ->
+# thetaforge-auto-manager when the market opens, and stops them in reverse
+# order when it closes. Run frequently (every 5 minutes, via the paired
+# systemd timer) rather than relying on exact-time triggers, so this is
+# correct regardless of the VM's local timezone/DST setting and self-heals
+# after any missed tick.
 #
 # Deliberately consults the Advisor's own /api/advisor/scanner/status
 # market_open flag (real NYSE calendar, holidays and half-days included --
@@ -33,7 +34,7 @@ is_active() {
 # run over SSH as the ubuntu user.
 if market_open; then
     if ! is_active thetaforge-auto-executor.service; then
-        logger -t "$LOG_TAG" "market open -- starting ibgateway, bridge, auto-executor"
+        logger -t "$LOG_TAG" "market open -- starting ibgateway, bridge, auto-executor, auto-manager"
         systemctl start ibgateway.service
         # IB Gateway + IBC's login flow takes real time (Java startup, IBC's
         # automated dialog handling, IBKR auth). Starting the Bridge before
@@ -44,11 +45,13 @@ if market_open; then
         systemctl start thetaforge-bridge.service
         sleep 5
         systemctl start thetaforge-auto-executor.service
+        systemctl start thetaforge-auto-manager.service
     fi
 else
-    if is_active thetaforge-auto-executor.service || is_active thetaforge-bridge.service || is_active ibgateway.service; then
-        logger -t "$LOG_TAG" "market closed -- stopping auto-executor, bridge, ibgateway"
+    if is_active thetaforge-auto-executor.service || is_active thetaforge-auto-manager.service || is_active thetaforge-bridge.service || is_active ibgateway.service; then
+        logger -t "$LOG_TAG" "market closed -- stopping auto-executor, auto-manager, bridge, ibgateway"
         systemctl stop thetaforge-auto-executor.service
+        systemctl stop thetaforge-auto-manager.service
         systemctl stop thetaforge-bridge.service
         systemctl stop ibgateway.service
     fi
