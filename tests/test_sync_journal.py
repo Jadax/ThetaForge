@@ -76,7 +76,7 @@ def test_rebuilds_from_ledger(tmp_path):
         {"action": "BUY", "type": "PUT", "strike": 580.0,
          "expiry": "2026-08-21", "dte": 20},
     ]
-    assert "TWS" in trade["reason"]
+    assert "paper account" in trade["reason"]
     assert trade["source"] == "ledger"
     assert trade["ledger_ref"] == "rec-1"
     assert trade["order"]["status"] == "Filled"

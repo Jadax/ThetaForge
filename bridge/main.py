@@ -529,7 +529,7 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
         "capital_reserved": round(capital_reserved + total_risk, 2),
         "capital_remaining": round(order.capital_limit - capital_reserved - total_risk, 2),
         "quantity": order.quantity,
-        "message": "Paper combo submitted to TWS",
+        "message": "Paper combo submitted to IBKR Gateway",
     }
 
 
@@ -700,5 +700,5 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
         "quantity": quantity,
         "capital_reserved": round(reserved, 2),
         "capital_remaining": round(max(request.capital_limit - reserved, 0), 2),
-        "message": "Paper closing order submitted to TWS",
+        "message": "Paper closing order submitted to IBKR Gateway",
     }

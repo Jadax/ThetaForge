@@ -118,7 +118,7 @@ trade to fill a dashboard card, and it cannot promise profitable outcomes.
 | `deployment/cloudflare_deploy_terminal.ps1` | Builds and deploys the private terminal to Cloudflare Pages. |
 | `journal/` | Public trade journal (static site on Pages; client-computed metrics). |
 | `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger. |
-| `scripts/add_trade.py` | Journal narrative input; `--from-ledger` attaches to a TWS-placed trade. |
+| `scripts/add_trade.py` | Journal narrative input; `--from-ledger` attaches to a ledger-placed trade. |
 | `tests/` | Backend regression suite. |
 | `docs/SIGNAL_POLICY.md` | Provenance of the free feeds and volatility gates — read before removing anything that looks unused. |
 | `docs/HOSTED_TERMINAL.md` | Cloudflare Pages + Access setup for reaching the terminal from any computer. |

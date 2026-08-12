@@ -2,8 +2,8 @@
 """Regenerate the public journal from the TWS paper-order ledger.
 
 The public journal (journal/trades.json) only ever shows trades that were
-recommended by ThetaForge and placed on TWS — i.e. records in the paper-order
-ledger (data/paper_order_ledger.json). This script:
+recommended by ThetaForge and placed on the paper account — i.e. records in the
+paper-order ledger (data/paper_order_ledger.json). This script:
 
   * builds a fresh entry for every ledger record (requiring a
     recommendation_id, and excluding cancelled/never-executed orders),
@@ -158,10 +158,10 @@ def build_entry(record: dict, overlay: dict) -> dict:
         "net_pnl_pct": 0.0,
         "management_plan": _default_management_plan(strategy),
         "reason": f"{strategy.replace('_', ' ').title()} on {symbol} — "
-                  f"placed on TWS from the ThetaForge recommendation.",
+                  f"placed on the paper account from the ThetaForge recommendation.",
         "research": [],
         "tags": [],
-        "exit_note": "Open — monitoring the position in the TWS terminal.",
+        "exit_note": "Open — monitoring the position.",
         "timestamp": record.get("updated_at") or submitted_at,
     }
     for key in ("entry_ivr", "expected_move_pct", "dte_at_entry", "net_pnl",

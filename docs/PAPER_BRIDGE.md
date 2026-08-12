@@ -1,5 +1,12 @@
 # Remote Paper Bridge
 
+> **Operational setup (current):** the Bridge now runs on the always-on Oracle
+> Cloud VM beside a headless IB Gateway, and orders are placed autonomously by
+> `deployment/vm_auto_executor.py` / `vm_auto_manager.py` with no desktop TWS
+> at all — see `docs/AUTONOMOUS_TRADING.md`. This page documents the original
+> local-laptop setup and is kept only as the fallback/reference for running
+> the Bridge beside a desktop session.
+
 The IBKR Bridge is deliberately **not** a Render service. It must run on the
 computer where TWS or IB Gateway is running, because it connects to that local
 IBKR session.

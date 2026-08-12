@@ -83,14 +83,17 @@ trades.json) hosted on GitHub Pages at
 `https://journal.astraiva.app/` — the ONLY public surface. The private
 dashboard/terminal is NOT deployed to Pages; it runs locally and stays
 token-gated. The journal shows only trades that the project recommended AND
-that were placed on the TWS terminal, sourced from the paper-order ledger.
+that were actually placed on the paper account — sourced from the paper-order
+ledger, which only the Bridge writes (the always-on auto-trader on the Oracle
+VM submits entries and exits through the Bridge; there is no manual TWS
+workflow in the current setup).
 
 - **Single source of truth:** `scripts/sync_journal.py` regenerates
   `journal/trades.json` from `data/paper_order_ledger.json`. Every entry needs
   a `recommendation_id` (a ThetaForge recommendation) and a live order status;
   cancelled/never-executed orders and anything without a recommendation are
   dropped. No fabricated or seeded entries survive a sync — if it wasn't placed
-  on TWS, it cannot appear.
+  on the paper account, it cannot appear.
 - **Narrative is preserved by `source_id`:** `scripts/add_trade.py --from-ledger
   <id>` attaches the thesis, exit note, tags, P&L, and close date to a ledger
   trade; the next sync carries that narrative forward. Entries without a
@@ -103,9 +106,9 @@ that were placed on the TWS terminal, sourced from the paper-order ledger.
   receipt — the AfterHour/TradingView trust pattern.
 - **Exits are lifecycle events, not new trades:** closing orders in the ledger
   carry a `close_of` id and `scripts/sync_journal.py` folds them into the
-  parent entry as a `closed` status with the exit receipt (`close_order`),
+  parent entry as a `closed`   status with the exit receipt (`close_order`),
   auto-written exit note, and realized P&L — they never appear as phantom new
-  "open" entries. Every TWS-placed close therefore shows up on the parent
+  "open" entries. Every auto-placed close therefore shows up on the parent
   trade, and `entries_from_ledger` counts both sides so the verification SHA
   covers the exits too.
 - Do not put the terminal back on Pages. The dashboard exposes order and

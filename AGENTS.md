@@ -18,12 +18,14 @@ before touching anything volatility-, CBOE-, or scanner-related — several
 ```
 Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
   -> Advisor (Render FastAPI free tier, orchestrator/main.py, 5-min background scan)
-     -> Paper Bridge (bridge/main.py) -> Paper TWS/IB Gateway
-        Bridge + Gateway run on an always-on Oracle Cloud VM, not locally --
-        see docs/AUTONOMOUS_TRADING.md. A headless auto-executor on that same
-        VM (deployment/vm_auto_executor.py) autonomously submits qualifying
-        paper orders through the Bridge; a market-hours supervisor starts
-        and stops the whole stack around the real NYSE session.
+     -> Paper Bridge (bridge/main.py) -> IB Gateway (TWS API)
+        The Bridge is OUR localhost FastAPI service — it is NOT TWS, and it is
+        never exposed publicly. It connects only to the headless IB Gateway
+        daemon running on the same always-on Oracle Cloud VM (the broker
+        session; desktop TWS is not used). A headless auto-executor on that VM
+        (deployment/vm_auto_executor.py) autonomously submits qualifying paper
+        orders through the Bridge; a market-hours supervisor starts and stops
+        the whole stack around the real NYSE session.
 ```
 
 - `agents/trade_engine/` is the authoritative recommendation path.
@@ -58,9 +60,9 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | `deployment/vm_auto_manager.py` | Autonomous paper position manager (exits) — asks the Advisor for management decisions, submits closes via the Bridge, advisory-only unless `AUTO_CLOSE_ENABLED=true`; `review_tested` is never auto-submitted |
 | `deployment/market_hours_supervisor.sh` | Starts/stops Gateway+Bridge+executors on the VM around real market hours |
 | `deployment/journal_sync_push.sh` | Auto-publishes the journal from the VM's ledger after an autonomous fill or close |
-| `journal/` | Public trade journal — static site served at `https://journal.astraiva.app/` (custom domain on the `gh-pages` branch, `CNAME` file); only entries placed on TWS from the paper-order ledger |
+| `journal/` | Public trade journal — static site served at `https://journal.astraiva.app/` (custom domain on the `gh-pages` branch, `CNAME` file); only entries actually placed on the paper account from the paper-order ledger |
 | `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger (single source of truth); folds closing orders (`close_of`) into their parent entry as a `closed` status with exit receipt + realized P&L |
-| `scripts/add_trade.py` | Journal narrative input CLI; `--from-ledger` attaches to a TWS-placed trade |
+| `scripts/add_trade.py` | Journal narrative input CLI; `--from-ledger` attaches to a ledger-placed trade |
 | `scripts/journal_common.py` | Shared ledger→journal leg mapping used by `add_trade.py` and `sync_journal.py` |
 | `scripts/recap.py` | Weekly/monthly recap export from `journal/trades.json` |
 | `journal/learn/` | Static free-education playbook (IV rank, expected move, POP) |
