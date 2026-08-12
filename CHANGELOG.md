@@ -1,5 +1,22 @@
 # ThetaForge Changelog
 
+## v1.2.4 - 2026-08-12
+
+Found live, via Render's logs, not guessed: `SCAN_CONCURRENCY = 20` (added in
+v1.2.2) was overwhelming CBOE's rate limit specifically from Render's
+outbound IP -- nearly every request during a scan came back `429 Too Many
+Requests`, and the resulting burst appears to have starved the app's ability
+to serve other concurrent `/api/advisor/*` requests for the duration of each
+scan (`/health/`, which makes no CBOE calls, kept responding throughout).
+The same measurement from a residential IP hit zero 429s, confirming this is
+IP-specific and not reproducible locally.
+
+- Lowered `SCAN_CONCURRENCY` from 20 to 5.
+- `get_option_chain` already falls back to yfinance on CBOE failure (no
+  change needed there) -- the fix is entirely about not bursting past
+  Render's effective rate limit in the first place.
+- All 155 tests still pass; this only changes a constant.
+
 ## v1.2.3 - 2026-08-12
 
 Replaced `is_market_hours()`'s hand-rolled weekday + 9:30-16:00 ET check with

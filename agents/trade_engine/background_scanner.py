@@ -32,13 +32,17 @@ SCAN_STATE_FILE = os.path.join(DATA_DIR, "brain_scan_state.json")
 NOTIFICATION_SCORE_FLOOR = 75
 NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
 
-# Bounded fan-out for per-symbol analysis in scan_once(). Measured against
-# live free data sources: ~130 symbols at concurrency=20 completes in ~2
-# minutes with no increase in skipped/failed symbols vs lower concurrency.
-# This number is load-bearing for hosting cost on a request-billed platform
-# (see docs/HANDOVER.md -> Deployment Requirements) — re-measure before
-# lowering it.
-SCAN_CONCURRENCY = 20
+# Bounded fan-out for per-symbol analysis in scan_once(). This is a rate-limit
+# tradeoff, not just a speed one: at concurrency=20, Render's outbound IP got
+# CBOE-429'd on almost every request during a live scan (confirmed via
+# Render's logs), and the resulting burst of failed requests appears to have
+# starved the app's ability to serve other concurrent API calls at the same
+# time -- other /api/advisor/* routes returned 502 for the duration of the
+# scan while /health/ (no CBOE calls) kept responding. The same test run from
+# a residential IP hit zero 429s, so this is specific to Render's IP, not a
+# universal CBOE limit -- re-verify against Render's actual logs after
+# changing this, a local measurement will not reproduce the failure.
+SCAN_CONCURRENCY = 5
 
 _EASTERN = ZoneInfo("America/New_York")
 _NYSE_CALENDAR = mcal.get_calendar("NYSE")
