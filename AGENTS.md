@@ -51,14 +51,15 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | `agents/volatility/iv_metrics.py` | `calculate_iv_rank`, `calculate_iv_percentile`, realized vol |
 | `agents/volatility/flow_metrics.py` | Free-data RV bands, unusual volume, OI divergence, OI center-of-mass, IV mover |
 | `orchestrator/routes/advisor.py` | Authenticated dashboard API |
-| `bridge/main.py` | Paper-only IBKR order checks and submission |
+| `bridge/main.py` | Paper-only IBKR order checks and submission: `POST /orders/submit-combo` (entries) and `POST /orders/close-combo` (exits — mirrors the parent's own ledger record, re-verifies live quotes, never reserves new capital) |
 | `dashboard/app/page.tsx` | Private terminal — local, or hosted on Cloudflare Pages behind Cloudflare Access (never on the public journal's GitHub Pages) |
 | `deployment/cloudflare_deploy_terminal.ps1` | Builds and deploys the private terminal to Cloudflare Pages |
-| `deployment/vm_auto_executor.py` | Autonomous paper-order executor, runs on the Oracle VM beside the Bridge |
-| `deployment/market_hours_supervisor.sh` | Starts/stops Gateway+Bridge+executor on the VM around real market hours |
-| `deployment/journal_sync_push.sh` | Auto-publishes the journal from the VM's ledger after an autonomous fill |
+| `deployment/vm_auto_executor.py` | Autonomous paper-order executor (entries), runs on the Oracle VM beside the Bridge |
+| `deployment/vm_auto_manager.py` | Autonomous paper position manager (exits) — asks the Advisor for management decisions, submits closes via the Bridge, advisory-only unless `AUTO_CLOSE_ENABLED=true`; `review_tested` is never auto-submitted |
+| `deployment/market_hours_supervisor.sh` | Starts/stops Gateway+Bridge+executors on the VM around real market hours |
+| `deployment/journal_sync_push.sh` | Auto-publishes the journal from the VM's ledger after an autonomous fill or close |
 | `journal/` | Public trade journal — static site served at `https://journal.astraiva.app/` (custom domain on the `gh-pages` branch, `CNAME` file); only entries placed on TWS from the paper-order ledger |
-| `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger (single source of truth) |
+| `scripts/sync_journal.py` | Regenerates `journal/trades.json` from the paper-order ledger (single source of truth); folds closing orders (`close_of`) into their parent entry as a `closed` status with exit receipt + realized P&L |
 | `scripts/add_trade.py` | Journal narrative input CLI; `--from-ledger` attaches to a TWS-placed trade |
 | `scripts/journal_common.py` | Shared ledger→journal leg mapping used by `add_trade.py` and `sync_journal.py` |
 | `scripts/recap.py` | Weekly/monthly recap export from `journal/trades.json` |

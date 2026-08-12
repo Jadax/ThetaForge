@@ -49,7 +49,7 @@ async def lifespan(_: FastAPI):
         ib = None
 
 
-app = FastAPI(title="ThetaForge Local IBKR Bridge", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="ThetaForge Local IBKR Bridge", version="0.3.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://jadax.github.io"],
@@ -96,6 +96,18 @@ class PaperComboOrder(BaseModel):
     strategy: str | None = Field(default=None, max_length=80)
 
 
+class CloseComboRequest(BaseModel):
+    """Close an open paper position by referencing its entry ledger id.
+
+    The Bridge mirrors the parent record's own legs (reversing each action), so
+    a caller can never mismatch the structure. No new capital is reserved for a
+    close; the parent's reservation is released once the close order is placed.
+    """
+    ledger_id: str = Field(min_length=1, max_length=80)
+    reason: str = Field(default="managed_exit", min_length=1, max_length=80)
+    capital_limit: float = Field(gt=0)
+
+
 RESERVING_ORDER_STATUSES = {
     "ApiPending", "PendingSubmit", "PreSubmitted", "Submitted",
     "PendingCancel", "Filled", "Unknown",
@@ -140,6 +152,8 @@ def _reserved_capital(records: list[dict[str, Any]], week_key: str | None = None
         for record in records
         if record.get("week_key") == selected_week
         and record.get("status", "Unknown") in RESERVING_ORDER_STATUSES
+        and not record.get("closed_by")
+        and not record.get("close_of")
     ), 2)
 
 
@@ -524,3 +538,167 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
 # enforcement, or covered/cash-secured checks, and it never reached the ledger,
 # so its risk was invisible to weekly capital reservation. Every paper order now
 # goes through /orders/submit-combo, which applies all of those controls.
+
+
+def _mirror_close_legs(parent_legs: list[dict[str, Any]]) -> list[ComboOrderLeg]:
+    """Reverse every action on a parent entry's legs to build its close."""
+    close_legs = []
+    for leg in parent_legs:
+        action = "BUY" if leg.get("action") == "SELL" else "SELL"
+        close_legs.append(
+            ComboOrderLeg(
+                symbol=str(leg.get("symbol", "")).upper(),
+                expiry=str(leg.get("expiry", "")),
+                strike=float(leg.get("strike", 0)),
+                right=leg.get("right") if leg.get("right") in {"C", "P"} else "C",
+                action=action,
+            )
+        )
+    return close_legs
+
+
+def _same_leg_set(left: list, right: list) -> bool:
+    """Structural equality (symbol/expiry/strike/right, ignoring action)."""
+    return sorted(
+        (str(leg.symbol if hasattr(leg, "symbol") else leg.get("symbol", "")).upper(),
+         str(leg.expiry if hasattr(leg, "expiry") else leg.get("expiry", "")),
+         round(float(leg.strike if hasattr(leg, "strike") else leg.get("strike", 0)), 4),
+         leg.right if hasattr(leg, "right") else leg.get("right"))
+        for leg in left
+    ) == sorted(
+        (str(leg.symbol if hasattr(leg, "symbol") else leg.get("symbol", "")).upper(),
+         str(leg.expiry if hasattr(leg, "expiry") else leg.get("expiry", "")),
+         round(float(leg.strike if hasattr(leg, "strike") else leg.get("strike", 0)), 4),
+         leg.right if hasattr(leg, "right") else leg.get("right"))
+        for leg in right
+    )
+
+
+@app.post("/orders/close-combo")
+async def close_paper_combo(request: CloseComboRequest, _: None = Depends(require_access_token)):
+    """Close an open paper position by mirroring its entry ledger record.
+
+    The closing order reverses every action on the parent's own legs, so the
+    caller only names *which* position to close and *why*. All the same safety
+    rails as submit-combo apply to the close: live IBKR bid/ask verification,
+    defined-risk structure continuity, and paper-only mode. A close never
+    reserves new capital; instead the parent's weekly reservation is released.
+    """
+    await ensure_connected()
+    assert ib is not None
+    records = _sync_order_ledger()
+    parent = next((item for item in records if item.get("id") == request.ledger_id), None)
+    if parent is None:
+        raise HTTPException(status_code=404, detail="Paper order was not found in the ledger")
+    if parent.get("close_of"):
+        raise HTTPException(status_code=409, detail="This order is itself a closing order; a position closes once")
+    if parent.get("closed_by"):
+        raise HTTPException(status_code=409, detail="This position is already closed")
+    if float(parent.get("filled", 0) or 0) <= 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot close a paper position that has not filled",
+        )
+    if not parent.get("legs"):
+        raise HTTPException(status_code=422, detail="Parent order has no legs; cannot build a closing order")
+    if not (float(parent.get("max_loss_total", 0) or 0) > 0 or float(parent.get("max_loss_per_combo", 0) or 0) > 0):
+        raise HTTPException(status_code=422, detail="Parent was not a proven defined-risk structure; refusing to close it")
+
+    parent_legs = parent["legs"]
+    close_legs = _mirror_close_legs(parent_legs)
+    if len(close_legs) != len(parent_legs):
+        raise HTTPException(status_code=422, detail="Could not mirror the parent structure")
+    if not _same_leg_set(close_legs, parent_legs):
+        raise HTTPException(status_code=422, detail="Closing legs do not match the parent structure")
+
+    legs = [OptionQuoteLeg(**leg.model_dump(exclude={"action"})) for leg in close_legs]
+    qualified, tickers = await _live_option_tickers(legs)
+    live_prices = []
+    for leg, ticker in zip(close_legs, tickers):
+        bid, ask = _quote_number(ticker.bid), _quote_number(ticker.ask)
+        if ticker.marketDataType != 1 or bid is None or ask is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Live executable IBKR bid/ask data is required before a closing order can be submitted",
+            )
+        live_prices.append(bid if leg.action == "SELL" else -ask)
+
+    net_credit = sum(live_prices)
+    if net_credit >= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Closing this structure should cost money (net cash out); refusing a fill that would pay the position",
+        )
+    cost_to_close = -net_credit
+
+    quantity = int(parent.get("quantity", 1) or 1)
+    if len(close_legs) == 1:
+        leg = close_legs[0]
+        if leg.action != "BUY" or leg.right not in {"C", "P"}:
+            raise HTTPException(status_code=422, detail="Only Advisor-recommended single-leg structures support closing")
+        contract = qualified[0]
+        limit_price = round(cost_to_close, 2)
+        ib_order = LimitOrder("BUY", quantity, limit_price, tif="DAY")
+    else:
+        bag = Bag(
+            symbol=close_legs[0].symbol.upper(),
+            exchange="SMART",
+            currency="USD",
+            comboLegs=[
+                ComboLeg(conId=contract.conId, ratio=1, action=leg.action, exchange="SMART")
+                for contract, leg in zip(qualified, close_legs)
+            ],
+        )
+        limit_price = round(cost_to_close, 2)
+        contract = bag
+        ib_order = LimitOrder("BUY", quantity, limit_price, tif="DAY")
+
+    trade = ib.placeOrder(contract, ib_order)
+    now = datetime.now(timezone.utc).isoformat()
+    ledger_id = str(uuid4())
+    status = str(trade.orderStatus.status or "PendingSubmit")
+    entry_credit = float(parent.get("net_credit", 0) or 0)
+    realized_pnl = (entry_credit - cost_to_close) * quantity
+    close_record = {
+        "id": ledger_id,
+        "close_of": request.ledger_id,
+        "reason": request.reason,
+        "strategy": parent.get("strategy"),
+        "symbol": parent.get("symbol"),
+        "legs": [leg.model_dump() for leg in close_legs],
+        "quantity": quantity,
+        "ibkr_order_id": int(trade.order.orderId),
+        "status": status,
+        "filled": float(trade.orderStatus.filled or 0),
+        "remaining": float(trade.orderStatus.remaining or quantity),
+        "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
+        "limit_price": limit_price,
+        "net_credit": round(net_credit, 2),
+        "cost_to_close": round(cost_to_close, 2),
+        "realized_pnl": round(realized_pnl, 2),
+        "week_key": _current_week_key(),
+        "submitted_at": now,
+        "updated_at": now,
+    }
+    parent["closed_by"] = ledger_id
+    parent["closed_at"] = now
+    parent["updated_at"] = now
+    records.append(close_record)
+    _write_order_ledger(records)
+    reserved = _reserved_capital(records)
+    return {
+        "mode": "paper_only",
+        "status": status,
+        "ledger_id": ledger_id,
+        "close_of": request.ledger_id,
+        "reason": request.reason,
+        "ibkr_order_id": int(trade.order.orderId),
+        "limit_price": limit_price,
+        "net_credit": round(net_credit, 2),
+        "cost_to_close": round(cost_to_close, 2),
+        "realized_pnl": round(realized_pnl, 2),
+        "quantity": quantity,
+        "capital_reserved": round(reserved, 2),
+        "capital_remaining": round(max(request.capital_limit - reserved, 0), 2),
+        "message": "Paper closing order submitted to TWS",
+    }

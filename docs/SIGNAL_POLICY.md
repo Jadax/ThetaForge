@@ -101,6 +101,13 @@ that were placed on the TWS terminal, sourced from the paper-order ledger.
   user's credibility.
 - Trade cards carry the thesis, the legs, and the outcome plus a timestamped
   receipt — the AfterHour/TradingView trust pattern.
+- **Exits are lifecycle events, not new trades:** closing orders in the ledger
+  carry a `close_of` id and `scripts/sync_journal.py` folds them into the
+  parent entry as a `closed` status with the exit receipt (`close_order`),
+  auto-written exit note, and realized P&L — they never appear as phantom new
+  "open" entries. Every TWS-placed close therefore shows up on the parent
+  trade, and `entries_from_ledger` counts both sides so the verification SHA
+  covers the exits too.
 - Do not put the terminal back on Pages. The dashboard exposes order and
   position internals and belongs to the owner only.
 
@@ -157,6 +164,27 @@ pre-earnings close, tested-strike review, plus portfolio caps. The
 `POST /api/advisor/positions/management` endpoint only *recommends* actions —
 order submission stays exclusively in the Bridge, so there is still exactly one
 execution path.
+
+## Exit Execution (v1.7.0, keep the single execution path)
+
+Closes flow through exactly two places, same as entries:
+
+1. **Decision:** `POST /api/advisor/positions/management` is the only exit
+   decision. It refreshes spot, short-leg mid, and `days_to_earnings` from
+   free data when omitted (fail-open enrichment — a missing refresh can hold a
+   position, never manufacture a close).
+2. **Execution:** the Bridge's `POST /orders/close-combo` is the only exit
+   order path. The caller names `ledger_id` + `reason`; the Bridge mirrors the
+   entry's own ledger record (a mismatched structure is impossible),
+   re-verifies live IBKR bid/ask, requires structure continuity with the
+   already-proven defined-risk entry, and refuses fills that would *pay* the
+   position (net credit ≥ 0). It never reserves new capital and releases the
+   parent's weekly reservation once `closed_by` is set.
+
+`deployment/vm_auto_manager.py` chains the two on the VM (advisory by
+default; `AUTO_CLOSE_ENABLED=true` to submit). `review_tested` is never
+auto-submitted. Do not add a second exit decision or order path — the hard
+invariant is one decision engine and one Bridge.
 
 ## Behavior to Preserve
 

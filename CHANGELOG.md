@@ -1,5 +1,43 @@
 # ThetaForge Changelog
 
+## v1.7.0 - 2026-08-13
+
+Closed the loop on the exit framework: the management engine can now *execute*
+its own closes through the same paper-only Bridge as entries, and the public
+journal shows every exit as a lifecycle event on the parent trade.
+
+- Bridge (`bridge/main.py` v0.3.0): new `POST /orders/close-combo`. The caller
+  names only `ledger_id` + `reason`; the Bridge mirrors the entry's own ledger
+  record (reversing each leg action) so a mismatched structure is impossible,
+  re-verifies live IBKR bid/ask, proves structure continuity with the
+  already-proven defined-risk entry, and refuses fills that would pay the
+  position. A close never reserves new capital — the parent's weekly
+  reservation is released when its `closed_by` is set.
+- Journal lifecycle (`scripts/sync_journal.py`): closing ledger records
+  (carrying `close_of`) are folded into their parent entry as a `closed`
+  status with an auto-written exit note, the exit receipt (`close_order`
+  block), and realized P&L (`net_pnl`, `net_pnl_pct`). A close is never a
+  phantom new "open" trade.
+- New `deployment/vm_auto_manager.py`: the autonomous exit loop for the VM —
+  reads open short-premium positions from the Bridge ledger, asks the
+  Advisor's `POST /api/advisor/positions/management` (the only exit-decision
+  place) for the action on each, and optionally submits the recommended closes
+  via `POST /orders/close-combo` (the only exit-execution place). **Advisory by
+  default; set `AUTO_CLOSE_ENABLED=true` to let it submit.** `review_tested`
+  is surfaced for a human and never auto-submitted. Triggers the journal sync +
+  publish after any close.
+- Advisor: `POST /api/advisor/positions/management` now refreshes
+  `days_to_earnings` from free data when the caller omits it (same fail-open
+  enrichment as spot/short-leg), so the pre-earnings exit fires without extra
+  VM-side plumbing.
+- Scanner: the v1.6.0 `trend_mismatch` / `laggard` no-trade reasons were being
+  tallied as generic `other` by `_no_trade_reason_code`; the mapping now
+  classifies them so scan diagnostics stay honest.
+- Docs: `AUTONOMOUS_TRADING.md` (auto-manager service, exit flow, safety rail),
+  `AGENTS.md` (module map), `SIGNAL_POLICY.md`. VERSION → v1.7.0.
+- Tests: 230 pass (was 220). New journal lifecycle collapse tests, Bridge
+  close-combo helper/reservation tests, auto-manager decision-logic tests.
+
 ## v1.6.0 - 2026-08-13
 
 High-win-rate upgrade to the AI brain: research-backed entry *context* gates

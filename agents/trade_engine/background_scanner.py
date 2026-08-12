@@ -194,6 +194,10 @@ def _no_trade_reason_code(strategy: str, reasoning: str) -> str:
         return "earnings_proximity"
     if "differentiated edge" in reason:
         return "no_edge"
+    if "confirmed downtrend" in reason or "confirmed uptrend" in reason:
+        return "trend_mismatch"
+    if "laggard" in reason:
+        return "laggard"
     return "other"
 
 

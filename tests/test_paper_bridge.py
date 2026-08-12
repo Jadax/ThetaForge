@@ -5,7 +5,9 @@ from bridge.main import (
     ComboOrderLeg,
     _current_week_key,
     _defined_risk_per_combo,
+    _mirror_close_legs,
     _reserved_capital,
+    _same_leg_set,
 )
 
 
@@ -43,3 +45,24 @@ def test_weekly_capital_reserves_open_and_filled_orders_only():
         {"week_key": "2026-W29", "status": "Submitted", "max_loss_total": 999},
     ]
     assert _reserved_capital(records, week) == 425
+
+
+def test_reserved_capital_releases_closed_positions_and_ignores_close_orders():
+    week = _current_week_key(datetime(2026, 7, 29, tzinfo=timezone.utc))
+    records = [
+        {"week_key": week, "status": "Filled", "max_loss_total": 250},
+        {"week_key": week, "status": "Filled", "max_loss_total": 175, "closed_by": "close-1"},
+        {"week_key": week, "status": "Submitted", "max_loss_total": 999, "close_of": "entry-1"},
+    ]
+    assert _reserved_capital(records, week) == 250
+
+
+def test_mirror_close_legs_reverses_every_action():
+    parent = [
+        {"symbol": "SPY", "expiry": "2026-08-14", "strike": 90, "right": "C", "action": "SELL"},
+        {"symbol": "SPY", "expiry": "2026-08-14", "strike": 91, "right": "C", "action": "BUY"},
+    ]
+    close = _mirror_close_legs(parent)
+    assert [(leg.action, leg.strike) for leg in close] == [("BUY", 90.0), ("SELL", 91.0)]
+    assert _same_leg_set(close, parent)
+    assert not _same_leg_set([close[0]], parent)

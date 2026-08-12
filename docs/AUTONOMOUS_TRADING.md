@@ -18,7 +18,8 @@ Oracle Cloud "Always Free" VM (af-johannesburg-1, VM.Standard.E2.1.Micro)
   xvfb.service              — virtual display :1 (IB Gateway is a GUI app)
   ibgateway.service         — IB Gateway via IBC, auto-login, paper mode only
   thetaforge-bridge.service — bridge/main.py, localhost:8002 only
-  thetaforge-auto-executor.service — deployment/vm_auto_executor.py
+  thetaforge-auto-executor.service — deployment/vm_auto_executor.py (entries)
+  thetaforge-auto-manager.service  — deployment/vm_auto_manager.py (exits, optional)
   thetaforge-market-supervisor.timer (every 5 min)
     -> market_hours_supervisor.sh starts/stops the four services above
        based on the Advisor's real NYSE-calendar market_open status
@@ -44,6 +45,19 @@ when the VM itself reboots.
   independently re-verifies live IBKR quotes, defined-risk, and the weekly
   capital-limit ledger regardless of who's calling it. See the module
   docstring in `deployment/vm_auto_executor.py` for the full flow.
+- **The auto-manager (exits) is a separate, optional service.** It runs the
+  exit framework (50% take-profit, 21-DTE gamma window, 2x-credit stop,
+  pre-earnings exit) the same way the dashboard does — asking the Advisor's
+  `POST /api/advisor/positions/management` (the only exit-decision place)
+  for open positions reported by the Bridge ledger, then optionally
+  submitting the recommended closes through the Bridge's
+  `POST /orders/close-combo` (the only exit-execution place). It builds no
+  legs and makes no decisions itself. **It is advisory-only unless you set
+  `AUTO_CLOSE_ENABLED=true`** in `thetaforge-auto-manager.service`; the
+  `review_tested` action is never auto-submitted. Closing orders land in the
+  same ledger as entries and the public journal's lifecycle sync folds them
+  into the parent entry as a `closed` status — a close is a lifecycle event,
+  never a phantom new position.
 - **Market-hours source of truth lives in one place.** Both the Advisor's
   own background scan and this VM's supervisor consult
   `agents/trade_engine/background_scanner.py`'s `is_market_hours()` (via
@@ -132,9 +146,9 @@ scp -i ~/.ssh/thetaforge_vm bridge/main.py ubuntu@92.4.132.188:/opt/thetaforge-b
 ssh -i ~/.ssh/thetaforge_vm ubuntu@92.4.132.188 'sudo systemctl restart thetaforge-bridge.service'
 ```
 
-`deployment/vm_auto_executor.py`, `market_hours_supervisor.sh`, and
-`journal_sync_push.sh` are copied the same way and restarted via their
-respective service names.
+`deployment/vm_auto_executor.py`, `deployment/vm_auto_manager.py`,
+`market_hours_supervisor.sh`, and `journal_sync_push.sh` are copied the same
+way and restarted via their respective service names.
 
 ## Known limitation
 

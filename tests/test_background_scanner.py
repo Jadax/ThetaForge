@@ -85,6 +85,10 @@ def test_no_trade_reason_code_classifies_gates():
     assert _no_trade_reason_code("no_trade", "No strategy has a sufficiently differentiated edge in the current regime") == "no_edge"
     assert _no_trade_reason_code("no_trade", "unrecognized reason text") == "other"
     assert _no_trade_reason_code("bull_put_credit", "some reasoning") == "bull_put_credit"
+    # v1.6.0 high-win-rate gates must be tallied, not swallowed by "other".
+    assert _no_trade_reason_code("no_trade", "Bullish signal but AMD is in a confirmed downtrend — do not sell puts into the knife") == "trend_mismatch"
+    assert _no_trade_reason_code("no_trade", "Bearish signal but XYZ is in a confirmed uptrend — do not sell calls into strength") == "trend_mismatch"
+    assert _no_trade_reason_code("no_trade", "AMD: relative strength -25% vs SPY — laggard, no directional premium") == "laggard"
 
 
 # ── ATM IV extraction ────────────────────────────────────────────────────

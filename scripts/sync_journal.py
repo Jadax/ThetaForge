@@ -7,6 +7,10 @@ ledger (data/paper_order_ledger.json). This script:
 
   * builds a fresh entry for every ledger record (requiring a
     recommendation_id, and excluding cancelled/never-executed orders),
+  * collapses closing orders (ledger records carrying a `close_of` id) into
+    their parent entry, marking it `closed` with the exit receipt and
+    realized P&L — a close is a lifecycle event on the position, never a
+    phantom new "open" trade,
   * overlays the human narrative (thesis, exit note, tags, P&L, close date)
     that was authored via `add_trade.py --from-ledger <id>` by matching
     `source_id` on the existing journal,
@@ -78,6 +82,9 @@ def _order_block(record: dict) -> dict:
         "average_fill_price": record.get("average_fill_price"),
         "limit_price": record.get("limit_price"),
         "net_credit": record.get("net_credit"),
+        "cost_to_close": record.get("cost_to_close"),
+        "realized_pnl": record.get("realized_pnl"),
+        "reason": record.get("reason"),
         "quantity": record.get("quantity"),
         "submitted_at": record.get("submitted_at"),
         "updated_at": record.get("updated_at"),
@@ -178,6 +185,52 @@ def _ledger_sha(consumed: list[dict]) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
+def _exit_note(reason: str) -> str:
+    """Readable exit note for an automatically managed close."""
+    key = (reason or "").lower()
+    if "close_profit" in key or "profit" in key:
+        return "Auto-closed at the 50% of max-credit take-profit target."
+    if "close_time" in key or "dte" in key:
+        return "Auto-closed at the 21-DTE gamma management window."
+    if "close_loss" in key or "loss" in key:
+        return "Auto-closed at the 2x-credit loss stop."
+    if "close_pre_earnings" in key or "earnings" in key:
+        return "Auto-closed before the earnings event."
+    return "Closed by the ThetaForge management loop."
+
+
+def _apply_close(entry: dict, close: dict) -> None:
+    """Fold a closing ledger record into its parent entry."""
+    close_submitted = str(close.get("submitted_at", ""))
+    close_date = _opened_date(close_submitted) if close_submitted else date.today().isoformat()
+    reason = str(close.get("reason") or "")
+    realized = close.get("realized_pnl")
+    if isinstance(realized, (int, float)):
+        entry["net_pnl"] = round(float(realized), 2)
+        capital = float(entry.get("capital_at_risk") or 0)
+        entry["net_pnl_pct"] = round(float(realized) / capital, 4) if capital > 0 else None
+    entry["closed"] = close_date
+    entry["status"] = "closed"
+    entry["exit_note"] = _exit_note(reason)
+    entry["close_order"] = _order_block(close)
+    entry["timestamp"] = close.get("updated_at") or close_submitted
+
+
+def _standalone_close_entry(close: dict) -> dict:
+    """Emit a close record as its own entry when its parent is absent."""
+    symbol = str(close.get("symbol", "")).upper()
+    strategy = str(close.get("strategy", ""))
+    entry = build_entry(close, {})
+    entry["status"] = "closed"
+    entry["exit_note"] = _exit_note(str(close.get("reason") or ""))
+    entry["close_order"] = _order_block(close)
+    entry["reason"] = (
+        f"Closing order for {symbol} ({strategy.replace('_', ' ').title()}) — "
+        "the parent entry was not found in the ledger."
+    )
+    return entry
+
+
 def sync(args: argparse.Namespace) -> int:
     ledger = load_json(args.ledger, [])
     if not isinstance(ledger, list):
@@ -192,12 +245,11 @@ def sync(args: argparse.Namespace) -> int:
     }
 
     entries = []
+    closes = []
     seen_sources = set()
     consumed = []
     for record in ledger:
         status = str(record.get("status", ""))
-        if not record.get("recommendation_id"):
-            continue
         if status in EXCLUDED_STATUSES:
             continue
         source = str(record.get("id", ""))
@@ -205,6 +257,11 @@ def sync(args: argparse.Namespace) -> int:
             continue
         seen_sources.add(source)
         consumed.append(record)
+        if record.get("close_of"):
+            closes.append(record)
+            continue
+        if not record.get("recommendation_id"):
+            continue
         entries.append(build_entry(record, overlay_by_source.get(source, {})))
 
     for trade in existing:
@@ -212,6 +269,14 @@ def sync(args: argparse.Namespace) -> int:
             trade = dict(trade)
             trade.setdefault("source", "manual")
             entries.append(trade)
+
+    entries_by_source = {str(entry.get("source_id")): entry for entry in entries if entry.get("source_id")}
+    for close in closes:
+        parent = entries_by_source.get(str(close.get("close_of")))
+        if parent is not None:
+            _apply_close(parent, close)
+        else:
+            entries.append(_standalone_close_entry(close))
 
     entries.sort(key=lambda trade: (trade.get("opened", ""), trade.get("timestamp", "")))
     entries.reverse()

@@ -754,6 +754,14 @@ async def positions_management(request: ManagementRequest):
                 short_leg_value = _find_short_leg_mid(chain, pos)
             except Exception:
                 short_leg_value = None
+        days_to_earnings = pos.days_to_earnings
+        if days_to_earnings is None:
+            try:
+                next_earnings = await provider.get_next_earnings_date(pos.symbol)
+                if next_earnings is not None:
+                    days_to_earnings = (next_earnings - date.today()).days
+            except Exception:
+                days_to_earnings = None
 
         open_position = OpenPosition(
             symbol=pos.symbol,
@@ -767,9 +775,10 @@ async def positions_management(request: ManagementRequest):
             dte=pos.dte,
             short_leg_value=short_leg_value,
         )
-        result = evaluate_position(open_position, days_to_earnings=pos.days_to_earnings)
+        result = evaluate_position(open_position, days_to_earnings=days_to_earnings)
         result["spot"] = spot
         result["short_leg_value"] = short_leg_value
+        result["days_to_earnings"] = days_to_earnings
         actions.append(result)
 
     plan = portfolio_plan(

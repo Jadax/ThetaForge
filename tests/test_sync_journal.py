@@ -232,3 +232,79 @@ def test_manual_entries_marked_manual_and_sha_changes(tmp_path):
     ledger_entry = next(t for t in data["trades"] if t["id"] == "rec-1")
     assert manual_entry["source"] == "manual"
     assert ledger_entry["source"] == "ledger"
+
+
+def _close_record(rec_id, parent_id, reason="close_profit", realized_pnl=275.0, **extra):
+    record = {
+        "id": rec_id,
+        "close_of": parent_id,
+        "strategy": "bull_put_credit",
+        "symbol": "SPY",
+        "legs": [
+            {"symbol": "SPY", "expiry": "2026-08-21", "strike": 595,
+             "right": "P", "action": "BUY"},
+            {"symbol": "SPY", "expiry": "2026-08-21", "strike": 580,
+             "right": "P", "action": "SELL"},
+        ],
+        "quantity": 1,
+        "status": "Filled",
+        "net_credit": -25,
+        "limit_price": 25,
+        "cost_to_close": 25,
+        "realized_pnl": realized_pnl,
+        "reason": reason,
+        "submitted_at": "2026-08-07T15:30:00Z",
+        "updated_at": "2026-08-07T15:30:00Z",
+    }
+    record.update(extra)
+    return record
+
+
+def test_close_record_collapses_into_parent_entry(tmp_path):
+    ledger = [_record("rec-1"), _close_record("close-1", "rec-1")]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    assert len(data["trades"]) == 1
+    trade = data["trades"][0]
+    assert trade["id"] == "rec-1"
+    assert trade["status"] == "closed"
+    assert trade["closed"] == "2026-08-07"
+    assert trade["net_pnl"] == 275.0
+    assert trade["net_pnl_pct"] == round(275.0 / 1500.0, 4)
+    assert trade["exit_note"] == "Auto-closed at the 50% of max-credit take-profit target."
+    assert trade["close_order"]["net_credit"] == -25
+    assert trade["close_order"]["status"] == "Filled"
+    assert trade["close_order"]["realized_pnl"] == 275.0
+    assert trade["timestamp"] == "2026-08-07T15:30:00Z"
+    assert data["verification"]["entries_from_ledger"] == 2
+
+
+def test_close_without_parent_is_standalone_entry(tmp_path):
+    ledger = [_close_record("close-orphan", "rec-missing", reason="close_time")]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    assert len(data["trades"]) == 1
+    trade = data["trades"][0]
+    assert trade["status"] == "closed"
+    assert "parent entry was not found" in trade["reason"]
+
+
+def test_close_exit_notes_map_all_management_reasons(tmp_path):
+    cases = [
+        ("close_loss", "Auto-closed at the 2x-credit loss stop."),
+        ("close_time", "Auto-closed at the 21-DTE gamma management window."),
+        ("close_pre_earnings", "Auto-closed before the earnings event."),
+        ("managed_exit", "Closed by the ThetaForge management loop."),
+    ]
+    for reason, expected in cases:
+        assert sync_journal._exit_note(reason) == expected
