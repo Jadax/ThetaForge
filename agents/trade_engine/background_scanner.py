@@ -12,6 +12,7 @@ import os
 import asyncio
 from typing import Dict, Optional, List, Tuple
 from datetime import datetime, timedelta, timezone, date
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -37,6 +38,29 @@ NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
 # (see docs/HANDOVER.md -> Deployment Requirements) — re-measure before
 # lowering it.
 SCAN_CONCURRENCY = 20
+
+_EASTERN = ZoneInfo("America/New_York")
+_MARKET_OPEN = (9, 30)
+_MARKET_CLOSE = (16, 0)
+
+
+def is_market_hours(moment: Optional[datetime] = None) -> bool:
+    """Whether the NYSE regular session is open (Mon-Fri, 9:30-16:00 ET).
+
+    A plain weekday + clock-time check, not a full holiday calendar. A scan
+    that fires on a market holiday cannot fabricate a signal -- every
+    downstream price/chain fetch already fails closed to a skip reason -- it
+    just wastes a few minutes of the free-tier compute budget a handful of
+    times a year. Deliberately timezone-aware via zoneinfo rather than the
+    host's local clock, since the host (Render, or a laptop in any timezone)
+    should not have to be set to US Eastern for this to be correct.
+    """
+    now_et = (moment or datetime.now(timezone.utc)).astimezone(_EASTERN)
+    if now_et.weekday() >= 5:  # Saturday, Sunday
+        return False
+    open_time = now_et.replace(hour=_MARKET_OPEN[0], minute=_MARKET_OPEN[1], second=0, microsecond=0)
+    close_time = now_et.replace(hour=_MARKET_CLOSE[0], minute=_MARKET_CLOSE[1], second=0, microsecond=0)
+    return open_time <= now_et <= close_time
 
 
 def _atm_iv(chain: List[Dict]) -> Optional[float]:
@@ -588,7 +612,18 @@ class BackgroundBrainScanner:
     async def _run_loop(self):
         while not self._stop_event.is_set():
             try:
-                await self.scan_once()
+                if is_market_hours():
+                    await self.scan_once()
+                else:
+                    # Skip the expensive universe scan outside the NYSE
+                    # session -- there is no fresh market data to act on, and
+                    # this is what actually keeps the automatic loop inside
+                    # the free-tier compute budget (see SCAN_CONCURRENCY
+                    # above). Still record that the loop is alive and why it
+                    # did nothing, so /scanner/status reads as "closed", not
+                    # as "broken". A manual POST /scanner/trigger always
+                    # runs regardless of market hours.
+                    self._mark_skipped_for_closed_market()
             except Exception:
                 # A failed pass must not kill the loop, but it must be visible:
                 # silent failures here previously hid broken discovery for
@@ -599,6 +634,20 @@ class BackgroundBrainScanner:
                 break
             except asyncio.TimeoutError:
                 continue
+
+    def _mark_skipped_for_closed_market(self) -> None:
+        """Record that the loop is alive and checked, purely diagnostic.
+
+        Deliberately does not touch last_run/next_run/scan_diagnostics --
+        those describe the last real scan's results, which are still valid
+        and should not look reset just because the market is closed right
+        now. get_status() computes the live market_open flag itself rather
+        than trusting a persisted value here, so there is nothing to keep in
+        sync as time passes.
+        """
+        state = self._read_json(SCAN_STATE_FILE)
+        state["last_closed_market_check"] = datetime.now(timezone.utc).isoformat()
+        self._write_json(SCAN_STATE_FILE, state)
 
     async def start(self):
         if self._task is not None:
@@ -659,8 +708,10 @@ class BackgroundBrainScanner:
         last_results = self._read_json(SCAN_RESULTS_FILE)
         return {
             "is_running": self.is_running,
+            "market_open": is_market_hours(),
             "last_run": state.get("last_run"),
             "next_run": state.get("next_run"),
+            "last_closed_market_check": state.get("last_closed_market_check"),
             "interval_seconds": self.interval,
             "symbols_scanned_last_run": state.get("symbols_scanned", 0),
             "symbols_with_trades": state.get("symbols_with_trades", 0),

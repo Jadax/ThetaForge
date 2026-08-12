@@ -1,5 +1,32 @@
 # ThetaForge Changelog
 
+## v1.2.2 - 2026-08-12
+
+Gated the background scanner's automatic loop to NYSE regular session hours
+(9:30-16:00 ET, Mon-Fri). The Advisor already runs continuously on Render
+(that's why Render was chosen over Cloud Run — to keep this loop alive
+without resetting state), but it was scanning the full universe every 5
+minutes regardless of whether the market was open, burning free-tier
+compute and producing signals against stale/closed-market data.
+
+- Added `is_market_hours()` (`background_scanner.py`) — timezone-aware via
+  `zoneinfo`, so correctness doesn't depend on the host's local clock being
+  set to US Eastern. Plain weekday + clock-time check, not a full NYSE
+  holiday calendar; a scan that fires on a market holiday can't fabricate a
+  signal (every price/chain fetch already fails closed), it just wastes a
+  few minutes of compute a handful of times a year.
+- `_run_loop` now skips the expensive scan outside market hours, recording a
+  lightweight diagnostic (`last_closed_market_check`) rather than a stale
+  reset — `last_run`/`scan_diagnostics` from the last real scan are left
+  alone so `/scanner/status` reads as "closed", not "broken" or "reset".
+- A manual `POST /scanner/trigger` still runs anytime, market hours or not —
+  this only gates the automatic loop.
+- `get_status()` now reports a live `market_open` flag, computed fresh each
+  call rather than trusting a persisted value that could go stale between
+  scans.
+- Added 6 tests covering the boundary cases and the no-clobber behavior; full
+  suite at 151 passing.
+
 ## v1.2.1 - 2026-08-11
 
 Fixes found by actually running `deployment/cloudflare_deploy_terminal.ps1`
