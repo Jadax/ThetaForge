@@ -281,7 +281,7 @@
     document.getElementById("sort-note").textContent =
       "Newest first · " + trades.length + " entries";
     document.getElementById("journal-sub").textContent =
-      (trader.tagline || "") + " — " + (trader.name || "") + " (" + (trader.handle || "") + ")" +
+      (trader.tagline || "") + " · " + (trader.name || "") + " (" + (trader.handle || "") + ")" +
       " · journal updated " + (data.as_of || "") +
       ". Every placed trade appears here, winners and losers. Nothing is filtered.";
 
@@ -289,14 +289,14 @@
       document.getElementById("verify-note").textContent =
         "Every ledger entry above is derived from the TWS paper-order ledger " +
         "(sha " + data.verification.ledger_sha.slice(0, 12) + ") on " + (data.as_of || "") +
-        " — recomputable, never edited by hand.";
+        ". Recomputable, never edited by hand.";
     }
 
     var list = document.getElementById("journal-list");
     if (!trades.length) {
       list.innerHTML =
         "<div class='journal-empty'><b>No trades yet.</b><br/>" +
-        "The first ThetaForge recommendation you place on TWS will appear here — " +
+        "The first ThetaForge recommendation you place on TWS will appear here, " +
         "with the thesis, the structure, and the receipt.</div>";
       return;
     }
@@ -317,7 +317,7 @@
       "<div><small>CURRENT STREAK</small><b>—</b><span>consecutive closed trades</span></div>";
     document.getElementById("journal-list").innerHTML =
       "<div class='journal-empty'><b>No trades yet.</b><br/>" +
-      "The first ThetaForge recommendation you place on TWS will appear here — " +
+      "The first ThetaForge recommendation you place on TWS will appear here, " +
       "with the thesis, the structure, and the receipt.</div>";
   }
 
