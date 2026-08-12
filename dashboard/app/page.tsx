@@ -83,6 +83,44 @@ type ScannerStatus = {
   last_results?: { symbols?: Record<string, unknown> };
 };
 
+type AssetRead = {
+  label: string;
+  level?: number;
+  level_pct?: number;
+  change_bp?: number;
+  change_1d_pct?: number;
+  change_5d_pct?: number | null;
+  trend?: string;
+};
+
+type MarketSymbolRead = {
+  symbol: string;
+  price: number;
+  change_1d_pct: number;
+  change_1m_pct: number;
+  above_200d: boolean;
+  rsi_14: number;
+  adx: number;
+  macd_bullish: boolean;
+  volume_ratio: number | null;
+  percent_off_52w_high: number;
+  volatility_20d_annualized: number | null;
+  read: "bullish" | "bearish" | "neutral";
+};
+
+type MarketOverview = {
+  overview: {
+    as_of: string;
+    indices: Record<string, AssetRead>;
+    bonds: Record<string, AssetRead>;
+    commodities: Record<string, AssetRead>;
+    sectors: Record<string, number>;
+    yield_curve: { short: number | null; mid: number | null; long: number | null; very_long: number | null; shape: string | null };
+    risk_tilt: { tilt: "risk_on" | "risk_off" | "mixed"; indices_up: number; indices_down: number };
+  };
+  symbols: Record<string, MarketSymbolRead>;
+};
+
 type PaperOrderRecord = {
   id: string;
   symbol: string;
@@ -172,7 +210,7 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v1.4.0";
+const VERSION = "v1.5.0";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -204,6 +242,10 @@ export default function Home() {
   const [capitalRemaining, setCapitalRemaining] = useState<number | null>(null);
   const [alertDetailOpen, setAlertDetailOpen] = useState(false);
   const [alertDetailSymbol, setAlertDetailSymbol] = useState("");
+  const [markets, setMarkets] = useState<MarketOverview | null>(null);
+  const [marketsLoading, setMarketsLoading] = useState(false);
+  const [marketsError, setMarketsError] = useState("");
+  const [marketsSymbols, setMarketsSymbols] = useState("");
 
   // The hosted Advisor holds one shared watchlist, alert set, and notification
   // queue. Every call carries the shared secret so that a public URL does not
@@ -446,6 +488,31 @@ export default function Home() {
     await fetchAutomaticOpportunities(capital);
   }
 
+  async function loadMarkets(event: FormEvent) {
+    event.preventDefault();
+    setMarketsLoading(true);
+    setMarketsError("");
+    setStatus("Reading the market map");
+    try {
+      const symbols = marketsSymbols.split(",").map((value) => value.trim().toUpperCase()).filter(Boolean);
+      const response = await advisorRequest("/api/advisor/markets", {
+        method: "POST",
+        body: JSON.stringify({ symbols }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Market map returned ${response.status}`);
+      }
+      setMarkets(await response.json());
+      setStatus("Advisor connected");
+    } catch (requestError) {
+      setMarketsError(requestError instanceof Error ? requestError.message : "Unable to load the market map");
+      setStatus("Advisor connected · markets unavailable");
+    } finally {
+      setMarketsLoading(false);
+    }
+  }
+
   async function verifyWithIBKR(result: RecommendationResponse): Promise<RecommendationResponse> {
     const uniqueLegs = new Map<string, { symbol: string; expiry: string; strike: number; right: "C" | "P" }>();
     for (const trade of result.recommendations) for (const leg of trade.legs) {
@@ -634,6 +701,28 @@ export default function Home() {
           <article><p className="eyebrow">SIGNAL LEDGER</p>{analysis.all_signals.map((item) => <div className="ledger" key={item.source}><b>{item.source}</b><span>{signalLabel(item.signal)}</span><small>{item.confidence}%</small></div>)}</article>
         </section>
       </>}
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">MARKET MAP · STOCKS · BONDS · SECTORS</p><h2>General-market context</h2><p>Cross-asset tape for stock and ETF positions: indices, bond yields, commodities, sector rotation, the yield curve, and a coarse risk-on / risk-off tilt. Read-only market context — it never sends orders.</p></div>
+          <form className="scan-form" onSubmit={loadMarkets}><input className="api" value={marketsSymbols} onChange={(event) => setMarketsSymbols(event.target.value)} placeholder="Optional extra symbols, e.g. TSLA, JPM" aria-label="Extra symbols" /><button disabled={marketsLoading}>{marketsLoading ? "Reading the tape…" : "Load market map"}</button></form>
+        </div>
+        {marketsError && <p className="error">{marketsError}</p>}
+        {markets && <>
+          {markets.overview.risk_tilt.tilt === "risk_on" ? <div className="market-chip"><small>RISK TILT</small><b>Risk-on</b><span>{markets.overview.risk_tilt.indices_up} of {Object.keys(markets.overview.indices).length} indices up · credit confirming</span></div> : markets.overview.risk_tilt.tilt === "risk_off" ? <div className="market-chip"><small>RISK TILT</small><b>Risk-off</b><span>{markets.overview.risk_tilt.indices_down} of {Object.keys(markets.overview.indices).length} indices down</span></div> : <div className="market-chip"><small>RISK TILT</small><b>Mixed</b><span>Equity and credit not confirming each other</span></div>}
+          <p className="scan-note">Yield curve: {markets.overview.yield_curve.shape === "inverted" ? "inverted — premium selling discouraged" : markets.overview.yield_curve.shape === "normal" ? "normal" : "flat"} · 13-wk {markets.overview.yield_curve.short != null ? markets.overview.yield_curve.short.toFixed(2) : "—"}% · 10-yr {markets.overview.yield_curve.long != null ? markets.overview.yield_curve.long.toFixed(2) : "—"}% · 30-yr {markets.overview.yield_curve.very_long != null ? markets.overview.yield_curve.very_long.toFixed(2) : "—"}%</p>
+          <div className="stock-list">
+            {Object.entries(markets.overview.indices).map(([symbol, read]) => <div className="stock-card" key={symbol}><small>INDEX</small><b>{read.label}</b><span>{read.level?.toFixed(2)} · {read.change_1d_pct != null ? `${read.change_1d_pct >= 0 ? "+" : ""}${read.change_1d_pct.toFixed(2)}%` : "—"}</span><small className={read.trend === "uptrend" ? "positive" : read.trend === "downtrend" ? "negative" : ""}>{read.trend}</small></div>)}
+            {Object.entries(markets.overview.bonds).map(([symbol, read]) => <div className="stock-card" key={symbol}><small>RATE / BOND</small><b>{read.label}</b><span>{read.level_pct != null ? `${read.level_pct.toFixed(2)}%` : read.level != null ? read.level.toFixed(2) : "—"}{read.change_bp != null ? ` · ${read.change_bp >= 0 ? "+" : ""}${read.change_bp.toFixed(1)} bp` : read.change_1d_pct != null ? ` · ${read.change_1d_pct >= 0 ? "+" : ""}${read.change_1d_pct.toFixed(2)}%` : ""}</span><small className={read.trend === "uptrend" ? "positive" : read.trend === "downtrend" ? "negative" : ""}>{read.trend}</small></div>)}
+            {Object.entries(markets.overview.commodities).map(([symbol, read]) => <div className="stock-card" key={symbol}><small>COMMODITY</small><b>{read.label}</b><span>{read.level?.toFixed(2)} · {read.change_1d_pct != null ? `${read.change_1d_pct >= 0 ? "+" : ""}${read.change_1d_pct.toFixed(2)}%` : "—"}</span><small className={read.trend === "uptrend" ? "positive" : read.trend === "downtrend" ? "negative" : ""}>{read.trend}</small></div>)}
+            {Object.entries(markets.overview.sectors).map(([sector, value]) => <div className="stock-card" key={sector}><small>SECTOR</small><b>{sector}</b><span>{value >= 0 ? "+" : ""}{value.toFixed(1)}%</span><small className={value >= 0 ? "positive" : "negative"}>{value >= 0 ? "leading" : "lagging"}</small></div>)}
+          </div>
+          {Object.keys(markets.symbols).length ? <div className="trade-list">{Object.entries(markets.symbols).map(([symbol, read]) => <article className="trade-card" key={symbol}>
+            <div className="trade-title"><p className="eyebrow">{symbol} · ${read.price.toFixed(2)} · {read.volatility_20d_annualized != null ? `${(read.volatility_20d_annualized * 100).toFixed(1)}% 20d vol` : "vol n/a"}</p><h3>{signalLabel(read.read)}</h3><p>RSI {read.rsi_14.toFixed(0)} · ADX {read.adx.toFixed(0)} · {read.macd_bullish ? "MACD bullish" : "MACD bearish"} · {read.above_200d ? "above" : "below"} 200-day</p></div>
+            <div className="trade-metrics"><span><small>1D</small><b>{read.change_1d_pct >= 0 ? "+" : ""}{read.change_1d_pct.toFixed(2)}%</b></span><span><small>1M</small><b>{read.change_1m_pct >= 0 ? "+" : ""}{read.change_1m_pct.toFixed(2)}%</b></span><span><small>VS 52W HIGH</small><b>{read.percent_off_52w_high.toFixed(1)}%</b></span><span><small>VOLUME</small><b>{read.volume_ratio != null ? `${read.volume_ratio.toFixed(2)}x` : "—"}</b></span></div>
+          </article>)}</div> : null}
+        </>}
+      </section>
 
       <section className="opportunity-panel">
         <div className="opportunity-heading">

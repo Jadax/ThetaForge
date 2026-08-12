@@ -1,5 +1,35 @@
 # ThetaForge Changelog
 
+## v1.5.0 - 2026-08-13
+
+Added the general-trader side of the platform — a read-only cross-asset market
+map for stock, ETF, and bond positions, alongside the existing options path.
+
+- New `agents/general_trader/market_overview.py`: builds the daily tape from
+  the existing free data stack (yfinance through `FreeDataProvider`) — index
+  levels and 1d/5d moves, bond yields (13-wk T-bill, 5/10/30-yr) and bond ETFs,
+  commodities, sector performance, a yield-curve shape read, and a coarse
+  risk-on/risk-off tilt that requires equity *and* credit to agree.
+- Per-symbol stock/ETF reads reuse the existing `SignalEngine`
+  (RSI-14, ADX, MACD), SMA 50/200 trend, 52-week-range position, 20-day
+  realized volatility, and a volume-ratio — classified as bullish/bearish/
+  neutral. Fail-closed: any asset with missing/too-short history is dropped
+  with its label, never a placeholder.
+- New `POST /api/advisor/markets` route (scan rate-limited, router-level auth):
+  body `{"symbols": []}` returns `{overview, symbols}`. Verified live end to
+  end (200 with token, 401 without).
+- Dashboard: new "Market map · stocks · bonds · sectors" panel with risk-tilt
+  banner, yield-curve read, index/bond/commodity/sector strips, and per-symbol
+  reads.
+- `docs/SOURCES.md` catalogs the operator's reference sources (thetagang,
+  optionistics, optiondash, opscanbot, quantcha OSE, Unusual Whales, OIC
+  trending volume, optionsprofitcalculator, maxfort86/wsb, Quiver) with the
+  signal each informs and a free-data requirement note — none may be pulled in
+  as a paid API.
+- Tests: 176 pass (was 169). `tests/test_general_trader.py` covers overview
+  construction, fail-closed drops, risk-tilt agreement, and per-symbol reads.
+- Kept invariants: read-only (no order path), free feeds only, fail-closed.
+
 ## v1.4.0 - 2026-08-13
 
 Rebalanced the Brain's strategy gates after a two-week live-testing dry spell

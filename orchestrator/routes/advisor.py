@@ -24,6 +24,7 @@ from agents.trade_engine.models import (
     AccountInfo, RiskTolerance, StrategyType
 )
 from agents.data_ingestion.free_data import FreeDataProvider
+from agents.general_trader.market_overview import MarketOverview
 from agents.technical.indicators import TechnicalEngine as TechAnalyzer
 from agents.flow_analysis.gex_engine import GEXEngine
 from agents.trade_engine.alerts import AlertEngine, AlertPriority, AlertType
@@ -44,6 +45,7 @@ tech_analyzer = TechAnalyzer()
 gex_engine = GEXEngine()
 brain = AIBrain()
 watchlist_store = FavoritesStore()
+market_overview = MarketOverview(provider)
 
 
 async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, Any]:
@@ -555,6 +557,35 @@ class DashboardRequest(BaseModel):
     capital: float = Field(100000, description="Total account equity")
     buying_power: float = Field(50000, description="Available buying power")
     current_positions: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class MarketsRequest(BaseModel):
+    """General-trader market map: optional per-symbol reads on top of the
+    indices / bonds / commodities / sectors overview."""
+    symbols: List[str] = Field(default_factory=list, max_length=25)
+
+
+@router.post("/markets", dependencies=[Depends(scan_rate_limit)])
+async def get_markets(request: MarketsRequest):
+    """Read-only cross-asset market map (stocks/ETFs/bonds), free data only.
+
+    Returns the daily tape across indices, bond yields and bond ETFs,
+    commodities, sector performance, a yield-curve shape read, and a coarse
+    risk-on/risk-off tilt — plus a per-symbol technical read for any
+    requested symbol. This is the general-trader counterpart to the
+    options-specific scanner; it produces context, never orders.
+    """
+    overview = await market_overview.overview()
+    symbols = {
+        symbol.strip().upper()
+        for symbol in request.symbols
+        if symbol and symbol.strip()
+    }
+    symbol_reads = await market_overview.analyze_symbols(list(symbols)) if symbols else {}
+    return {
+        "overview": overview,
+        "symbols": symbol_reads,
+    }
 
 
 @router.post("/dashboard", dependencies=[Depends(scan_rate_limit)])
