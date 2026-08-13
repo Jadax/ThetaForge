@@ -20,12 +20,15 @@ Oracle Cloud "Always Free" VM (af-johannesburg-1, VM.Standard.E2.1.Micro)
   thetaforge-bridge.service — bridge/main.py, localhost:8002 only
   thetaforge-auto-executor.service — deployment/vm_auto_executor.py (entries)
   thetaforge-auto-manager.service  — deployment/vm_auto_manager.py (exits, optional)
+  thetaforge-market-data.service   — deployment/vm_market_data_service.py, read-only
+                                      option-chain/quote proxy, public IP:8003, own
+                                      token (see the module's own docstring)
   thetaforge-market-supervisor.timer (every 5 min)
-    -> market_hours_supervisor.sh starts/stops the four services above
+    -> market_hours_supervisor.sh starts/stops the five services above
        based on the Advisor's real NYSE-calendar market_open status
 ```
 
-Everything above is orchestrated by systemd. None of the four core services
+Everything above is orchestrated by systemd. None of the five core services
 are `enabled` for boot-time autostart — the supervisor timer is the only
 thing enabled at boot, and it starts/stops the rest based on live market
 hours, so "opens at market open, closes at market close" holds regardless of
@@ -70,6 +73,18 @@ when the VM itself reboots.
   to "make live easier later" — going live should be a deliberate, reviewed
   change made at the time it's actually wanted, with its own additional
   safeguards, not a standing unlock sitting in unattended automation.
+- **The market-data proxy is the one thing on this VM reachable from the
+  public internet**, and deliberately isolated from everything else that
+  matters: its own port (8003, not 8002), its own IB API client ID, its own
+  access token, and read-only endpoints only (`/option-chain`, `/stock`,
+  `/stock-history`) — nothing that can place an order or see account
+  positions. It's exposed via a direct port opening (Oracle security list +
+  the VM's own iptables), not a Cloudflare Tunnel, since `astraiva.app`'s
+  DNS lives at Spaceship rather than Cloudflare and moving the zone wasn't
+  worth it just for this. `agents/data_ingestion/free_data.py` calls it as
+  the priority-1 data source (`IBKR_MARKET_DATA_URL`/`TOKEN` env vars on
+  Render) and falls through to CBOE then yfinance on any failure, so a slow
+  or down VM degrades the data source, never the scan itself.
 
 ## Setup gotchas (undocumented anywhere else — read before rebuilding)
 
@@ -107,6 +122,7 @@ that were needed and are not mentioned in IBC's own documentation:
 | IBKR paper login | `/opt/ibc/config.ini` (`IbLoginId`/`IbPassword`), mode 600, owned by `ubuntu` | Typed directly by the account owner via `nano` over SSH — never seen by any automation or this repo |
 | `BRIDGE_ACCESS_TOKEN` | `thetaforge-bridge.service` and `thetaforge-auto-executor.service` systemd unit files, mode 600 | Generated locally, matches the value already used for local Bridge access |
 | `ADVISOR_API_TOKEN` | `thetaforge-auto-executor.service` and `market_hours_supervisor.sh` | Matches the value set in Render's environment variables |
+| `MARKET_DATA_ACCESS_TOKEN` | `thetaforge-market-data.service` systemd unit, mode 600 | Generated locally; also set as `IBKR_MARKET_DATA_TOKEN` in Render's environment variables so the Advisor can call the proxy |
 | Git deploy key (journal push) | `~/.ssh/thetaforge_repo_deploy_key`, write access to this repo only | Public half added as a GitHub Deploy Key by the account owner |
 | SSH access to the VM | `~/.ssh/thetaforge_vm` (this repo owner's machine only) | Provisioned at VM creation |
 
@@ -129,11 +145,12 @@ sudo systemctl restart thetaforge-auto-executor.service
 ```bash
 ssh -i ~/.ssh/thetaforge_vm ubuntu@92.4.132.188
 
-sudo systemctl status ibgateway.service thetaforge-bridge.service thetaforge-auto-executor.service
+sudo systemctl status ibgateway.service thetaforge-bridge.service thetaforge-auto-executor.service thetaforge-market-data.service
 sudo journalctl -u thetaforge-auto-executor.service -n 50 --no-pager
 sudo journalctl -u thetaforge-market-supervisor.service -n 20 --no-pager
 curl -s http://127.0.0.1:8002/health
 curl -s -H "X-ThetaForge-Bridge-Token: <token>" http://127.0.0.1:8002/orders
+curl -s -H "X-Market-Data-Token: <token>" http://127.0.0.1:8003/health
 ```
 
 ## Redeploying Bridge code changes
@@ -147,15 +164,30 @@ ssh -i ~/.ssh/thetaforge_vm ubuntu@92.4.132.188 'sudo systemctl restart thetafor
 ```
 
 `deployment/vm_auto_executor.py`, `deployment/vm_auto_manager.py`,
-`market_hours_supervisor.sh`, and `journal_sync_push.sh` are copied the same
-way and restarted via their respective service names.
+`deployment/vm_market_data_service.py` (as `market_data_service.py` on the
+VM), `market_hours_supervisor.sh`, and `journal_sync_push.sh` are copied the
+same way and restarted via their respective service names.
 
-## Known limitation
+## Known limitations
 
-CBOE's free delayed-quotes feed rate-limits Render's outbound IP under
-concurrent load — see the `v1.2.4` changelog entry and the comment above
-`SCAN_CONCURRENCY` in `background_scanner.py`. This affects the Advisor's
-scanning, not this VM directly, but it's the reason the auto-executor's
-notification polling can occasionally see a quiet cycle even during market
-hours — the background scan itself may have degraded some symbols to
-`option_chain_unavailable` for that pass.
+- CBOE's free delayed-quotes feed rate-limits Render's outbound IP under
+  concurrent load — see the `v1.2.4` changelog entry and the comment above
+  `SCAN_CONCURRENCY` in `background_scanner.py`. This affects the Advisor's
+  scanning, not this VM directly, but it's the reason the auto-executor's
+  notification polling can occasionally see a quiet cycle even during market
+  hours — the background scan itself may have degraded some symbols to
+  `option_chain_unavailable` for that pass.
+- **The IBKR market-data proxy is deployed and wired in as the priority-1
+  source, but as of 2026-08-13 has not been confirmed delivering real quotes
+  reliably**, despite the account having an active OPRA subscription. A
+  methodical debugging pass ruled out batch size, stale client IDs, request
+  concurrency (a lock now serializes all requests through the one shared IB
+  connection), and streaming vs. snapshot request mode — an isolated,
+  uncontended snapshot request still returned zero data with zero errors.
+  This currently looks like an IBKR account/platform-side issue (possibly
+  the paper account not fully inheriting entitlements from its linked live
+  account) rather than a code bug. Nothing is broken in the meantime: every
+  call falls through to CBOE then yfinance automatically on any proxy
+  failure. Re-verify with a clean request (`curl -H "X-Market-Data-Token:
+  <token>" http://92.4.132.188:8003/option-chain/SPY`) before assuming this
+  is fixed.
