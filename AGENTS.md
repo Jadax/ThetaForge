@@ -117,3 +117,10 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
   wanted, that is a deliberate, separately-reviewed change made at the time
   it's actually needed — not a standing unlock left in autonomous, unattended
   code. See `docs/AUTONOMOUS_TRADING.md`.
+- Do not add any endpoint to `deployment/vm_market_data_service.py` that can
+  place an order, see account positions, or otherwise touch anything beyond
+  read-only market data. It's the one thing on the VM deliberately reachable
+  from the public internet (own port 8003, own token, own IB client ID) —
+  that's only an acceptable risk because the worst case of the token leaking
+  is someone sees option quotes, not that they touch the account. See the
+  module's own docstring and `docs/AUTONOMOUS_TRADING.md`.
