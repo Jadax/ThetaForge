@@ -345,6 +345,8 @@ def test_equity_entry_carries_asset_class_and_plan(tmp_path):
     data = json.loads(journal_path.read_text(encoding="utf-8"))
     trade = data["trades"][0]
     assert trade["asset_class"] == "equity"
+    assert trade["instrument_type"] == "stock"
+    assert trade["shares"] == 10
     assert trade["legs"] == []
     assert trade["entry_price"] == 100.0
     assert trade["stop_price"] == 96.0
@@ -352,6 +354,24 @@ def test_equity_entry_carries_asset_class_and_plan(tmp_path):
     assert trade["management_plan"]["stop"] == "hard stop at 96.0"
     assert trade["management_plan"]["target"] == "take profit at 2R target 108.0"
     assert "Long NVDA" in trade["reason"]
+
+
+def test_etf_and_option_instrument_types(tmp_path):
+    ledger = [
+        _stock_record("eq-etf", symbol="SPY"),
+        _record("rec-opt"),
+    ]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    by_id = {trade["id"]: trade for trade in data["trades"]}
+    assert by_id["eq-etf"]["instrument_type"] == "etf"
+    assert by_id["rec-opt"]["instrument_type"] == "option"
+    assert by_id["rec-opt"]["shares"] is None
 
 
 def test_equity_close_folds_realized_pnl(tmp_path):

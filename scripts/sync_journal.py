@@ -43,6 +43,14 @@ DEFAULT_LEDGER = REPO_ROOT / "data" / "paper_order_ledger.json"
 
 EXCLUDED_STATUSES = {"ApiCancelled", "Cancelled", "Inactive", "PendingCancel"}
 
+# Liquid broad-market/sector ETFs — the equity universe's rotation core
+# (agents/equity_trader/equity_universe.py LIQUID_ETF_CORE). Kept in sync so the
+# journal can label an equity leg as ETF vs single stock from data alone.
+ETF_TICKERS = {
+    "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "XLV", "XLI", "XLY",
+    "XLP", "XLB", "XLC", "XLU", "XLRE",
+}
+
 DEFAULT_TRADER = {
     "name": "Tushant Sharma",
     "handle": "@thetaforge",
@@ -139,6 +147,13 @@ def _default_management_plan(strategy: str, asset_class: str = "options") -> dic
     }
 
 
+def _instrument_type(asset_class: str, symbol: str) -> str:
+    """option | stock | etf — what the dashboard breaks P&L down by."""
+    if asset_class == "equity":
+        return "etf" if symbol in ETF_TICKERS else "stock"
+    return "option"
+
+
 def build_entry(record: dict, overlay: dict) -> dict:
     ledger_id = str(record.get("id", ""))
     symbol = str(record.get("symbol", "")).upper()
@@ -171,6 +186,8 @@ def build_entry(record: dict, overlay: dict) -> dict:
         "order": _order_block(record),
         "symbol": symbol,
         "asset_class": asset_class,
+        "instrument_type": _instrument_type(asset_class, symbol),
+        "shares": record.get("quantity") if asset_class == "equity" else None,
         "opened": opened,
         "closed": None,
         "status": "open",
