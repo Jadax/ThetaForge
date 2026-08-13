@@ -32,13 +32,13 @@ Safety rails:
 """
 import logging
 import os
-import subprocess
 import time
 from datetime import date
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
+
+from _vm_common import is_market_open as _is_market_open, run_journal_sync as _run_journal_sync
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("auto_manager")
@@ -79,13 +79,7 @@ MANAGED_STRATEGIES = {
 
 
 def is_market_open(client: httpx.Client) -> bool:
-    try:
-        response = client.get(f"{ADVISOR_URL}/api/advisor/scanner/status", headers=ADVISOR_HEADERS, timeout=10)
-        response.raise_for_status()
-        return bool(response.json().get("market_open"))
-    except Exception:
-        logger.exception("Could not read /scanner/status; treating as closed for this cycle")
-        return False
+    return _is_market_open(client, ADVISOR_URL, ADVISOR_HEADERS, logger)
 
 
 def fetch_ledger(client: httpx.Client) -> dict[str, Any]:
@@ -328,16 +322,7 @@ def run_equity_once(client: httpx.Client) -> int:
 
 
 def run_journal_sync() -> None:
-    if not Path(JOURNAL_SYNC_SCRIPT).exists():
-        logger.warning("Journal sync script not found at %s; skipping", JOURNAL_SYNC_SCRIPT)
-        return
-    try:
-        result = subprocess.run(
-            [JOURNAL_SYNC_SCRIPT], capture_output=True, text=True, timeout=120
-        )
-        logger.info("journal sync: %s", result.stdout.strip() or result.stderr.strip())
-    except Exception:
-        logger.exception("Journal sync failed")
+    _run_journal_sync(JOURNAL_SYNC_SCRIPT, logger)
 
 
 def run_once(client: httpx.Client) -> int:

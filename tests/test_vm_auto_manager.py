@@ -1,17 +1,25 @@
 """Tests for the autonomous paper position manager (VM-side exit loop)."""
 import importlib.util
 import os
+import sys
 from pathlib import Path
 
 import httpx
 
-MANAGER = Path(__file__).resolve().parent.parent / "deployment" / "vm_auto_manager.py"
+DEPLOYMENT_DIR = Path(__file__).resolve().parent.parent / "deployment"
+MANAGER = DEPLOYMENT_DIR / "vm_auto_manager.py"
 
 
 def _load_manager():
     os.environ.setdefault("ADVISOR_URL", "http://advisor.test")
     os.environ.setdefault("ADVISOR_API_TOKEN", "advisor-token")
     os.environ.setdefault("BRIDGE_ACCESS_TOKEN", "bridge-token")
+    # vm_auto_manager.py imports _vm_common the same way it will on the VM
+    # (a bare same-directory import, since it's deployed flat alongside
+    # _vm_common.py there) -- mirror that here by putting deployment/ on
+    # sys.path before exec'ing it, rather than a normal package import.
+    if str(DEPLOYMENT_DIR) not in sys.path:
+        sys.path.insert(0, str(DEPLOYMENT_DIR))
     spec = importlib.util.spec_from_file_location("vm_auto_manager", MANAGER)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

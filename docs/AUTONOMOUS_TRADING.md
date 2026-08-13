@@ -167,6 +167,11 @@ ssh -i ~/.ssh/thetaforge_vm ubuntu@92.4.132.188 'sudo systemctl restart thetafor
 `deployment/vm_market_data_service.py` (as `market_data_service.py` on the
 VM), `market_hours_supervisor.sh`, and `journal_sync_push.sh` are copied the
 same way and restarted via their respective service names.
+`deployment/_vm_common.py` (shared `is_market_open`/`run_journal_sync`
+helpers) must be copied alongside `vm_auto_executor.py` and
+`vm_auto_manager.py` in the same directory — both import it as a bare,
+same-directory module since neither has the full `agents/` package tree
+available on the VM.
 
 ## Known limitations
 
