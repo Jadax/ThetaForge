@@ -233,29 +233,31 @@ async def _locked_stock_quote(symbol: str) -> dict[str, Any]:
         return await _fetch_stock_quote(symbol)
 
 
-async def _fetch_stock_quote(symbol: str) -> dict[str, Any]:
-    await ensure_connected()
+async def _snapshot_quote(contract, wait_seconds: float = 2.0) -> tuple[float, float, float, str]:
+    """Live-then-delayed snapshot for one contract: try live type 1, then
+    IBKR's free delayed feed (type 3) if nothing came back. A paper account
+    usually only has delayed, and delayed-from-our-own-feed still beats
+    CBOE's public endpoint. Returns (bid, ask, last, data_quality)."""
     assert ib is not None
-    contract = await _qualify_stock(symbol)
-
-    # Same live-then-delayed fallback as the option chain: try live type 1,
-    # then IBKR's free delayed feed (type 3). A paper account usually only
-    # has delayed, and delayed-from-our-own-feed still beats CBOE.
-    data_quality = "live"
     ib.reqMarketDataType(1)
     ticker = ib.reqMktData(contract, "", True, False)
-    await asyncio.sleep(2.0)
-    last = _finite(ticker.last)
-    bid = _finite(ticker.bid)
-    ask = _finite(ticker.ask)
-    if not last and not bid and not ask:
-        data_quality = "delayed"
-        ib.reqMarketDataType(3)
-        ticker = ib.reqMktData(contract, "", True, False)
-        await asyncio.sleep(2.0)
-        last = _finite(ticker.last)
-        bid = _finite(ticker.bid)
-        ask = _finite(ticker.ask)
+    await asyncio.sleep(wait_seconds)
+    bid, ask, last = _finite(ticker.bid), _finite(ticker.ask), _finite(ticker.last)
+    if bid or ask or last:
+        return bid, ask, last, "live"
+
+    ib.reqMarketDataType(3)
+    ticker = ib.reqMktData(contract, "", True, False)
+    await asyncio.sleep(wait_seconds)
+    bid, ask, last = _finite(ticker.bid), _finite(ticker.ask), _finite(ticker.last)
+    return bid, ask, last, "delayed"
+
+
+async def _fetch_stock_quote(symbol: str) -> dict[str, Any]:
+    await ensure_connected()
+    contract = await _qualify_stock(symbol)
+
+    bid, ask, last, data_quality = await _snapshot_quote(contract)
     if not last and not bid and not ask:
         raise HTTPException(status_code=422, detail=f"No live or delayed price available for {symbol}")
     return {
@@ -263,7 +265,7 @@ async def _fetch_stock_quote(symbol: str) -> dict[str, Any]:
         "bid": bid,
         "ask": ask,
         "last": last,
-        "market_data_type": "live" if data_quality == "live" else "delayed",
+        "market_data_type": data_quality,
         "as_of": datetime.now().isoformat(timespec="seconds"),
     }
 
@@ -331,24 +333,9 @@ async def _fetch_option_chain(symbol: str) -> list[dict[str, Any]]:
     # IBKR itself recommends for "poll the current price and move on"
     # use cases, and streaming tickers here were intermittently never
     # populating even in isolated single-request tests, for reasons that
-    # never showed up as a clean error. Try live data first (type 1); this
-    # paper account has no live-data subscription for most symbols, so this
-    # deliberately falls back to IBKR's free delayed feed (type 3) rather
-    # than failing outright -- delayed-but-from-our-own-dedicated-connection
-    # is still a real upgrade over CBOE's public endpoint, which Render's IP
-    # gets rate-limited on under load (see SCAN_CONCURRENCY's comment in
-    # background_scanner.py).
-    data_quality = "live"
-    ib.reqMarketDataType(1)
-    ticker = ib.reqMktData(stock, "", True, False)
-    await asyncio.sleep(2.0)
-    spot = ticker.marketPrice()
-    if not spot or not math.isfinite(spot) or spot <= 0:
-        data_quality = "delayed"
-        ib.reqMarketDataType(3)
-        ticker = ib.reqMktData(stock, "", True, False)
-        await asyncio.sleep(2.0)
-        spot = ticker.marketPrice()
+    # never showed up as a clean error.
+    bid, ask, last, data_quality = await _snapshot_quote(stock)
+    spot = last or ((bid + ask) / 2 if bid and ask else 0) or ask or bid
     if not spot or not math.isfinite(spot) or spot <= 0:
         raise HTTPException(status_code=422, detail=f"No live or delayed price available for {symbol}")
 

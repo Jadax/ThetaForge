@@ -1,9 +1,9 @@
 """
 Free Multi-Source Data Provider.
-Aggregates data from IBKR (primary), CBOE delayed quotes (no key), Alpaca
-(secondary), and yfinance (fallback). All sources are FREE with a brokerage
-account or no account at all.
-Adapted from IBKRTools and general market data aggregation patterns.
+Aggregates data from IBKR (primary, via the VM's read-only market-data
+proxy when configured), CBOE delayed quotes (no key), and yfinance
+(fallback). All sources are FREE with a brokerage account or no account
+at all.
 """
 import asyncio
 import logging
@@ -33,12 +33,10 @@ IBKR_MARKET_DATA_TIMEOUT = float(os.getenv("IBKR_MARKET_DATA_TIMEOUT", "12"))
 class FreeDataProvider:
     """
     Multi-source data provider using only free APIs.
-    Priority: IBKR (via the VM proxy, when configured) > CBOE (options) > Alpaca > yfinance
+    Priority: IBKR (via the VM proxy, when configured) > CBOE (options) > yfinance
     """
 
-    def __init__(self, ibkr_client=None, alpaca_client=None):
-        self.ibkr = ibkr_client
-        self.alpaca = alpaca_client
+    def __init__(self):
         self.cboe = CBOEDataProvider()
 
     async def _get_ibkr_proxy_chain(self, symbol: str) -> Optional[List[Dict[str, Any]]]:
@@ -111,18 +109,6 @@ class FreeDataProvider:
 
     async def get_stock_price(self, symbol: str) -> Optional[float]:
         """Get current stock price from any available source."""
-        if self.ibkr and self.ibkr._connected:
-            try:
-                contract = self._stock_contract(symbol)
-                self.ibkr.ib.qualifyContracts(contract)
-                ticker = self.ibkr.ib.reqMktData(contract, '', False, False)
-                await asyncio.sleep(1)
-                price = ticker.marketPrice()
-                self.ibkr.ib.cancelMktData(contract)
-                return float(price)
-            except Exception as e:
-                logger.warning(f"IBKR price fetch failed for {symbol}: {e}")
-
         proxy_price = await self._get_ibkr_proxy_stock_price(symbol)
         if proxy_price:
             return proxy_price
@@ -148,9 +134,6 @@ class FreeDataProvider:
         ibkr_chain = await self._get_ibkr_proxy_chain(symbol)
         if ibkr_chain:
             return ibkr_chain
-
-        if self.ibkr and self.ibkr._connected:
-            return await self.ibkr.get_option_chain(symbol)
 
         try:
             chain = await self.cboe.get_option_chain(symbol)
@@ -367,7 +350,6 @@ class FreeDataProvider:
 
     async def get_put_call_ratio(self) -> Optional[float]:
         """Get CBOE put/call ratio (free from CBOE website)."""
-        import httpx
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
@@ -431,10 +413,6 @@ class FreeDataProvider:
             except Exception:
                 pass
         return perf
-
-    def _stock_contract(self, symbol: str):
-        from ib_insync import Stock
-        return Stock(symbol, "SMART", "USD")
 
     def _parse_yf_option(self, row, expiry: str, opt_type: str) -> Dict[str, Any]:
         # Yahoo frequently represents unavailable option fields as NaN. A
