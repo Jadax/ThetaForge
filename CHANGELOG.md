@@ -1,5 +1,51 @@
 # ThetaForge Changelog
 
+## v1.9.0 - 2026-08-13
+
+Second engine shipped: an autonomous momentum-equity (stock/ETF) long trader
+alongside the options engine. Same paper-only, free-data, fail-closed
+principles: the Bridge is still the only order path and its ledger stays the
+single source of truth.
+
+- New `agents/equity_trader/` module: `equity_signals.py` (trend, 6m momentum,
+  RS vs SPY), `equity_brain.py` (fail-closed gates: risk_off regime, macro
+  <=2d, earnings <=3d, SMA200/SMA50 trend, momentum, ADX>=20, RSI<=80, RS
+  >=-5%; `BUY_SCORE_FLOOR` 62), `equity_universe.py` (free active-universe
+  discovery), `equity_scanner.py` (5-min background scan, `SCAN_CONCURRENCY=5`,
+  market-hours only, notification floor 70), `equity_recommender.py` (1% risk,
+  2x ATR stop, 2R target, 30% notional cap, `MAX_CORRELATED_EQUITY_POSITIONS=3`
+  via `SYMBOL_SECTOR`), `equity_manager.py` (stop / pre-macro / pre-earnings /
+  chandelier trail / 2R profit / 60d time rules, running-high ratchet).
+- Bridge (`bridge/main.py` v0.4.0): `POST /orders/stock` (long-only, live-quote
+  ask required, stop-defined risk `shares * (ask - stop)` reserved in the
+  weekly ledger), `POST /orders/close-stock`, and `POST
+  /orders/{ledger_id}/position-meta` (metadata-only, upward-only trailing-stop
+  anchor ratchet).
+- Advisor (`orchestrator/routes/advisor.py`): `/api/advisor/equity/notifications`,
+  `/equity/recommend`, `/equity/positions/management`, `/equity/scanner/status`.
+  `/equity/recommend` always returns the payload (`entry_price`, `rationale`,
+  `gate_reason`, `score`, `read`, `trend`, `rsi_14`, `adx_14`, `atr_14`); the
+  `recommendations` list only ever carries ungated names.
+- VM automation: `vm_auto_executor.py` runs the equity notification cycle
+  (fetch -> recommend -> submit -> acknowledge); `vm_auto_manager.py` requests
+  equity management and submits closes (`AUTO_CLOSE_ENABLED` gated,
+  `review_tested` still never auto-submitted).
+- Market data: the read-only VM proxy (`vm_market_data_service.py`) gained
+  `GET /stock/{symbol}` and `GET /stock-history/{symbol}`; `free_data.py`
+  routes stock price + daily history IBKR-first (proxy, then yfinance).
+- Journal: two-engine site with All/Options/Stocks filters, engine chips, and
+  equity cards (shares / entry / stop / 2R target); `sync_journal.py` folds
+  equity closes with realized P&L and writes equity exit notes
+  (`close_stop`/`close_trail`/`close_profit`/...).
+- Dashboard (`dashboard/app/page.tsx` v1.9.0): equity notifications, scanner
+  status, momentum-long recommendation cards, and an equity position
+  management panel.
+- Docs: `AGENTS.md` module map + changelog. VERSION → v1.9.0.
+- Tests: 299 pass (was 261). New equity brain/recommender/manager
+  (`test_equity_trader.py`), advisor endpoints (`test_equity_advisor.py`),
+  equity ledger reservation (`test_paper_bridge.py`), equity journal
+  (`test_sync_journal.py`), and equity CLI (`test_add_trade_cli.py`) tests.
+
 ## v1.8.0 - 2026-08-13
 
 Brain hardening: macro-event awareness, correlation concentration, and an

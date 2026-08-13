@@ -200,6 +200,116 @@ async def option_chain(symbol: str, _: None = Depends(require_token)):
         raise HTTPException(status_code=504, detail=f"Timed out fetching chain for {symbol.upper()}")
 
 
+@app.get("/stock/{symbol}")
+async def stock_quote(symbol: str, _: None = Depends(require_token)):
+    """Live (or IBKR's free delayed) snapshot quote for one stock/ETF."""
+    try:
+        return await asyncio.wait_for(_locked_stock_quote(symbol.upper()), timeout=REQUEST_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail=f"Timed out quoting {symbol.upper()}")
+
+
+# "1 Y", "6 M", "3 M", "1 M" are the IBKR historical-duration strings for the
+# free-data periods free_data.py requests. Anything else maps to 1 year so the
+# caller never gets a parse error back from IBKR.
+_HISTORY_DURATIONS = {"1y": "1 Y", "6mo": "6 M", "3mo": "3 M", "1mo": "1 M"}
+
+
+@app.get("/stock-history/{symbol}")
+async def stock_history(symbol: str, period: str = "1y", _: None = Depends(require_token)):
+    """Daily OHLCV bars for one stock/ETF from the account's own IBKR feed."""
+    try:
+        duration = _HISTORY_DURATIONS.get(period.lower(), "1 Y")
+        return await asyncio.wait_for(
+            _locked_stock_history(symbol.upper(), duration),
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail=f"Timed out fetching history for {symbol.upper()}")
+
+
+async def _locked_stock_quote(symbol: str) -> dict[str, Any]:
+    async with _chain_lock:
+        return await _fetch_stock_quote(symbol)
+
+
+async def _fetch_stock_quote(symbol: str) -> dict[str, Any]:
+    await ensure_connected()
+    assert ib is not None
+    contract = await _qualify_stock(symbol)
+
+    # Same live-then-delayed fallback as the option chain: try live type 1,
+    # then IBKR's free delayed feed (type 3). A paper account usually only
+    # has delayed, and delayed-from-our-own-feed still beats CBOE.
+    data_quality = "live"
+    ib.reqMarketDataType(1)
+    ticker = ib.reqMktData(contract, "", True, False)
+    await asyncio.sleep(2.0)
+    last = _finite(ticker.last)
+    bid = _finite(ticker.bid)
+    ask = _finite(ticker.ask)
+    if not last and not bid and not ask:
+        data_quality = "delayed"
+        ib.reqMarketDataType(3)
+        ticker = ib.reqMktData(contract, "", True, False)
+        await asyncio.sleep(2.0)
+        last = _finite(ticker.last)
+        bid = _finite(ticker.bid)
+        ask = _finite(ticker.ask)
+    if not last and not bid and not ask:
+        raise HTTPException(status_code=422, detail=f"No live or delayed price available for {symbol}")
+    return {
+        "symbol": symbol,
+        "bid": bid,
+        "ask": ask,
+        "last": last,
+        "market_data_type": "live" if data_quality == "live" else "delayed",
+        "as_of": datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+async def _qualify_stock(symbol: str) -> Stock:
+    assert ib is not None
+    contract = Stock(symbol, "SMART", "USD")
+    qualified = await ib.qualifyContractsAsync(contract)
+    if not qualified:
+        raise HTTPException(status_code=422, detail=f"Could not qualify {symbol}")
+    return qualified[0]
+
+
+async def _locked_stock_history(symbol: str, duration: str) -> list[dict[str, Any]]:
+    async with _chain_lock:
+        return await _fetch_stock_history(symbol, duration)
+
+
+async def _fetch_stock_history(symbol: str, duration: str) -> list[dict[str, Any]]:
+    await ensure_connected()
+    assert ib is not None
+    contract = await _qualify_stock(symbol)
+    bars = await ib.reqHistoricalDataAsync(
+        contract,
+        endDateTime="",
+        durationStr=duration,
+        barSizeSetting="1 day",
+        whatToShow="TRADES",
+        useRTH=True,
+        formatDate=1,
+    )
+    if not bars:
+        raise HTTPException(status_code=422, detail=f"No historical bars available for {symbol}")
+    return [
+        {
+            "date": str(bar.date),
+            "open": _finite(bar.open),
+            "high": _finite(bar.high),
+            "low": _finite(bar.low),
+            "close": _finite(bar.close),
+            "volume": float(_finite(bar.volume)),
+        }
+        for bar in bars
+    ]
+
+
 async def _locked_fetch_option_chain(symbol: str) -> list[dict[str, Any]]:
     async with _chain_lock:
         return await _fetch_option_chain(symbol)

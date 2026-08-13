@@ -12,7 +12,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from ib_insync import IB, Bag, ComboLeg, LimitOrder, Option, ScannerSubscription
+from ib_insync import IB, Bag, ComboLeg, LimitOrder, Option, ScannerSubscription, Stock
 import ib_insync.connection as ib_connection
 
 
@@ -106,6 +106,37 @@ class CloseComboRequest(BaseModel):
     ledger_id: str = Field(min_length=1, max_length=80)
     reason: str = Field(default="managed_exit", min_length=1, max_length=80)
     capital_limit: float = Field(gt=0)
+
+
+class PaperStockOrder(BaseModel):
+    """A long-only paper stock/ETF buy submitted to the Bridge.
+
+    Long stock is the ONLY equity side this Bridge accepts: short stock is
+    undefined risk, so it is rejected outright. The stop price defines the
+    position's risk (shares x (entry - stop)) for the weekly capital
+    reservation; the Bridge independently re-verifies live IBKR quotes before
+    placing the order.
+    """
+    symbol: str = Field(min_length=1, max_length=12)
+    shares: int = Field(gt=0, le=10000)
+    capital_limit: float = Field(gt=0)
+    stop_price: float = Field(gt=0)
+    target_price: float | None = Field(default=None, gt=0)
+    recommendation_id: str | None = Field(default=None, max_length=120)
+    strategy: str | None = Field(default=None, max_length=80)
+
+
+class CloseStockRequest(BaseModel):
+    """Close a long equity paper position by referencing its entry ledger id."""
+    ledger_id: str = Field(min_length=1, max_length=80)
+    reason: str = Field(default="managed_exit", min_length=1, max_length=80)
+    capital_limit: float = Field(gt=0)
+
+
+class PositionMetaUpdate(BaseModel):
+    """Metadata-only update on an equity entry: the trailing-stop anchor."""
+    ledger_id: str = Field(min_length=1, max_length=80)
+    highest_high: float = Field(gt=0)
 
 
 RESERVING_ORDER_STATUSES = {
@@ -407,6 +438,19 @@ def _owned_shares(symbol: str) -> float:
     )
 
 
+async def _live_stock_ticker(symbol: str):
+    """Qualify a stock and request a strict live snapshot from TWS."""
+    await ensure_connected()
+    assert ib is not None
+    contract = Stock(symbol.upper(), "SMART", "USD")
+    qualified = await ib.qualifyContractsAsync(contract)
+    if not qualified:
+        raise HTTPException(status_code=422, detail="IBKR could not qualify the stock contract")
+    ib.reqMarketDataType(1)
+    tickers = await ib.reqTickersAsync(*qualified)
+    return qualified[0], tickers[0]
+
+
 @app.post("/options/quotes")
 async def option_quotes(request: OptionQuoteRequest, _: None = Depends(require_access_token)):
     """Fetch a bounded IBKR quote snapshot and disclose its data quality.
@@ -702,3 +746,203 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
         "capital_remaining": round(max(request.capital_limit - reserved, 0), 2),
         "message": "Paper closing order submitted to IBKR Gateway",
     }
+
+
+@app.post("/orders/stock")
+async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_access_token)):
+    """Submit a long-only paper stock/ETF buy to IBKR paper TWS.
+
+    Mirrors submit-combo's safety rails for equities: live-quote verification
+    (a BUY fills at the live ask), a hard reject on short side, and the weekly
+    capital ledger reserved by the ATR stop distance (shares x (entry - stop)),
+    which is the defined risk the Advisor sized the position for. A stop is not
+    a hard cap against a gap, so the reservation is deliberately conservative.
+    """
+    await ensure_connected()
+    _, ticker = await _live_stock_ticker(order.symbol)
+    ask = _quote_number(ticker.ask)
+    if ticker.marketDataType != 1 or ask is None:
+        raise HTTPException(status_code=422, detail="Live executable IBKR bid/ask data is required before a paper stock order can be submitted")
+    entry_price = ask
+    if order.stop_price >= entry_price:
+        raise HTTPException(status_code=422, detail="Stop price must be below the live entry price")
+    stop_distance = entry_price - order.stop_price
+    total_risk = stop_distance * order.shares
+    if total_risk <= 0:
+        raise HTTPException(status_code=422, detail="Stock order has no positive defined risk")
+
+    records = _sync_order_ledger()
+    capital_reserved = _reserved_capital(records)
+    if capital_reserved + total_risk > order.capital_limit:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Weekly reserved capital ${capital_reserved:.2f} plus this order's "
+                f"${total_risk:.2f} stop-defined risk exceeds the ${order.capital_limit:.2f} limit"
+            ),
+        )
+
+    assert ib is not None
+    limit_price = round(ask, 2)
+    ib_order = LimitOrder("BUY", order.shares, limit_price, tif="DAY")
+    trade = ib.placeOrder(ticker.contract, ib_order)
+    now = datetime.now(timezone.utc).isoformat()
+    ledger_id = str(uuid4())
+    status = str(trade.orderStatus.status or "PendingSubmit")
+    records.append({
+        "id": ledger_id,
+        "asset_class": "equity",
+        "recommendation_id": order.recommendation_id,
+        "strategy": order.strategy,
+        "symbol": order.symbol.upper(),
+        "quantity": order.shares,
+        "ibkr_order_id": int(trade.order.orderId),
+        "status": status,
+        "filled": float(trade.orderStatus.filled or 0),
+        "remaining": float(trade.orderStatus.remaining or order.shares),
+        "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
+        "limit_price": limit_price,
+        "entry_price": round(entry_price, 2),
+        "stop_price": round(order.stop_price, 2),
+        "target_price": round(order.target_price, 2) if order.target_price else None,
+        "highest_high": round(entry_price, 2),
+        "risk_per_share": round(stop_distance, 2),
+        "net_credit": 0.0,
+        "max_loss_per_combo": 0.0,
+        "max_loss_total": round(total_risk, 2),
+        "week_key": _current_week_key(),
+        "submitted_at": now,
+        "updated_at": now,
+    })
+    _write_order_ledger(records)
+    return {
+        "mode": "paper_only",
+        "asset_class": "equity",
+        "status": status,
+        "ledger_id": ledger_id,
+        "ibkr_order_id": int(trade.order.orderId),
+        "limit_price": limit_price,
+        "entry_price": round(entry_price, 2),
+        "stop_price": round(order.stop_price, 2),
+        "target_price": round(order.target_price, 2) if order.target_price else None,
+        "shares": order.shares,
+        "max_loss_total": round(total_risk, 2),
+        "capital_reserved": round(capital_reserved + total_risk, 2),
+        "capital_remaining": round(order.capital_limit - capital_reserved - total_risk, 2),
+        "message": "Paper stock order submitted to IBKR Gateway",
+    }
+
+
+@app.post("/orders/close-stock")
+async def close_paper_stock(request: CloseStockRequest, _: None = Depends(require_access_token)):
+    """Close a long paper stock/ETF position by mirroring its entry record.
+
+    The close reverses the entry side (SELL the same quantity) using a live
+    verified bid as the limit, and the parent's weekly stop-risk reservation is
+    released. Realized P&L is (fill - average entry cost) x shares, which the
+    journal folds into the parent entry.
+    """
+    await ensure_connected()
+    assert ib is not None
+    records = _sync_order_ledger()
+    parent = next((item for item in records if item.get("id") == request.ledger_id), None)
+    if parent is None:
+        raise HTTPException(status_code=404, detail="Paper order was not found in the ledger")
+    if parent.get("asset_class") != "equity":
+        raise HTTPException(status_code=409, detail="This ledger record is not an equity position")
+    if parent.get("close_of"):
+        raise HTTPException(status_code=409, detail="This order is itself a closing order; a position closes once")
+    if parent.get("closed_by"):
+        raise HTTPException(status_code=409, detail="This position is already closed")
+    if float(parent.get("filled", 0) or 0) <= 0:
+        raise HTTPException(status_code=409, detail="Cannot close a paper position that has not filled")
+
+    shares = int(parent.get("quantity", 0) or 0)
+    if shares <= 0:
+        raise HTTPException(status_code=422, detail="Parent equity record has no quantity")
+    cost_basis = float(parent.get("average_fill_price") or 0) or float(parent.get("entry_price") or 0)
+    if cost_basis <= 0:
+        raise HTTPException(status_code=422, detail="Parent equity record has no average cost basis")
+
+    _, ticker = await _live_stock_ticker(str(parent.get("symbol", "")))
+    bid = _quote_number(ticker.bid)
+    if ticker.marketDataType != 1 or bid is None:
+        raise HTTPException(status_code=422, detail="Live executable IBKR bid/ask data is required before a closing order can be submitted")
+
+    limit_price = round(bid, 2)
+    ib_order = LimitOrder("SELL", shares, limit_price, tif="DAY")
+    trade = ib.placeOrder(ticker.contract, ib_order)
+    now = datetime.now(timezone.utc).isoformat()
+    ledger_id = str(uuid4())
+    status = str(trade.orderStatus.status or "PendingSubmit")
+    realized_pnl = (limit_price - cost_basis) * shares
+    close_record = {
+        "id": ledger_id,
+        "asset_class": "equity",
+        "close_of": request.ledger_id,
+        "reason": request.reason,
+        "strategy": parent.get("strategy"),
+        "symbol": parent.get("symbol"),
+        "quantity": shares,
+        "ibkr_order_id": int(trade.order.orderId),
+        "status": status,
+        "filled": float(trade.orderStatus.filled or 0),
+        "remaining": float(trade.orderStatus.remaining or shares),
+        "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
+        "limit_price": limit_price,
+        "cost_to_close": round(limit_price * shares, 2),
+        "realized_pnl": round(realized_pnl, 2),
+        "week_key": _current_week_key(),
+        "submitted_at": now,
+        "updated_at": now,
+    }
+    parent["closed_by"] = ledger_id
+    parent["closed_at"] = now
+    parent["updated_at"] = now
+    records.append(close_record)
+    _write_order_ledger(records)
+    reserved = _reserved_capital(records)
+    return {
+        "mode": "paper_only",
+        "asset_class": "equity",
+        "status": status,
+        "ledger_id": ledger_id,
+        "close_of": request.ledger_id,
+        "reason": request.reason,
+        "ibkr_order_id": int(trade.order.orderId),
+        "limit_price": limit_price,
+        "cost_to_close": round(limit_price * shares, 2),
+        "realized_pnl": round(realized_pnl, 2),
+        "shares": shares,
+        "capital_reserved": round(reserved, 2),
+        "capital_remaining": round(max(request.capital_limit - reserved, 0), 2),
+        "message": "Paper closing stock order submitted to IBKR Gateway",
+    }
+
+
+@app.post("/orders/{ledger_id}/position-meta")
+async def update_position_meta(ledger_id: str, request: PositionMetaUpdate, _: None = Depends(require_access_token)):
+    """Ratchet an equity entry's trailing-stop anchor.
+
+    This is a metadata write only — it never touches order status, fills, or
+    capital reservation. The auto-manager uses it to persist the highest high
+    since entry so the chandelier trail can be recomputed faithfully each
+    cycle. Rejects non-equity records and any attempt to lower the anchor.
+    """
+    records = _read_order_ledger()
+    record = next((item for item in records if item.get("id") == ledger_id), None)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Paper order was not found in the ledger")
+    if record.get("asset_class") != "equity":
+        raise HTTPException(status_code=422, detail="Only equity positions carry a trailing-stop anchor")
+    if record.get("closed_by") or record.get("close_of"):
+        raise HTTPException(status_code=409, detail="Closed positions cannot be re-anchored")
+    current_high = float(record.get("highest_high") or 0)
+    if request.highest_high < current_high:
+        raise HTTPException(status_code=422, detail="Trailing anchor only ratchets upward")
+    if request.highest_high == current_high:
+        return {"mode": "paper_only", "ledger_id": ledger_id, "highest_high": round(current_high, 2), "updated": False}
+    record["highest_high"] = round(request.highest_high, 2)
+    record["updated_at"] = datetime.now(timezone.utc).isoformat()
+    _write_order_ledger(records)
+    return {"mode": "paper_only", "ledger_id": ledger_id, "highest_high": round(request.highest_high, 2), "updated": True}

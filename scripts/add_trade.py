@@ -35,7 +35,7 @@ DEFAULT_LEDGER = REPO_ROOT / "data" / "paper_order_ledger.json"
 
 STRATEGIES = {
     "cash_secured_put", "covered_call", "bull_put_credit", "bear_call_credit",
-    "iron_condor", "put_debit_spread", "call_debit_spread",
+    "iron_condor", "put_debit_spread", "call_debit_spread", "equity_momentum",
 }
 
 
@@ -97,13 +97,19 @@ def validate_trade(trade: dict) -> None:
             float(value)
         except (TypeError, ValueError) as exc:
             raise CliError(f"{key} must be a number, got {value!r}") from exc
-    if not trade["legs"]:
-        raise CliError("A trade requires at least one leg")
-    for leg in trade["legs"]:
-        if leg["action"] not in {"BUY", "SELL"}:
-            raise CliError(f"Leg action must be BUY or SELL, got {leg['action']!r}")
-        if leg["type"] not in {"CALL", "PUT", "STOCK"}:
-            raise CliError(f"Leg type must be CALL, PUT, or STOCK, got {leg['type']!r}")
+    is_equity = trade.get("asset_class") == "equity"
+    if is_equity:
+        # Equity longs carry no option legs; their risk is stop-defined.
+        if not trade["capital_at_risk"]:
+            raise CliError("An equity trade requires --capital-at-risk")
+    else:
+        if not trade["legs"]:
+            raise CliError("A trade requires at least one leg")
+        for leg in trade["legs"]:
+            if leg["action"] not in {"BUY", "SELL"}:
+                raise CliError(f"Leg action must be BUY or SELL, got {leg['action']!r}")
+            if leg["type"] not in {"CALL", "PUT", "STOCK"}:
+                raise CliError(f"Leg type must be CALL, PUT, or STOCK, got {leg['type']!r}")
     if not trade["reason"] or not trade["exit_note"]:
         raise CliError("reason and exit_note are required")
     if not trade["timestamp"]:
@@ -159,7 +165,11 @@ def prefill_from_ledger(ledger_id: str, ledger: list[dict]) -> dict:
     return {
         "symbol": str(record.get("symbol", "")).upper(),
         "strategy": str(record.get("strategy", "")),
+        "asset_class": str(record.get("asset_class") or "options"),
         "legs": legs,
+        "entry_price": _float(record.get("entry_price")),
+        "stop_price": _float(record.get("stop_price")),
+        "target_price": _float(record.get("target_price")),
         "capital_at_risk": float(capital) if capital else None,
     }
 
@@ -185,14 +195,20 @@ def build_trade(args: argparse.Namespace, ledger: list[dict]) -> dict:
     if strategy and strategy not in STRATEGIES:
         raise CliError(f"Unknown strategy {strategy!r}; choose from: "
                        + ", ".join(sorted(STRATEGIES)))
+    asset_class = str(pick(args.asset_class, prefill.get("asset_class"),
+                           "Asset class (options/equity)", "options"))
+    if asset_class not in {"options", "equity"}:
+        raise CliError(f"asset_class must be 'options' or 'equity', got {asset_class!r}")
     status = str(pick(args.status, None, "Status (open/closed)", "open"))
     opened = str(pick(args.opened, None, "Opened (YYYY-MM-DD)", date.today().isoformat()))
     closed = pick(args.closed, None, "Closed (YYYY-MM-DD)", None) or None
     if status == "closed" and closed is None:
         closed = date.today().isoformat()
     legs = parse_legs(args.leg) if args.leg else None
-    if legs is None and prefill.get("legs"):
+    if legs is None and prefill.get("legs") is not None:
         legs = prefill["legs"]
+    if legs is None and asset_class == "equity":
+        legs = []
     if legs is None:
         if not args.interactive:
             raise CliError("Provide --leg entries or --from-ledger to build legs")
@@ -233,11 +249,18 @@ def build_trade(args: argparse.Namespace, ledger: list[dict]) -> dict:
         "id": next_trade_id(args.journal_trades),
         "source": "manual" if not args.from_ledger else "ledger",
         "symbol": symbol,
+        "asset_class": asset_class,
         "opened": opened,
         "closed": closed,
         "status": status,
         "strategy": strategy,
         "legs": legs,
+        "entry_price": _float(pick(args.entry_price, prefill.get("entry_price"),
+                                   "Entry price", None)),
+        "stop_price": _float(pick(args.stop_price, prefill.get("stop_price"),
+                                  "Stop price", None)),
+        "target_price": _float(pick(args.target_price, prefill.get("target_price"),
+                                    "Target price", None)),
         "entry_ivr": entry_ivr,
         "expected_move_pct": expected_move_pct,
         "dte_at_entry": dte_at_entry,
@@ -341,12 +364,22 @@ def main(argv: list[str] | None = None) -> int:
                         help="Pre-fill legs/strategy from a paper-order ledger id")
     parser.add_argument("--symbol")
     parser.add_argument("--strategy")
+    parser.add_argument("--asset-class", choices=["options", "equity"],
+                        default=None,
+                        help="options (default) or equity; equity longs carry "
+                             "entry/stop/target prices instead of option legs")
     parser.add_argument("--status", choices=["open", "closed"])
     parser.add_argument("--opened")
     parser.add_argument("--closed")
     parser.add_argument("--leg", action="append",
                         help="Leg as 'ACTION TYPE STRIKE EXPIRY DTE' (repeatable)")
     parser.add_argument("--entry-ivr", type=float)
+    parser.add_argument("--entry-price", type=float,
+                        help="Equity entry fill price")
+    parser.add_argument("--stop-price", type=float,
+                        help="Equity hard-stop price (risk = shares x (entry - stop))")
+    parser.add_argument("--target-price", type=float,
+                        help="Equity 2R take-profit price")
     parser.add_argument("--expected-move-pct", type=float,
                         help="1-SD expected move (%% of spot) at entry")
     parser.add_argument("--dte-at-entry", type=int)

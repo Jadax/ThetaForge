@@ -62,6 +62,53 @@ class FreeDataProvider:
             logger.debug("IBKR proxy chain unavailable for %s: %s", symbol, error)
             return None
 
+    async def _get_ibkr_proxy_stock_price(self, symbol: str) -> Optional[float]:
+        """Pull a snapshot stock quote from the VM's read-only IBKR proxy.
+        Returns None (never raises) on any failure so the caller falls through
+        to yfinance."""
+        if not IBKR_MARKET_DATA_URL or not IBKR_MARKET_DATA_TOKEN:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=IBKR_MARKET_DATA_TIMEOUT) as client:
+                response = await client.get(
+                    f"{IBKR_MARKET_DATA_URL}/stock/{symbol}",
+                    headers={"X-Market-Data-Token": IBKR_MARKET_DATA_TOKEN},
+                )
+            if response.status_code != 200:
+                logger.debug("IBKR proxy stock quote unavailable for %s: HTTP %s", symbol, response.status_code)
+                return None
+            payload = response.json()
+            last = payload.get("last")
+            ask = payload.get("ask")
+            bid = payload.get("bid")
+            for value in (last, ask, bid):
+                if isinstance(value, (int, float)) and value > 0:
+                    return float(value)
+            return None
+        except Exception as error:
+            logger.debug("IBKR proxy stock quote unavailable for %s: %s", symbol, error)
+            return None
+
+    async def _get_ibkr_proxy_stock_history(self, symbol: str, period: str = "1y") -> Optional[List[Dict[str, Any]]]:
+        """Pull daily OHLCV bars from the VM's read-only IBKR proxy. Returns
+        None (never raises) on any failure so the caller falls through."""
+        if not IBKR_MARKET_DATA_URL or not IBKR_MARKET_DATA_TOKEN:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=IBKR_MARKET_DATA_TIMEOUT) as client:
+                response = await client.get(
+                    f"{IBKR_MARKET_DATA_URL}/stock-history/{symbol}",
+                    params={"period": period},
+                    headers={"X-Market-Data-Token": IBKR_MARKET_DATA_TOKEN},
+                )
+            if response.status_code != 200:
+                logger.debug("IBKR proxy stock history unavailable for %s: HTTP %s", symbol, response.status_code)
+                return None
+            return response.json() or None
+        except Exception as error:
+            logger.debug("IBKR proxy stock history unavailable for %s: %s", symbol, error)
+            return None
+
     async def get_stock_price(self, symbol: str) -> Optional[float]:
         """Get current stock price from any available source."""
         if self.ibkr and self.ibkr._connected:
@@ -75,6 +122,10 @@ class FreeDataProvider:
                 return float(price)
             except Exception as e:
                 logger.warning(f"IBKR price fetch failed for {symbol}: {e}")
+
+        proxy_price = await self._get_ibkr_proxy_stock_price(symbol)
+        if proxy_price:
+            return proxy_price
 
         try:
             def fetch_price() -> float:
@@ -145,7 +196,22 @@ class FreeDataProvider:
     async def get_historical_prices(
         self, symbol: str, period: str = "1y", interval: str = "1d"
     ) -> pd.DataFrame:
-        """Get historical OHLCV data via yfinance."""
+        """Get historical OHLCV data. IBKR (via the VM's read-only proxy) is
+        the priority source when configured since it is the account's own feed;
+        yfinance is the fallback."""
+        if interval == "1d":
+            bars = await self._get_ibkr_proxy_stock_history(symbol, period=period)
+            if bars:
+                try:
+                    frame = pd.DataFrame(bars)
+                    if {"close", "high", "low", "volume"}.issubset(frame.columns):
+                        frame["Date"] = pd.to_datetime(frame["date"], errors="coerce")
+                        frame = frame.set_index("Date")[["open", "high", "low", "close", "volume"]]
+                        frame = frame.dropna(subset=["close"])
+                        if not frame.empty:
+                            return frame
+                except Exception as error:
+                    logger.debug("IBKR proxy history reshape failed for %s: %s", symbol, error)
         try:
             return await asyncio.to_thread(
                 lambda: yf.Ticker(symbol).history(period=period, interval=interval)

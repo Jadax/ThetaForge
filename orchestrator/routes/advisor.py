@@ -36,6 +36,10 @@ from agents.trade_engine.trade_manager import (
     portfolio_plan,
 )
 from agents.trade_engine.macro_calendar import macro_days_until
+from agents.equity_trader.equity_scanner import get_background_equity_scanner
+from agents.equity_trader.equity_recommender import EquityRecommender
+from agents.equity_trader.equity_manager import evaluate_position as equity_evaluate_position
+from agents.equity_trader.equity_signals import atr as equity_atr
 
 # Every Advisor route reads or mutates one shared, single-user state set, so
 # authentication is applied at the router rather than per endpoint.
@@ -703,6 +707,32 @@ class ManagementRequest(BaseModel):
     weekly_capital_used: float = Field(0.0, ge=0)
 
 
+class EquityRecommendRequest(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=12)
+    capital: float = Field(10_000, gt=0)
+    current_positions: List[str] = Field(default_factory=list, max_length=50)
+
+
+class EquityPositionInput(BaseModel):
+    """An open long equity position as reported by the Bridge ledger."""
+    symbol: str = Field(..., min_length=1, max_length=12)
+    entry_price: float = Field(..., gt=0)
+    stop_price: float = Field(..., gt=0)
+    target_price: Optional[float] = Field(None, gt=0)
+    highest_high: float = Field(..., gt=0)
+    risk_per_share: float = Field(..., gt=0)
+    shares: int = Field(1, ge=1, le=100000)
+    opened_at: Optional[str] = None
+    current_price: Optional[float] = Field(None, gt=0)
+    days_to_earnings: Optional[int] = Field(None, ge=0, le=365)
+    days_to_macro: Optional[int] = Field(None, ge=0, le=90)
+
+
+class EquityManagementRequest(BaseModel):
+    positions: List[EquityPositionInput] = Field(default_factory=list, max_length=25)
+    capital: float = Field(10_000, gt=0)
+
+
 def _find_short_leg_mid(chain: List[Dict], position: PositionInput) -> Optional[float]:
     """Current mid of the short leg(s) from a fresh chain, if present.
 
@@ -1068,3 +1098,179 @@ async def trigger_scan():
     scanner = await get_background_scanner()
     new = await scanner.scan_once()
     return {"status": "scan_completed", "new_notifications": new}
+
+
+# ── Equity (stock/ETF) Engine Endpoints ──────────────────────────────────
+
+
+def _equity_recommendation_payload(recommendation, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    data = data or {}
+    return {
+        "id": recommendation.id,
+        "symbol": recommendation.symbol,
+        "strategy": recommendation.strategy,
+        "is_etf": recommendation.is_etf,
+        "price": recommendation.price,
+        "shares": recommendation.shares,
+        "entry_price": recommendation.entry_limit,
+        "entry_limit": recommendation.entry_limit,
+        "stop_price": recommendation.stop_price,
+        "target_price": recommendation.target_price if recommendation.target_price else None,
+        "risk_per_share": recommendation.risk_per_share,
+        "max_loss_total": recommendation.max_loss_total,
+        "notional": recommendation.notional,
+        "max_loss_pct": recommendation.max_loss_pct,
+        "reasoning": recommendation.reasoning,
+        "rationale": recommendation.reasoning,
+        "gate": recommendation.gate,
+        "gate_reason": recommendation.reasoning if recommendation.gate else None,
+        "score": round(float(data.get("score") or 0), 1),
+        "read": data.get("signal"),
+        "trend": "above_200d" if data.get("above_200d") else "below_200d",
+        "rsi_14": data.get("rsi_14"),
+        "adx_14": data.get("adx"),
+        "atr_14": data.get("atr_value"),
+        "timestamp": data.get("as_of") or date.today().isoformat(),
+    }
+
+
+@router.post("/equity/recommend", dependencies=[Depends(scan_rate_limit)])
+async def equity_recommend(request: EquityRecommendRequest):
+    """Recommend a sized, gated long for one stock/ETF.
+
+    Runs the same gated EquityBrain path the background scanner uses, then
+    sizes the position (1% account risk at a 2x ATR stop) and applies the
+    sector correlation cap against the positions already held. The returned
+    trade is only a recommendation — order submission stays in the Bridge,
+    which independently re-verifies live quotes and the weekly capital ledger.
+    """
+    scanner = await get_background_equity_scanner()
+    data, skip = await scanner._analyze_one(request.symbol)
+    if skip or data is None:
+        return {
+            "recommendations": [],
+            "recommendation": None,
+            "reason": skip or "data_unavailable",
+        }
+    recommendation = EquityRecommender().build(
+        data,
+        capital=request.capital,
+        current_positions=request.current_positions,
+    )
+    payload = _equity_recommendation_payload(recommendation, data)
+    return {
+        "recommendations": [payload] if recommendation.gate is None else [],
+        "recommendation": payload,
+        "reason": recommendation.gate or "ok",
+    }
+
+
+@router.get("/equity/notifications")
+async def get_equity_notifications(unacknowledged_only: bool = True, limit: int = 50):
+    """Get equity trade notifications from the background equity scanner."""
+    scanner = await get_background_equity_scanner()
+    notifs = await scanner.get_notifications(
+        unacknowledged_only=unacknowledged_only, limit=limit
+    )
+    return {"notifications": notifs, "count": len(notifs)}
+
+
+@router.post("/equity/notifications/{notification_id}/acknowledge")
+async def acknowledge_equity_notification(notification_id: str):
+    """Mark a single equity notification as acknowledged."""
+    scanner = await get_background_equity_scanner()
+    ok = await scanner.acknowledge_notification(notification_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {"status": "acknowledged"}
+
+
+@router.get("/equity/scanner/status")
+async def equity_scanner_status():
+    """Get the equity background scanner's status."""
+    scanner = await get_background_equity_scanner()
+    return await scanner.get_status()
+
+
+@router.post("/equity/positions/management", dependencies=[Depends(scan_rate_limit)])
+async def equity_positions_management(request: EquityManagementRequest):
+    """Evaluate open long equity positions against the exit framework.
+
+    Rules (first match wins): ATR stop, chandelier trail once +1R in profit,
+    2R target, time exit, pre-earnings and pre-macro exits. Current price and
+    ATR are refreshed from free data; anything missing is left null so the
+    engine fails open on enrichment, never on safety inputs.
+
+    This endpoint only *recommends* management actions — order submission
+    remains exclusively in the Bridge (POST /orders/close-stock).
+    """
+    try:
+        days_to_macro = macro_days_until()
+    except Exception:
+        days_to_macro = None
+
+    actions = []
+    for pos in request.positions:
+        current_price = pos.current_price
+        if not current_price or current_price <= 0:
+            try:
+                fetched = await provider.get_stock_price(pos.symbol)
+                current_price = float(fetched) if isinstance(fetched, (int, float)) and fetched > 0 else None
+            except Exception:
+                current_price = None
+
+        atr_value = None
+        if current_price:
+            try:
+                hist = await provider.get_historical_prices(pos.symbol, period="6mo")
+                if hist is not None and len(hist) >= 15:
+                    closes = hist["Close"].tolist() if hasattr(hist, "tolist") else list(hist["Close"])
+                    highs = hist["High"].tolist() if "High" in hist.columns else closes
+                    lows = hist["Low"].tolist() if "Low" in hist.columns else closes
+                    atr_value = equity_atr(highs, lows, closes)
+            except Exception:
+                atr_value = None
+
+        days_to_earnings = pos.days_to_earnings
+        if days_to_earnings is None:
+            try:
+                next_earnings = await provider.get_next_earnings_date(pos.symbol)
+                days_to_earnings = (next_earnings - date.today()).days if next_earnings else None
+            except Exception:
+                days_to_earnings = None
+
+        days_held = 0
+        if pos.opened_at:
+            try:
+                opened = date.fromisoformat(str(pos.opened_at)[:10])
+                days_held = max((date.today() - opened).days, 0)
+            except ValueError:
+                days_held = 0
+
+        action, reason, updated_high = equity_evaluate_position(
+            symbol=pos.symbol,
+            current_price=current_price if current_price else 0.0,
+            entry_price=pos.entry_price,
+            stop_price=pos.stop_price,
+            target_price=pos.target_price or 0.0,
+            highest_high=pos.highest_high,
+            atr=atr_value,
+            risk_per_share=pos.risk_per_share,
+            days_held=days_held,
+            days_to_earnings=days_to_earnings,
+            days_to_macro=days_to_macro,
+        )
+        actions.append({
+            "symbol": pos.symbol,
+            "action": action,
+            "reason": reason,
+            "current_price": current_price,
+            "highest_high": round(updated_high, 2),
+            "atr": round(atr_value, 4) if atr_value else None,
+            "days_held": days_held,
+            "days_to_earnings": days_to_earnings,
+            "days_to_macro": days_to_macro,
+            "shares": pos.shares,
+        })
+
+    return {"actions": actions}

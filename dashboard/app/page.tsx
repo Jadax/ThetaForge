@@ -169,6 +169,74 @@ type ManagementResponse = {
   portfolio: PortfolioPlan;
 };
 
+type EquityRecommendation = {
+  id: string;
+  symbol: string;
+  shares: number;
+  entry_price: number;
+  stop_price: number;
+  target_price: number | null;
+  risk_per_share: number;
+  max_loss_total: number;
+  strategy: string;
+  score: number;
+  gate: string | null;
+  gate_reason?: string | null;
+  rationale: string;
+  atr_14: number;
+  rsi_14: number;
+  adx_14: number;
+  trend: string;
+  read: string;
+  timestamp: string;
+};
+
+type EquityNotification = {
+  id: string;
+  symbol: string;
+  score: number;
+  signal: string;
+  read: string;
+  trend: string;
+  timestamp: string;
+  acknowledged: boolean;
+};
+
+type EquityScannerStatus = {
+  last_run: string | null;
+  symbols_scanned_last_run: number;
+  scans_completed: number;
+  total_evaluations: number;
+  passes: number;
+  pending_count: number;
+  market_open: boolean;
+  last_error: string | null;
+};
+
+type EquityManagementPosition = {
+  symbol: string;
+  entry_price: number;
+  stop_price: number;
+  target_price?: number | null;
+  highest_high?: number;
+  risk_per_share?: number;
+  shares?: number;
+  opened_at?: string;
+};
+
+type EquityManagementAction = {
+  action: string;
+  reason: string;
+  symbol: string;
+  shares: number;
+  current_price: number | null;
+  highest_high: number | null;
+};
+
+type EquityManagementResponse = {
+  actions: EquityManagementAction[];
+};
+
 type PaperOrderRecord = {
   id: string;
   symbol: string;
@@ -258,7 +326,7 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v1.8.0";
+const VERSION = "v1.9.0";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -300,6 +368,17 @@ export default function Home() {
   const [managementResult, setManagementResult] = useState<ManagementResponse | null>(null);
   const [managementLoading, setManagementLoading] = useState(false);
   const [managementError, setManagementError] = useState("");
+
+  const [equityNotifications, setEquityNotifications] = useState<EquityNotification[]>([]);
+  const [equityScannerStatus, setEquityScannerStatus] = useState<EquityScannerStatus | null>(null);
+  const [equityRecs, setEquityRecs] = useState<Record<string, EquityRecommendation>>({});
+  const [equityRecError, setEquityRecError] = useState("");
+  const [equityRecLoading, setEquityRecLoading] = useState("");
+  const [equityPositions, setEquityPositions] = useState("");
+  const [equityManagementCapital, setEquityManagementCapital] = useState("5000");
+  const [equityManagementResult, setEquityManagementResult] = useState<EquityManagementResponse | null>(null);
+  const [equityManagementLoading, setEquityManagementLoading] = useState(false);
+  const [equityManagementError, setEquityManagementError] = useState("");
 
   // The hosted Advisor holds one shared watchlist, alert set, and notification
   // queue. Every call carries the shared secret so that a public URL does not
@@ -348,6 +427,13 @@ export default function Home() {
         }
         const statusResponse = await advisorRequest("/api/advisor/scanner/status");
         if (statusResponse.ok) setScannerStatus(await statusResponse.json() as ScannerStatus);
+        const equityResponse = await advisorRequest("/api/advisor/equity/notifications?unacknowledged_only=true&limit=20");
+        if (equityResponse.ok) {
+          const data = await equityResponse.json() as { notifications: EquityNotification[] };
+          setEquityNotifications(data.notifications || []);
+        }
+        const equityStatusResponse = await advisorRequest("/api/advisor/equity/scanner/status");
+        if (equityStatusResponse.ok) setEquityScannerStatus(await equityStatusResponse.json() as EquityScannerStatus);
       } catch { /* backend may be down */ }
     };
     void poll();
@@ -599,6 +685,75 @@ export default function Home() {
       setStatus("Advisor connected · management unavailable");
     } finally {
       setManagementLoading(false);
+    }
+  }
+
+  async function loadEquityRecommendation(notification: EquityNotification) {
+    setEquityRecLoading(notification.symbol);
+    setEquityRecError("");
+    setStatus(`Scoring ${notification.symbol} for a momentum long`);
+    try {
+      const response = await advisorRequest("/api/advisor/equity/recommend", {
+        method: "POST",
+        body: JSON.stringify({
+          symbol: notification.symbol,
+          capital: 5000,
+          current_positions: [],
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Equity recommendation returned ${response.status}`);
+      }
+      const data = await response.json() as { recommendation: EquityRecommendation };
+      setEquityRecs((prev) => ({ ...prev, [notification.symbol]: data.recommendation }));
+      setStatus("Advisor connected");
+    } catch (requestError) {
+      setEquityRecError(requestError instanceof Error ? requestError.message : "Unable to score the equity setup");
+      setStatus("Advisor connected · equity scoring unavailable");
+    } finally {
+      setEquityRecLoading("");
+    }
+  }
+
+  async function acknowledgeEquity(id: string) {
+    try {
+      await advisorRequest(`/api/advisor/equity/notifications/${id}/acknowledge`, { method: "POST" });
+      setEquityNotifications((prev) => prev.filter((n) => n.id !== id));
+    } catch { /* ignore */ }
+  }
+
+  async function loadEquityManagement(event: FormEvent) {
+    event.preventDefault();
+    setEquityManagementLoading(true);
+    setEquityManagementError("");
+    setStatus("Evaluating open equity positions");
+    try {
+      let positions: EquityManagementPosition[];
+      try {
+        positions = JSON.parse(equityPositions || "[]") as EquityManagementPosition[];
+      } catch {
+        throw new Error("Positions must be valid JSON, e.g. [{\"symbol\":\"AAPL\",\"entry_price\":210.00,\"stop_price\":196.00,\"target_price\":225.00,\"highest_high\":212.50,\"shares\":10}]");
+      }
+      if (!Array.isArray(positions) || positions.length === 0) throw new Error("Enter at least one open position.");
+      const response = await advisorRequest("/api/advisor/equity/positions/management", {
+        method: "POST",
+        body: JSON.stringify({
+          positions,
+          capital: equityManagementCapital ? Number(equityManagementCapital) : 5000,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Equity management returned ${response.status}`);
+      }
+      setEquityManagementResult(await response.json());
+      setStatus("Advisor connected");
+    } catch (requestError) {
+      setEquityManagementError(requestError instanceof Error ? requestError.message : "Unable to evaluate equity positions");
+      setStatus("Advisor connected · equity management unavailable");
+    } finally {
+      setEquityManagementLoading(false);
     }
   }
 
@@ -854,6 +1009,35 @@ export default function Home() {
         </article>)}</div> : <div className="no-trades"><b>No defined-risk candidates passed the Advisor’s filters.</b><span>This is a valid outcome—avoid forcing a trade. Expand the scan universe or try again when market data changes.</span></div>)}
         {topTrades?.shortlisted_symbols?.length ? <p className="scan-warning">Screened {topTrades.universe_size} liquid and actively traded underlyings ({topTrades.active_discoveries || 0} live screener discoveries); full options analysis ran on {topTrades.shortlisted_symbols.join(", ")}.</p> : null}
         {topTrades?.warnings.length ? <p className="scan-warning">{topTrades.warnings.join(" · ")}</p> : null}
+      </section>
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">EQUITY ENGINE · MOMENTUM LONGS</p><h2>Stock and ETF signals</h2><p>The second brain scans liquid stocks and the ETF core for trend-plus-momentum setups: 200d/50d trend alignment, 6-month absolute momentum, ADX ≥ 20, RSI ≤ 80, and at least market relative strength. Signals above the 70 threshold are surfaced here and scored into a full recommendation (1% risk, 2× ATR stop, 2R target).</p>{equityScannerStatus && <div className="market-chip"><small>EQUITY SCANNER</small><b>{equityScannerStatus.market_open ? "Market open · scanning" : "Markets closed"}</b><span>{equityScannerStatus.symbols_scanned_last_run} symbols last run · {equityScannerStatus.passes} qualifying · {equityScannerStatus.pending_count} pending{equityScannerStatus.last_error ? ` · ${equityScannerStatus.last_error}` : ""}</span></div>}</div>
+        </div>
+        {equityRecError && <p className="error">{equityRecError}</p>}
+        {equityNotifications.length === 0 ? <p className="notif-empty">No unacknowledged equity signals right now. The scanner writes one notification per qualifying symbol per market day; acknowledging a signal removes it from this queue.</p> : <div className="stock-list">{equityNotifications.map((notification) => {
+          const reco = equityRecs[notification.symbol];
+          return <div className="stock-card" key={notification.id}>
+          <small>{signalLabel(notification.read)} · {signalLabel(notification.trend)} · score {notification.score.toFixed(0)}</small>
+          <b>{notification.symbol}</b>
+          <span>{signalLabel(notification.signal)}</span>
+          {reco ? <div className="equity-reco"><div className="trade-metrics"><span><small>SHARES</small><b>{reco.shares}</b></span><span><small>ENTRY</small><b>${reco.entry_price.toFixed(2)}</b></span><span className="loss"><small>STOP</small><b>${reco.stop_price.toFixed(2)}</b></span><span className="profit"><small>TARGET</small><b>{reco.target_price ? `$${reco.target_price.toFixed(2)}` : "—"}</b></span><span className="loss"><small>RISK</small><b>{dollars(reco.max_loss_total)}</b></span></div><p>{reco.gate ? <b className="loss">{reco.gate_reason || "Blocked by an entry gate."}</b> : reco.rationale}</p></div> : <div className="paper-trade-action"><button type="button" onClick={() => loadEquityRecommendation(notification)} disabled={equityRecLoading === notification.symbol}>{equityRecLoading === notification.symbol ? "Scoring setup…" : "Score recommendation"}</button></div>}
+          <button className="notif-ack" aria-label={`Acknowledge ${notification.symbol} equity signal`} onClick={() => acknowledgeEquity(notification.id)}>×</button>
+        </div>;
+        })}</div>}
+      </section>
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">EQUITY POSITION MANAGEMENT · EXITS</p><h2>Manage open stock and ETF longs</h2><p>Rule-driven exits for the equity engine: 2× ATR hard stop, chandelier trail once the position is +1R, 2R take-profit, 60-day time exit, and pre-earnings / pre-macro blackout exits. Read-only guidance — closing orders still go through the paper Bridge.</p></div>
+          <form className="scan-form" onSubmit={loadEquityManagement}><textarea className="api" value={equityPositions} onChange={(event) => setEquityPositions(event.target.value)} rows={3} placeholder='[{"symbol":"AAPL","entry_price":210.00,"stop_price":196.00,"target_price":225.00,"highest_high":212.50,"shares":10}]' aria-label="Open equity positions JSON" /><input className="api" value={equityManagementCapital} onChange={(event) => setEquityManagementCapital(event.target.value)} placeholder="Portfolio capital (default 5,000)" aria-label="Equity portfolio capital" /><button disabled={equityManagementLoading}>{equityManagementLoading ? "Evaluating…" : "Run equity management check"}</button></form>
+        </div>
+        {equityManagementError && <p className="error">{equityManagementError}</p>}
+        {equityManagementResult && <div className="trade-list">{equityManagementResult.actions.map((action, index) => <article className="trade-card" key={`${action.symbol}-${index}`}>
+          <div className="trade-title"><p className="eyebrow">{action.symbol} · {action.shares} shares{action.current_price != null ? ` · spot ${action.current_price.toFixed(2)}` : ""}</p><h3>{signalLabel(action.action)}</h3><p>{action.reason}</p></div>
+          <div className="trade-metrics"><span><small>HIGHEST HIGH</small><b>{action.highest_high != null ? `$${action.highest_high.toFixed(2)}` : "—"}</b></span><span><small>ACTION</small><b>{signalLabel(action.action)}</b></span></div>
+        </article>)}</div>}
       </section>
 
       <section className="bridge-panel">

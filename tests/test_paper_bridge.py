@@ -66,3 +66,29 @@ def test_mirror_close_legs_reverses_every_action():
     assert [(leg.action, leg.strike) for leg in close] == [("BUY", 90.0), ("SELL", 91.0)]
     assert _same_leg_set(close, parent)
     assert not _same_leg_set([close[0]], parent)
+
+
+def test_equity_records_reserve_stop_defined_risk():
+    """A long equity entry reserves shares x (entry - stop) like an options
+    max loss, so both engines draw from the same weekly capital ledger."""
+    week = _current_week_key(datetime(2026, 7, 29, tzinfo=timezone.utc))
+    records = [
+        {"week_key": week, "status": "Filled", "asset_class": "equity",
+         "shares": 10, "entry_price": 100.0, "stop_price": 98.0,
+         "max_loss_total": 20.0},
+        {"week_key": week, "status": "Submitted", "max_loss_total": 250},
+    ]
+    assert _reserved_capital(records, week) == 270
+
+
+def test_equity_close_releases_reservation_and_ignores_close_order():
+    week = _current_week_key(datetime(2026, 7, 29, tzinfo=timezone.utc))
+    records = [
+        {"week_key": week, "status": "Filled", "asset_class": "equity",
+         "max_loss_total": 80.0},
+        {"week_key": week, "status": "Filled", "asset_class": "equity",
+         "max_loss_total": 40.0, "closed_by": "close-1"},
+        {"week_key": week, "status": "Submitted", "asset_class": "equity",
+         "max_loss_total": 999.0, "close_of": "entry-1"},
+    ]
+    assert _reserved_capital(records, week) == 80

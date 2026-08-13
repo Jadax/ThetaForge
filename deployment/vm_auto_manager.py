@@ -191,6 +191,133 @@ def submit_close(client: httpx.Client, ledger_id: str, reason: str) -> tuple[boo
         return False, f"bridge close call failed: {error}"
 
 
+# ── Equity engine (stock/ETF longs) ──────────────────────────────────────
+
+EQUITY_CLOSE_ACTIONS = {
+    "close_stop", "close_trail", "close_profit", "close_time",
+    "close_pre_earnings", "close_pre_macro",
+}
+
+
+def open_equity_positions(client: httpx.Client) -> list[dict[str, Any]]:
+    """Open long equity entries from the Bridge ledger."""
+    ledger = fetch_ledger(client)
+    records = ledger.get("orders", [])
+    open_entries = []
+    for record in records:
+        if record.get("close_of"):
+            continue
+        if record.get("asset_class") != "equity":
+            continue
+        if record.get("status", "Unknown") not in RESERVING_ORDER_STATUSES:
+            continue
+        if float(record.get("filled", 0) or 0) <= 0:
+            continue
+        if record.get("closed_by"):
+            continue
+        open_entries.append(record)
+    return open_entries
+
+
+def build_equity_position_inputs(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    inputs = []
+    for record in records:
+        inputs.append({
+            "symbol": record["symbol"],
+            "entry_price": float(record.get("entry_price") or record.get("average_fill_price") or 0),
+            "stop_price": float(record.get("stop_price") or 0),
+            "target_price": record.get("target_price"),
+            "highest_high": float(record.get("highest_high") or record.get("entry_price") or 0),
+            "risk_per_share": float(record.get("risk_per_share") or 0),
+            "shares": int(record.get("quantity", 1) or 1),
+            "opened_at": record.get("submitted_at"),
+        })
+    return inputs
+
+
+def request_equity_management(client: httpx.Client, positions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    response = client.post(
+        f"{ADVISOR_URL}/api/advisor/equity/positions/management",
+        headers=ADVISOR_HEADERS,
+        json={"positions": positions, "capital": CAPITAL_LIMIT},
+        timeout=120,
+    )
+    response.raise_for_status()
+    return response.json().get("actions", [])
+
+
+def submit_stock_close(client: httpx.Client, ledger_id: str, reason: str) -> tuple[bool, str]:
+    try:
+        response = client.post(
+            f"{BRIDGE_URL}/orders/close-stock",
+            headers=BRIDGE_HEADERS,
+            json={"ledger_id": ledger_id, "reason": reason, "capital_limit": CAPITAL_LIMIT},
+            timeout=30,
+        )
+        body = response.json()
+        if response.status_code == 200:
+            return True, f"stock close submitted: {body.get('status')} cost={body.get('cost_to_close')} pnl={body.get('realized_pnl')}"
+        return False, f"bridge rejected stock close ({response.status_code}): {body.get('detail')}"
+    except Exception as error:
+        return False, f"bridge stock close call failed: {error}"
+
+
+def update_highest_high(client: httpx.Client, ledger_id: str, highest_high: float) -> None:
+    try:
+        client.post(
+            f"{BRIDGE_URL}/orders/{ledger_id}/position-meta",
+            headers=BRIDGE_HEADERS,
+            json={"ledger_id": ledger_id, "highest_high": highest_high},
+            timeout=10,
+        )
+    except Exception:
+        logger.exception("Could not ratchet highest_high for %s", ledger_id)
+
+
+def run_equity_once(client: httpx.Client) -> int:
+    """Manage open long equity positions: request exits, optionally close them
+    via the Bridge, and ratchet trailing anchors. Returns closes submitted."""
+    entries = open_equity_positions(client)
+    if not entries:
+        logger.info("No open manageable equity positions")
+        return 0
+
+    positions = build_equity_position_inputs(entries)
+    try:
+        actions = request_equity_management(client, positions)
+    except Exception:
+        logger.exception("Equity management decision request failed; skipping this cycle")
+        return 0
+
+    closes_submitted = 0
+    for record, action in zip(entries, actions):
+        symbol = record["symbol"]
+        action_name = action.get("action", "hold")
+        reason = action.get("reason", "")
+
+        updated_high = action.get("highest_high")
+        if updated_high:
+            update_highest_high(client, str(record["id"]), float(updated_high))
+
+        if action_name in EQUITY_CLOSE_ACTIONS:
+            if AUTO_CLOSE_ENABLED:
+                ok, message = submit_stock_close(client, str(record["id"]), action_name)
+                logger.info("%s: %s", symbol, message)
+                if ok:
+                    closes_submitted += 1
+            else:
+                logger.info(
+                    "%s: would %s (%s) — advisory mode, AUTO_CLOSE_ENABLED=false",
+                    symbol, action_name, reason,
+                )
+        else:
+            logger.info("%s: hold (%s)", symbol, reason)
+
+    logger.info("equity cycle done: %d open, %d close(s) submitted (auto_close=%s)",
+                len(entries), closes_submitted, AUTO_CLOSE_ENABLED)
+    return closes_submitted
+
+
 def run_journal_sync() -> None:
     if not Path(JOURNAL_SYNC_SCRIPT).exists():
         logger.warning("Journal sync script not found at %s; skipping", JOURNAL_SYNC_SCRIPT)
@@ -253,6 +380,14 @@ def run_once(client: httpx.Client) -> int:
         "cycle done: %d open, %.2f realized, %.2f reserved, %d close(s) submitted (auto_close=%s)",
         len(entries), realized_pnl, reserved, closes_submitted, AUTO_CLOSE_ENABLED,
     )
+
+    try:
+        closes_submitted += run_equity_once(client)
+    except Exception:
+        logger.exception("Equity management cycle failed; continuing")
+    if closes_submitted:
+        run_journal_sync()
+
     return closes_submitted
 
 

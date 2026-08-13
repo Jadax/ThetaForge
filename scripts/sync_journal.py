@@ -46,7 +46,7 @@ EXCLUDED_STATUSES = {"ApiCancelled", "Cancelled", "Inactive", "PendingCancel"}
 DEFAULT_TRADER = {
     "name": "Tushant Sharma",
     "handle": "@thetaforge",
-    "tagline": "Defined-risk option seller. Recommendations placed, receipts always.",
+    "tagline": "Two engines, one ledger: defined-risk option seller and momentum equity trader. Receipts always.",
 }
 REPO_URL = "https://github.com/Jadax/ThetaForge"
 
@@ -91,13 +91,27 @@ def _order_block(record: dict) -> dict:
     }
 
 
-def _default_management_plan(strategy: str) -> dict:
+def _equity_management_plan(record: dict) -> dict:
+    """Exit/management rules for a long equity (stock/ETF) position, taken from
+    the actual stop/target the Bridge wrote into the ledger record."""
+    stop = record.get("stop_price")
+    target = record.get("target_price")
+    return {
+        "target": f"take profit at 2R target {target}" if target else "take profit at +2R",
+        "stop": f"hard stop at {stop}" if stop else "hard stop at 2x ATR below entry",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window",
+    }
+
+
+def _default_management_plan(strategy: str, asset_class: str = "options") -> dict:
     """TastyTrade-flavoured exit/management rules attached to every trade.
 
     Stored as data and rendered on the card so the audience sees a repeatable,
     rule-driven management plan rather than a whim. The short-leg strategies
     use 50% max-profit targets and 21 DTE management; debit (long) structures
-    use breakeven stops and a fixed hold window.
+    use breakeven stops and a fixed hold window; equity longs use the ATR
+    stop / 2R target written into the ledger.
     """
     premium_selling = strategy in {
         "iron_condor", "bull_put_credit", "bear_call_credit",
@@ -129,6 +143,7 @@ def build_entry(record: dict, overlay: dict) -> dict:
     ledger_id = str(record.get("id", ""))
     symbol = str(record.get("symbol", "")).upper()
     strategy = str(record.get("strategy", ""))
+    asset_class = str(record.get("asset_class") or "options")
     submitted_at = str(record.get("submitted_at", ""))
     opened = _opened_date(submitted_at)
 
@@ -137,6 +152,17 @@ def build_entry(record: dict, overlay: dict) -> dict:
         as_of=_opened_as_date(opened),
     )
 
+    if asset_class == "equity":
+        management_plan = _equity_management_plan(record)
+        reason = (
+            f"Long {symbol} — momentum/trend long placed on the paper account "
+            "from the ThetaForge equity recommendation."
+        )
+    else:
+        management_plan = _default_management_plan(strategy, asset_class)
+        reason = (f"{strategy.replace('_', ' ').title()} on {symbol} — "
+                  f"placed on the paper account from the ThetaForge recommendation.")
+
     base = {
         "id": ledger_id,
         "source_id": ledger_id,
@@ -144,6 +170,7 @@ def build_entry(record: dict, overlay: dict) -> dict:
         "ledger_ref": ledger_id,
         "order": _order_block(record),
         "symbol": symbol,
+        "asset_class": asset_class,
         "opened": opened,
         "closed": None,
         "status": "open",
@@ -152,13 +179,15 @@ def build_entry(record: dict, overlay: dict) -> dict:
         "entry_ivr": None,
         "expected_move_pct": None,
         "dte_at_entry": max((leg["dte"] for leg in legs if leg["dte"]), default=None),
+        "entry_price": record.get("entry_price") or record.get("average_fill_price"),
+        "stop_price": record.get("stop_price"),
+        "target_price": record.get("target_price"),
         "capital_at_risk": ledger_capital_at_risk(record) or 0.0,
         "max_profit": float(record.get("net_credit") or 0),
         "net_pnl": 0.0,
         "net_pnl_pct": 0.0,
-        "management_plan": _default_management_plan(strategy),
-        "reason": f"{strategy.replace('_', ' ').title()} on {symbol} — "
-                  f"placed on the paper account from the ThetaForge recommendation.",
+        "management_plan": management_plan,
+        "reason": reason,
         "research": [],
         "tags": [],
         "exit_note": "Open — monitoring the position.",
@@ -198,6 +227,10 @@ def _exit_note(reason: str) -> str:
         return "Auto-closed before the earnings event."
     if "close_pre_macro" in key or "macro" in key:
         return "Auto-closed before the scheduled macro event (FOMC/CPI/NFP)."
+    if "close_stop" in key:
+        return "Auto-closed at the 2x-ATR hard stop."
+    if "close_trail" in key:
+        return "Auto-closed at the trailing chandelier stop after the position went +1R."
     return "Closed by the ThetaForge management loop."
 
 

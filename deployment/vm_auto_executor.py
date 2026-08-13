@@ -145,6 +145,124 @@ def acknowledge(client: httpx.Client, notification_id: str) -> None:
         logger.exception("Could not acknowledge notification %s", notification_id)
 
 
+# ── Equity engine (stock/ETF longs) ──────────────────────────────────────
+
+
+def fetch_open_equity_symbols(client: httpx.Client) -> list[str]:
+    """Symbols of open, filled, non-closed positions from the Bridge ledger,
+    so the equity recommender can enforce its sector correlation cap."""
+    try:
+        ledger = client.get(f"{BRIDGE_URL}/orders", headers=BRIDGE_HEADERS, timeout=15)
+        ledger.raise_for_status()
+        symbols = []
+        for record in ledger.json().get("orders", []):
+            if record.get("close_of") or record.get("closed_by"):
+                continue
+            if float(record.get("filled", 0) or 0) <= 0:
+                continue
+            if record.get("asset_class") != "equity":
+                continue
+            symbols.append(record["symbol"])
+        return symbols
+    except Exception:
+        logger.exception("Could not read the Bridge ledger for open equity symbols")
+        return []
+
+
+def fetch_equity_notifications(client: httpx.Client) -> list[dict[str, Any]]:
+    response = client.get(
+        f"{ADVISOR_URL}/api/advisor/equity/notifications",
+        params={"unacknowledged_only": "true", "limit": 50},
+        headers=ADVISOR_HEADERS,
+        timeout=15,
+    )
+    response.raise_for_status()
+    return response.json().get("notifications", [])
+
+
+def fetch_equity_recommendation(client: httpx.Client, symbol: str, open_symbols: list[str]) -> dict[str, Any] | None:
+    response = client.post(
+        f"{ADVISOR_URL}/api/advisor/equity/recommend",
+        headers=ADVISOR_HEADERS,
+        json={
+            "symbol": symbol,
+            "capital": CAPITAL_LIMIT,
+            "current_positions": open_symbols,
+        },
+        timeout=60,
+    )
+    response.raise_for_status()
+    recommendation = response.json().get("recommendation")
+    if recommendation and recommendation.get("gate") is None and int(recommendation.get("shares", 0) or 0) > 0:
+        return recommendation
+    return None
+
+
+def submit_stock_to_bridge(client: httpx.Client, trade: dict[str, Any]) -> tuple[bool, str]:
+    try:
+        response = client.post(
+            f"{BRIDGE_URL}/orders/stock",
+            headers=BRIDGE_HEADERS,
+            json={
+                "symbol": trade["symbol"],
+                "shares": trade["shares"],
+                "capital_limit": CAPITAL_LIMIT,
+                "stop_price": trade["stop_price"],
+                "target_price": trade.get("target_price"),
+                "recommendation_id": trade["id"],
+                "strategy": trade["strategy"],
+            },
+            timeout=30,
+        )
+        body = response.json()
+        if response.status_code == 200:
+            return True, f"stock submitted: {body.get('status')} entry={body.get('entry_price')} stop={body.get('stop_price')}"
+        return False, f"bridge rejected stock ({response.status_code}): {body.get('detail')}"
+    except Exception as error:
+        return False, f"bridge stock call failed: {error}"
+
+
+def acknowledge_equity(client: httpx.Client, notification_id: str) -> None:
+    try:
+        client.post(
+            f"{ADVISOR_URL}/api/advisor/equity/notifications/{notification_id}/acknowledge",
+            headers=ADVISOR_HEADERS,
+            timeout=10,
+        )
+    except Exception:
+        logger.exception("Could not acknowledge equity notification %s", notification_id)
+
+
+def run_equity_once(client: httpx.Client) -> int:
+    """Process pending equity notifications: recommend, submit via the Bridge,
+    acknowledge either way. Returns the number of orders placed."""
+    notifications = fetch_equity_notifications(client)
+    if not notifications:
+        return 0
+
+    open_symbols = fetch_open_equity_symbols(client)
+    placed = 0
+    for notification in notifications:
+        symbol = notification["symbol"]
+        try:
+            trade = fetch_equity_recommendation(client, symbol, open_symbols)
+        except Exception:
+            logger.exception("Failed to fetch an equity recommendation for %s", symbol)
+            trade = None
+
+        if trade is None:
+            logger.info("%s: no qualifying equity structure at fetch time (signal likely stale)", symbol)
+        else:
+            ok, message = submit_stock_to_bridge(client, trade)
+            logger.info("%s: %s", symbol, message)
+            if ok:
+                placed += 1
+                open_symbols.append(symbol)
+
+        acknowledge_equity(client, notification["id"])
+    return placed
+
+
 def run_journal_sync() -> None:
     if not Path(JOURNAL_SYNC_SCRIPT).exists():
         logger.warning("Journal sync script not found at %s; skipping", JOURNAL_SYNC_SCRIPT)
@@ -163,29 +281,34 @@ def run_once(client: httpx.Client) -> int:
         logger.info("Market closed; nothing to do this cycle")
         return 0
 
-    notifications = fetch_actionable_notifications(client)
-    if not notifications:
-        logger.info("No new actionable notifications")
-        return 0
-
     placed = 0
-    for notification in notifications:
-        symbol = notification["symbol"]
-        try:
-            trade = fetch_recommendation(client, symbol)
-        except Exception:
-            logger.exception("Failed to fetch a recommendation for %s", symbol)
-            trade = None
 
-        if trade is None:
-            logger.info("%s: no qualifying structure at fetch time (signal likely stale)", symbol)
-        else:
-            ok, message = submit_to_bridge(client, trade)
-            logger.info("%s: %s", symbol, message)
-            if ok:
-                placed += 1
+    notifications = fetch_actionable_notifications(client)
+    if notifications:
+        for notification in notifications:
+            symbol = notification["symbol"]
+            try:
+                trade = fetch_recommendation(client, symbol)
+            except Exception:
+                logger.exception("Failed to fetch a recommendation for %s", symbol)
+                trade = None
 
-        acknowledge(client, notification["id"])
+            if trade is None:
+                logger.info("%s: no qualifying structure at fetch time (signal likely stale)", symbol)
+            else:
+                ok, message = submit_to_bridge(client, trade)
+                logger.info("%s: %s", symbol, message)
+                if ok:
+                    placed += 1
+
+            acknowledge(client, notification["id"])
+    else:
+        logger.info("No new actionable notifications")
+
+    try:
+        placed += run_equity_once(client)
+    except Exception:
+        logger.exception("Equity cycle failed; continuing")
 
     if placed:
         run_journal_sync()

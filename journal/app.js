@@ -25,6 +25,13 @@
     });
   };
 
+  var allTrades = [];
+  var allTradesAccountEquity = 0;
+  var engineFilter = "all";
+  var engineOf = function (trade) {
+    return trade.asset_class === "equity" ? "stocks" : "options";
+  };
+
   function computeMetrics(trades) {
     var closed = trades.filter(function (trade) { return trade.status === "closed"; });
     var winners = closed.filter(function (trade) { return trade.net_pnl > 0; });
@@ -162,14 +169,35 @@
   function tradeCard(trade, accountEquity) {
     var won = trade.net_pnl > 0;
     var isLedger = trade.source === "ledger";
+    var isEquity = trade.asset_class === "equity";
     var statusLabel = trade.status === "open" ? "OPEN" : won ? "CLOSED · WIN" : "CLOSED · LOSS";
     var statusClass = trade.status === "open" ? "open" : won ? "win" : "loss";
-    var legs = trade.legs
-      .map(function (leg) {
-        return "<span class='" + esc(leg.action === "SELL" ? "sell" : "buy") + "'>" +
-          esc(legLabel(leg)) + "</span>";
-      })
-      .join("");
+
+    var legs;
+    var strategyLine;
+    if (isEquity) {
+      var shares = trade.order && trade.order.quantity != null ? trade.order.quantity : (trade.shares || "");
+      var entry = trade.entry_price != null ? "@ " + trade.entry_price : "";
+      var stop = trade.stop_price != null ? "stop " + trade.stop_price : "";
+      var target = trade.target_price != null ? "target " + trade.target_price : "";
+      legs = "<span class='buy'>BUY " + esc(shares) + " shares " + esc(entry) +
+        (stop ? " · " + esc(stop) : "") +
+        (target ? " · " + esc(target) : "") + "</span>";
+      strategyLine = "Long " + esc(trade.symbol) + " · momentum/trend long" +
+        (trade.entry_ivr != null ? " · IVR " + trade.entry_ivr + " at entry" : "");
+    } else {
+      legs = trade.legs
+        .map(function (leg) {
+          return "<span class='" + esc(leg.action === "SELL" ? "sell" : "buy") + "'>" +
+            esc(legLabel(leg)) + "</span>";
+        })
+        .join("");
+      strategyLine = strategyLabel(trade.strategy);
+      if (trade.dte_at_entry) strategyLine += " · " + trade.dte_at_entry + " DTE at entry";
+      strategyLine += " · IVR " + (trade.entry_ivr != null ? trade.entry_ivr : "—") + " at entry";
+      if (trade.expected_move_pct != null) strategyLine += " · exp move \u00B1" + trade.expected_move_pct + "%";
+    }
+
     var tags = trade.tags
       .map(function (tag) { return "<span>#" + esc(tag) + "</span>"; })
       .join("");
@@ -179,10 +207,6 @@
           esc(link.label) + " ↗</a>";
       })
       .join("");
-    var strategyLine = strategyLabel(trade.strategy);
-    if (trade.dte_at_entry) strategyLine += " · " + trade.dte_at_entry + " DTE at entry";
-    strategyLine += " · IVR " + (trade.entry_ivr != null ? trade.entry_ivr : "—") + " at entry";
-    if (trade.expected_move_pct != null) strategyLine += " · exp move \u00B1" + trade.expected_move_pct + "%";
 
     var riskPct = "";
     if (accountEquity > 0 && trade.capital_at_risk) {
@@ -194,10 +218,20 @@
         (trade.net_pnl / trade.capital_at_risk).toFixed(2);
     }
 
+    var secondMeta;
+    if (isEquity) {
+      secondMeta = "<span><small>TARGET</small><b>" +
+        esc(trade.target_price != null ? "$" + trade.target_price : "—") + "</b></span>";
+    } else {
+      secondMeta = "<span><small>MAX PROFIT</small><b>" + esc(usd(trade.max_profit).slice(1)) + "</b></span>";
+    }
+
     return (
       "<article class='journal-card'>" +
       "<div class='journal-card-head'>" +
       "<div class='journal-symbol-row'><h3>" + esc(trade.symbol) + "</h3>" +
+      "<span class='engine-chip " + (isEquity ? "stocks" : "options") + "'>" +
+      (isEquity ? "STOCKS" : "OPTIONS") + "</span>" +
       "<span class='provenance-badge " + (isLedger ? "ledger" : "manual") + "'>" +
       (isLedger ? "TWS LEDGER" : "MANUAL") + "</span>" +
       "<span class='status-pill " + statusClass + "'>" + esc(statusLabel) + "</span></div>" +
@@ -212,7 +246,7 @@
       "<span><small>" + (trade.status === "open" ? "CURRENT" : "CLOSED") + "</small><b>" +
       (trade.closed ? esc(dateLabel(trade.closed)) : "—") + "</b></span>" +
       "<span><small>CAPITAL AT RISK</small><b>" + esc(usd(trade.capital_at_risk).slice(1) + riskPct) + "</b></span>" +
-      "<span><small>MAX PROFIT</small><b>" + esc(usd(trade.max_profit).slice(1)) + "</b></span></div>" +
+      secondMeta + "</div>" +
       managementPlan(trade) +
       "<div class='journal-thesis'><small>THE WHY</small><p>" + esc(trade.reason) + "</p></div>" +
       "<div class='journal-exit'><small>WHAT HAPPENED</small><p>" + esc(trade.exit_note) + "</p></div>" +
@@ -253,10 +287,45 @@
       "<h2>Weeks and months, in review</h2></div></div><div class='recap-grid'>" + blocks.join("") + "</div>";
   }
 
+  function wireFilters() {
+    var bar = document.getElementById("journal-filters");
+    bar.addEventListener("click", function (event) {
+      var button = event.target.closest("[data-filter]");
+      if (!button) return;
+      engineFilter = button.getAttribute("data-filter");
+      Array.prototype.forEach.call(bar.querySelectorAll("[data-filter]"), function (tab) {
+        tab.setAttribute("aria-selected", tab === button ? "true" : "false");
+      });
+      renderList();
+    });
+  }
+
+  function renderList() {
+    var list = document.getElementById("journal-list");
+    var filtered = allTrades;
+    if (engineFilter !== "all") {
+      filtered = allTrades.filter(function (trade) { return engineOf(trade) === engineFilter; });
+    }
+    if (!filtered.length) {
+      var engineName = engineFilter === "stocks" ? "Stocks" : engineFilter === "options" ? "Options" : "All";
+      list.innerHTML =
+        "<div class='journal-empty'><b>No " + engineName.toLowerCase() + " trades yet.</b><br/>" +
+        "The first " + engineName + " recommendation you place on paper will appear here, " +
+        "with the thesis, the structure, and the receipt.</div>";
+      return;
+    }
+    var ordered = filtered.slice().sort(function (a, b) { return a.opened.localeCompare(b.opened); });
+    list.innerHTML = ordered.reverse()
+      .map(function (trade) { return tradeCard(trade, allTradesAccountEquity); })
+      .join("");
+  }
+  var allTradesAccountEquity = 0;
+
   function render(data) {
     var trades = data.trades || [];
-    var trader = data.trader || {};
-    var metrics = computeMetrics(trades);
+    allTrades = trades;
+    allTradesAccountEquity = data.account_equity || 0;
+    var trader = data.trader || {};    var metrics = computeMetrics(trades);
     var pf = Number.isFinite(metrics.profitFactor)
       ? metrics.profitFactor.toFixed(2)
       : metrics.profitFactor === Infinity ? "—" : "0.00";
@@ -278,8 +347,11 @@
     renderCurve(metrics, accountEquity);
     renderRecaps(trades);
 
+    var optionsCount = trades.filter(function (trade) { return engineOf(trade) === "options"; }).length;
+    var stocksCount = trades.filter(function (trade) { return engineOf(trade) === "stocks"; }).length;
     document.getElementById("sort-note").textContent =
-      "Newest first · " + trades.length + " entries";
+      "Newest first · " + trades.length + " entries · " +
+      optionsCount + " options / " + stocksCount + " stocks";
     document.getElementById("journal-sub").textContent =
       (trader.tagline || "") + " · " + (trader.name || "") + " (" + (trader.handle || "") + ")" +
       " · journal updated " + (data.as_of || "") +
@@ -292,18 +364,8 @@
         ". Recomputable, never edited by hand.";
     }
 
-    var list = document.getElementById("journal-list");
-    if (!trades.length) {
-      list.innerHTML =
-        "<div class='journal-empty'><b>No trades yet.</b><br/>" +
-        "The first ThetaForge recommendation you place on TWS will appear here, " +
-        "with the thesis, the structure, and the receipt.</div>";
-      return;
-    }
-    var ordered = trades.slice().sort(function (a, b) { return a.opened.localeCompare(b.opened); });
-    list.innerHTML = ordered.reverse()
-      .map(function (trade) { return tradeCard(trade, accountEquity); })
-      .join("");
+    renderList();
+    wireFilters();
   }
 
   function renderEmpty() {

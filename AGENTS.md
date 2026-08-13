@@ -28,11 +28,14 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
         the whole stack around the real NYSE session.
 ```
 
-- `agents/trade_engine/` is the authoritative recommendation path.
+- `agents/trade_engine/` is the authoritative recommendation path for options.
+- `agents/equity_trader/` is the parallel engine for long stock/ETF momentum.
+  Same invariants: fail-closed gates, free/read-only data, and the Bridge
+  remains the only order path with a single shared capital ledger.
 - `bridge/main.py` is the ONLY paper-order path; it rejects live accounts,
-  naked options, and undefined-risk structures. This is a hard, intentional
-  invariant -- do not weaken it to make a future live-trading switch easier;
-  see the guardrail below.
+  naked options, undefined-risk structures, and short stock. This is a hard,
+  intentional invariant -- do not weaken it to make a future live-trading
+  switch easier; see the guardrail below.
 - State lives in `data/*.json` (gitignored). No database, no Celery.
 
 ## Module Map (production)
@@ -40,7 +43,14 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | Path | Role |
 | --- | --- |
 | `agents/data_ingestion/cboe_data.py` | Free no-key CBOE delayed quotes: option chains (Greeks+IV), quotes, VIX term structure |
-| `agents/data_ingestion/free_data.py` | Multi-source provider: IBKR > CBOE > Alpaca > yfinance; VIX term structure, contango, earnings date, short interest |
+| `agents/data_ingestion/free_data.py` | Multi-source provider: IBKR (VM proxy) > CBOE > Alpaca > yfinance; stock price + daily OHLCV (IBKR-first), VIX term structure, contango, earnings date, short interest |
+| `agents/equity_trader/equity_signals.py` | Equity indicator helpers reusing `SignalEngine` (RSI/ADX/MACD): trend, 6m momentum, relative strength vs SPY |
+| `agents/equity_trader/equity_brain.py` | Fail-closed equity gates: risk_off regime, macro ≤2d, earnings ≤3d, SMA200/SMA50 trend, momentum, ADX ≥20, RSI ≤80, relative strength ≥ −5% vs SPY; `BUY_SCORE_FLOOR=62` |
+| `agents/equity_trader/equity_universe.py` | Free-data active-stock/ETF universe discovery for the equity scanner |
+| `agents/equity_trader/equity_scanner.py` | Background stock/ETF scan (`SCAN_CONCURRENCY=5`, market-hours only); writes `data/equity_scan_results.json` + `equity_notifications.json`; singleton `get_background_equity_scanner()` |
+| `agents/equity_trader/equity_recommender.py` | Equity candidate scoring: 1% risk, 2× ATR stop, 2R target, 30% notional cap, sector cap (`MAX_CORRELATED_EQUITY_POSITIONS` + `SYMBOL_SECTOR`) |
+| `agents/equity_trader/equity_manager.py` | Open equity position rules (2× ATR stop, 2R profit, chandelier trail after +1R, pre-earnings, pre-macro, 60d time) + trailing-stop anchor ratchet |
+| `agents/backtest/advanced_backtest.py` | Retained `SignalEngine` (macd/rsi/adx/bollinger) imported by `ai_brain.py`, `tv_indicators.py`, and the equity brain — NOT dead code |
 | `agents/trade_engine/background_scanner.py` | Universe discovery + `_analyze_one` (feeds all vol inputs to Brain); bounded-concurrency scan (`SCAN_CONCURRENCY`) |
 | `agents/trade_engine/ai_brain.py` | Regime, signal aggregation, `iv_signal` (rank/percentile/term-structure/iv_skew/short_interest/earnings_move), strategy selection gates incl. the `macro_proximity` veto |
 | `agents/trade_engine/macro_calendar.py` | Offline scheduled FOMC/CPI/NFP calendar (`macro_days_until`, `macro_blackout`); 2027 CPI absent by design → missing schedule fails open, never fabricates a veto |
@@ -54,11 +64,12 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | `agents/volatility/iv_metrics.py` | `calculate_iv_rank`, `calculate_iv_percentile`, realized vol |
 | `agents/volatility/flow_metrics.py` | Free-data RV bands, unusual volume, OI divergence, OI center-of-mass, IV mover |
 | `orchestrator/routes/advisor.py` | Authenticated dashboard API |
-| `bridge/main.py` | Paper-only IBKR order checks and submission: `POST /orders/submit-combo` (entries) and `POST /orders/close-combo` (exits — mirrors the parent's own ledger record, re-verifies live quotes, never reserves new capital) |
+| `bridge/main.py` | Paper-only IBKR order checks and submission: `POST /orders/submit-combo` (entries), `POST /orders/close-combo` (exits — mirrors the parent's own ledger record, re-verifies live quotes, never reserves new capital), `POST /orders/stock` (long-only, stop-defined risk), `POST /orders/close-stock`, `POST /orders/{ledger_id}/position-meta` (metadata-only trailing-stop anchor ratchet) |
 | `dashboard/app/page.tsx` | Private terminal — local, or hosted on Cloudflare Pages behind Cloudflare Access (never on the public journal's GitHub Pages) |
 | `deployment/cloudflare_deploy_terminal.ps1` | Builds and deploys the private terminal to Cloudflare Pages |
-| `deployment/vm_auto_executor.py` | Autonomous paper-order executor (entries), runs on the Oracle VM beside the Bridge |
-| `deployment/vm_auto_manager.py` | Autonomous paper position manager (exits) — asks the Advisor for management decisions, submits closes via the Bridge, advisory-only unless `AUTO_CLOSE_ENABLED=true`; `review_tested` is never auto-submitted |
+| `deployment/vm_auto_executor.py` | Autonomous paper-order executor (entries), runs on the Oracle VM beside the Bridge; handles both options and equity notifications |
+| `deployment/vm_auto_manager.py` | Autonomous paper position manager (exits) — asks the Advisor for management decisions (options + equity), submits closes via the Bridge, advisory-only unless `AUTO_CLOSE_ENABLED=true`; `review_tested` is never auto-submitted |
+| `deployment/vm_market_data_service.py` | Read-only IBKR market-data proxy (own port 8003, own client id, own token): `/option-chain`, `/stock`, `/stock-history` |
 | `deployment/market_hours_supervisor.sh` | Starts/stops Gateway+Bridge+executors on the VM around real market hours |
 | `deployment/journal_sync_push.sh` | Auto-publishes the journal from the VM's ledger after an autonomous fill or close |
 | `journal/` | Public trade journal — static site served at `https://journal.astraiva.app/` (custom domain on the `gh-pages` branch, `CNAME` file); only entries actually placed on the paper account from the paper-order ledger |

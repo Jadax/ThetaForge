@@ -309,3 +309,73 @@ def test_close_exit_notes_map_all_management_reasons(tmp_path):
     ]
     for reason, expected in cases:
         assert sync_journal._exit_note(reason) == expected
+
+
+def _stock_record(rec_id, status="Filled", **extra):
+    record = {
+        "id": rec_id,
+        "recommendation_id": "eq-rec-1",
+        "asset_class": "equity",
+        "strategy": "equity_momentum",
+        "symbol": "NVDA",
+        "quantity": 10,
+        "status": status,
+        "net_credit": 0,
+        "max_loss_total": 40.0,
+        "entry_price": 100.0,
+        "stop_price": 96.0,
+        "target_price": 108.0,
+        "highest_high": 100.0,
+        "risk_per_share": 4.0,
+        "submitted_at": "2026-08-01T14:00:00Z",
+        "updated_at": "2026-08-01T14:00:00Z",
+    }
+    record.update(extra)
+    return record
+
+
+def test_equity_entry_carries_asset_class_and_plan(tmp_path):
+    ledger = [_stock_record("eq-1")]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    trade = data["trades"][0]
+    assert trade["asset_class"] == "equity"
+    assert trade["legs"] == []
+    assert trade["entry_price"] == 100.0
+    assert trade["stop_price"] == 96.0
+    assert trade["target_price"] == 108.0
+    assert trade["management_plan"]["stop"] == "hard stop at 96.0"
+    assert trade["management_plan"]["target"] == "take profit at 2R target 108.0"
+    assert "Long NVDA" in trade["reason"]
+
+
+def test_equity_close_folds_realized_pnl(tmp_path):
+    close = _stock_record("eq-2-close", status="Filled", close_of="eq-2",
+                          realized_pnl=28.0, cost_to_close=0.0,
+                          reason="close_profit", average_fill_price=108.0,
+                          updated_at="2026-08-08T15:30:00Z",
+                          submitted_at="2026-08-08T15:30:00Z")
+    ledger = [_stock_record("eq-2"), close]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    trade = data["trades"][0]
+    assert trade["status"] == "closed"
+    assert trade["asset_class"] == "equity"
+    assert trade["net_pnl"] == 28.0
+    assert trade["exit_note"] == "Auto-closed at the 50% of max-credit take-profit target."
+
+
+def test_equity_exit_notes_cover_trail_and_stop(tmp_path):
+    assert sync_journal._exit_note("close_stop") == "Auto-closed at the 2x-ATR hard stop."
+    assert sync_journal._exit_note("close_trail") == (
+        "Auto-closed at the trailing chandelier stop after the position went +1R.")

@@ -225,3 +225,84 @@ def test_next_trade_id_handles_three_digits():
         {"id": "TF-2026-100"},
     ]
     assert add_trade.next_trade_id(trades) == "TF-2026-101"
+
+
+def test_equity_trade_without_legs(journal_file):
+    args = [
+        "--journal", str(journal_file),
+        "--non-interactive",
+        "--asset-class", "equity",
+        "--symbol", "NVDA",
+        "--strategy", "equity_momentum",
+        "--status", "closed",
+        "--entry-price", "100",
+        "--stop-price", "96",
+        "--target-price", "108",
+        "--capital-at-risk", "40",
+        "--max-profit", "0",
+        "--net-pnl", "28",
+        "--reason", "Momentum long.",
+        "--exit-note", "Auto-closed at the 2R target.",
+    ]
+    code = add_trade.main(args)
+    assert code == 0
+
+    data = json.loads(journal_file.read_text(encoding="utf-8"))
+    trade = data["trades"][0]
+    assert trade["asset_class"] == "equity"
+    assert trade["legs"] == []
+    assert trade["entry_price"] == 100.0
+    assert trade["stop_price"] == 96.0
+    assert trade["target_price"] == 108.0
+    assert trade["capital_at_risk"] == 40.0
+
+
+def test_equity_trade_requires_capital_at_risk(journal_file):
+    args = [
+        "--journal", str(journal_file),
+        "--non-interactive",
+        "--asset-class", "equity",
+        "--symbol", "NVDA",
+        "--strategy", "equity_momentum",
+        "--status", "open",
+        "--reason", "Momentum long.",
+        "--exit-note", "Open — monitoring.",
+    ]
+    assert add_trade.main(args) == 2
+
+
+def test_equity_from_ledger_prefills_prices(tmp_path):
+    ledger_path = tmp_path / "paper_order_ledger.json"
+    ledger = [{
+        "id": "ledger-eq-1",
+        "asset_class": "equity",
+        "strategy": "equity_momentum",
+        "symbol": "NVDA",
+        "quantity": 10,
+        "max_loss_total": 40.0,
+        "entry_price": 100.0,
+        "stop_price": 96.0,
+        "target_price": 108.0,
+    }]
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = tmp_path / "trades.json"
+    journal_path.write_text(json.dumps(_fixture()), encoding="utf-8")
+
+    args = [
+        "--journal", str(journal_path),
+        "--ledger", str(ledger_path),
+        "--non-interactive",
+        "--from-ledger", "ledger-eq-1",
+        "--status", "open",
+        "--max-profit", "0",
+        "--net-pnl", "0",
+        "--reason", "Momentum long from ledger.",
+    ]
+    assert add_trade.main(args) == 0
+
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    trade = data["trades"][0]
+    assert trade["asset_class"] == "equity"
+    assert trade["legs"] == []
+    assert trade["entry_price"] == 100.0
+    assert trade["capital_at_risk"] == 40.0
