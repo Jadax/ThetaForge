@@ -183,6 +183,16 @@ def _finite(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _finite_price(value: Any) -> float:
+    """Same as _finite, but also clamps negative prices to 0. IBKR returns
+    -1 as its sentinel for "no two-sided quote available" on bid/ask/last --
+    a real finite float, so _finite() alone doesn't catch it, and a raw -1
+    passed downstream could get misread as an actual negative price/credit
+    by a caller that only checks for None/NaN."""
+    parsed = _finite(value)
+    return parsed if parsed > 0 else 0.0
+
+
 @app.get("/health")
 async def health():
     return {"connected": bool(ib and ib.isConnected())}
@@ -242,14 +252,14 @@ async def _snapshot_quote(contract, wait_seconds: float = 2.0) -> tuple[float, f
     ib.reqMarketDataType(1)
     ticker = ib.reqMktData(contract, "", True, False)
     await asyncio.sleep(wait_seconds)
-    bid, ask, last = _finite(ticker.bid), _finite(ticker.ask), _finite(ticker.last)
+    bid, ask, last = _finite_price(ticker.bid), _finite_price(ticker.ask), _finite_price(ticker.last)
     if bid or ask or last:
         return bid, ask, last, "live"
 
     ib.reqMarketDataType(3)
     ticker = ib.reqMktData(contract, "", True, False)
     await asyncio.sleep(wait_seconds)
-    bid, ask, last = _finite(ticker.bid), _finite(ticker.ask), _finite(ticker.last)
+    bid, ask, last = _finite_price(ticker.bid), _finite_price(ticker.ask), _finite_price(ticker.last)
     return bid, ask, last, "delayed"
 
 
@@ -384,9 +394,9 @@ async def _fetch_option_chain(symbol: str) -> list[dict[str, Any]]:
         except (TypeError, ValueError):
             dte = 0
 
-        bid = _finite(mkt_ticker.bid)
-        ask = _finite(mkt_ticker.ask)
-        last = _finite(mkt_ticker.last)
+        bid = _finite_price(mkt_ticker.bid)
+        ask = _finite_price(mkt_ticker.ask)
+        last = _finite_price(mkt_ticker.last)
         mid = (bid + ask) / 2 if bid > 0 and ask > 0 else last
 
         is_call = contract.right == "C"
