@@ -88,14 +88,6 @@ class OpenPosition:
         return (self.credit_received - self.short_leg_value) / self.credit_received
 
 
-def _is_premium_selling(strategy: str) -> bool:
-    key = (strategy or "").lower()
-    return any(token in key for token in (
-        "bull_put", "bear_call", "iron_condor", "cash_secured",
-        "covered_call", "strangle", "straddle", "condor", "spread_weekly",
-    ))
-
-
 def _days_to_earnings(days_to_earnings: Optional[int]) -> bool:
     return days_to_earnings is not None and 0 < days_to_earnings <= EARNINGS_EXIT_DAYS
 

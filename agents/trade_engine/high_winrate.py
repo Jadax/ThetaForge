@@ -57,7 +57,16 @@ _SELL_PREMIUM_TYPES = {
     "covered_call", "short_straddle", "short_strangle",
     "iron_butterfly", "jade_lizard", "bull_put_credit",
     "bear_call_credit", "iron_condor_weekly", "credit_spread_weekly",
+    "wheel",
 }
+# This is the single source of truth for "is this a premium-selling
+# strategy" across the whole system -- trade_manager.py and ai_brain.py both
+# import is_premium_selling() from here rather than keeping their own lists,
+# after those lists were found to have silently drifted (missing
+# jade_lizard/wheel in some, an extra substring-match false-negative risk in
+# others). deployment/vm_auto_manager.py can't import this (it runs on the
+# VM without the full package tree) and mirrors this exact set manually --
+# keep that mirror in sync if this set ever changes.
 _BULL_TYPES = {
     "bull_put", "bull_put_credit", "cash_secured_put", "covered_call",
     "bull_call", "call_debit", "call_debit_spread", "bull_call_spread",

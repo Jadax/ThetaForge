@@ -24,6 +24,7 @@ from enum import Enum
 from datetime import datetime, timedelta
 
 from agents.trade_engine.high_winrate import (
+    is_premium_selling,
     relative_strength_ok as hw_relative_strength_ok,
     strategy_bias as hw_strategy_bias,
 )
@@ -976,12 +977,7 @@ class AIBrain:
         score = 50
 
         # IV-based
-        premium_selling = strategy in [
-            "iron_condor", "bull_put_credit", "bear_call_credit",
-            "cash_secured_put", "covered_call", "wheel",
-            "short_straddle", "short_strangle", "iron_butterfly",
-            "iron_condor_weekly", "credit_spread_weekly",
-        ]
+        premium_selling = is_premium_selling(strategy)
         if premium_selling and ivr >= 50:
             score += 20
         elif premium_selling and ivr < 30:

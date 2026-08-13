@@ -62,10 +62,20 @@ RESERVING_ORDER_STATUSES = {
     "PendingCancel", "Filled", "Unknown",
 }
 CLOSE_ACTIONS = {"close_profit", "close_time", "close_loss", "close_pre_earnings", "close_pre_macro"}
-MANAGED_TOKENS = (
-    "bull_put", "bear_call", "iron_condor", "cash_secured",
-    "covered_call", "strangle", "straddle", "condor",
-)
+# Mirrors agents/trade_engine/high_winrate.py's _SELL_PREMIUM_TYPES exactly
+# (that's the single source of truth for the rest of the system) -- this
+# script can't import it directly since it runs on the VM without the full
+# package tree (see WorkingDirectory in thetaforge-auto-manager.service).
+# Keep this set in sync if the source ever changes; it was previously a
+# substring-match subset that silently missed jade_lizard and wheel
+# positions entirely, so they never got autonomous exit management applied.
+MANAGED_STRATEGIES = {
+    "bull_put", "bear_call", "iron_condor", "cash_secured_put",
+    "covered_call", "short_straddle", "short_strangle",
+    "iron_butterfly", "jade_lizard", "bull_put_credit",
+    "bear_call_credit", "iron_condor_weekly", "credit_spread_weekly",
+    "wheel",
+}
 
 
 def is_market_open(client: httpx.Client) -> bool:
@@ -85,8 +95,7 @@ def fetch_ledger(client: httpx.Client) -> dict[str, Any]:
 
 
 def is_manageable(strategy: Optional[str]) -> bool:
-    key = (strategy or "").lower()
-    return any(token in key for token in MANAGED_TOKENS)
+    return (strategy or "").lower() in MANAGED_STRATEGIES
 
 
 def open_positions(client: httpx.Client) -> tuple[list[dict[str, Any]], float, float]:
