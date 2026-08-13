@@ -34,7 +34,7 @@ is_active() {
 # run over SSH as the ubuntu user.
 if market_open; then
     if ! is_active thetaforge-auto-executor.service; then
-        logger -t "$LOG_TAG" "market open -- starting ibgateway, bridge, auto-executor, auto-manager"
+        logger -t "$LOG_TAG" "market open -- starting ibgateway, bridge, auto-executor, auto-manager, market-data"
         systemctl start ibgateway.service
         # IB Gateway + IBC's login flow takes real time (Java startup, IBC's
         # automated dialog handling, IBKR auth). Starting the Bridge before
@@ -46,12 +46,14 @@ if market_open; then
         sleep 5
         systemctl start thetaforge-auto-executor.service
         systemctl start thetaforge-auto-manager.service
+        systemctl start thetaforge-market-data.service
     fi
 else
-    if is_active thetaforge-auto-executor.service || is_active thetaforge-auto-manager.service || is_active thetaforge-bridge.service || is_active ibgateway.service; then
-        logger -t "$LOG_TAG" "market closed -- stopping auto-executor, auto-manager, bridge, ibgateway"
+    if is_active thetaforge-auto-executor.service || is_active thetaforge-auto-manager.service || is_active thetaforge-bridge.service || is_active ibgateway.service || is_active thetaforge-market-data.service; then
+        logger -t "$LOG_TAG" "market closed -- stopping auto-executor, auto-manager, bridge, ibgateway, market-data"
         systemctl stop thetaforge-auto-executor.service
         systemctl stop thetaforge-auto-manager.service
+        systemctl stop thetaforge-market-data.service
         systemctl stop thetaforge-bridge.service
         systemctl stop ibgateway.service
     fi
