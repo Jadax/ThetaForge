@@ -27,6 +27,7 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 SCAN_RESULTS_FILE = os.path.join(DATA_DIR, "brain_scan_results.json")
 SCAN_NOTIFICATIONS_FILE = os.path.join(DATA_DIR, "brain_notifications.json")
 SCAN_STATE_FILE = os.path.join(DATA_DIR, "brain_scan_state.json")
+PCR_HISTORY_FILE = os.path.join(DATA_DIR, "pcr_history.json")
 
 # Background alerts are discovery candidates, but they should still meet the
 # same high-conviction floor used by the detailed Advisor recommendation path.
@@ -229,6 +230,99 @@ def _flow_signals(chain: List[Dict]) -> Optional[Dict]:
         "unusual_volume": unusual,
         "oi_center_of_mass": center,
     }
+
+
+def _flow_data(chain: List[Dict], stock_price: float, iv: Optional[float]) -> Optional[Dict]:
+    """Directional smart-money flow summary the Brain's flow engine expects.
+
+    Runs the UnusualActivityDetector over the free chain and aggregates the
+    results into the exact shape AIBrain.analyze() consumes (total_signals,
+    bias, premium totals, bullish/bearish counts). Fails closed: no unusual
+    activity -> None, and the Brain treats a missing flow read as neutral --
+    it can never mint a trade by itself.
+    """
+    try:
+        from agents.flow_analysis.unusual_activity import UnusualActivityDetector
+    except ImportError:
+        return None
+    if not chain or not stock_price or stock_price <= 0:
+        return None
+    detector = UnusualActivityDetector()
+    unusual = detector.scan_chain(chain, stock_price, iv or 0.20)
+    if not unusual:
+        return None
+    return detector.aggregate_signals(unusual, [], [])
+
+
+def _pcr_read(symbol: str, chain: List[Dict], store=None) -> Optional[Dict]:
+    """Symbol-level put/call volume ratio plus its own history.
+
+    PCR is a contrarian read, and it only means something relative to the
+    symbol's own recent distribution, so today's ratio is appended to a
+    per-symbol daily history before the sentiment engine is run. Volume is
+    preferred; when a chain carries no volume it degrades to an OI ratio, and
+    an empty chain degrades to None (neutral), never a signal.
+    """
+    if not chain:
+        return None
+    call_volume = 0.0
+    put_volume = 0.0
+    call_oi = 0.0
+    put_oi = 0.0
+    for opt in chain:
+        opt_type = str(opt.get("option_type", "")).upper()
+        if opt_type not in ("CALL", "PUT"):
+            continue
+        if opt_type == "CALL":
+            call_volume += float(opt.get("volume") or 0)
+            call_oi += float(opt.get("open_interest") or 0)
+        else:
+            put_volume += float(opt.get("volume") or 0)
+            put_oi += float(opt.get("open_interest") or 0)
+
+    if call_volume > 0 and put_volume > 0:
+        current = put_volume / call_volume
+    elif call_oi > 0 and put_oi > 0:
+        current = put_oi / call_oi
+    else:
+        return None
+
+    try:
+        if store is None:
+            from agents.volatility.pcr_history import PCRHistoryStore
+            store = PCRHistoryStore(PCR_HISTORY_FILE)
+        store.record(symbol, current)
+        historical = store.history(symbol)
+    except Exception:
+        logger.exception("PCR history store failed; sentiment degrades to absolute thresholds")
+        historical = []
+
+    return {
+        "current": round(current, 4),
+        "historical": historical,
+        "put_volume": round(put_volume, 0),
+        "call_volume": round(call_volume, 0),
+    }
+
+
+def _gex_data(chain: List[Dict], stock_price: float) -> Optional[Dict]:
+    """Dealer gamma-exposure regime from the free chain.
+
+    Full-chain GEX is CPU-cheap for a single symbol (pure numpy/scipy per-row
+    gamma) and the chain's own dte field avoids a strptime per option. Missing
+    or unpriced chains fail closed to None; the Brain treats that as neutral.
+    """
+    try:
+        from agents.flow_analysis.gex_engine import GEXEngine
+    except ImportError:
+        return None
+    if not chain or not stock_price or stock_price <= 0:
+        return None
+    try:
+        return GEXEngine().calculate_chain_gex(chain, stock_price)
+    except Exception:
+        logger.debug("GEX computation failed; dealer-positioning signal disabled", exc_info=True)
+        return None
 
 # Liquid options underlyings — most actively traded US ETFs and large-caps.
 # These are the first-pass scan targets; the screener discovers additional names.
@@ -626,6 +720,27 @@ class BackgroundBrainScanner:
                 vol_risk_premium=vol_risk_premium,
                 relative_strength=relative_strength,
             )
+            # Flow, put/call sentiment, and dealer GEX are real signal buckets
+            # in the Brain's regime weights but were previously only fed by the
+            # manual /brain/analyze path -- the background scan ran with those
+            # weights inert. Each read fails closed to None and the Brain
+            # treats a missing read as neutral, so a broken source can never
+            # fabricate a signal. The PCR store write is idempotent per day.
+            flow_data = None
+            pcr_data = None
+            gex_data = None
+            try:
+                flow_data = _flow_data(chain, price, current_iv)
+                pcr_data = _pcr_read(symbol, chain)
+                gex_data = _gex_data(chain, price)
+                if flow_data:
+                    analyze_kwargs["flow_data"] = flow_data
+                if pcr_data:
+                    analyze_kwargs["pcr_data"] = pcr_data
+                if gex_data:
+                    analyze_kwargs["gex_data"] = gex_data
+            except Exception:
+                logger.exception("Flow/PCR/GEX enrichment failed for %s", symbol)
             # Per-symbol 52w IV bounds from the symbol's own history replace
             # the Brain's fixed default band once enough samples exist.
             if iv_52w_bounds:
@@ -650,6 +765,9 @@ class BackgroundBrainScanner:
                 "iv_hv_signal": (result.iv_signal or {}).get("signal"),
                 "rv_band": _rv_band(current_iv, hv_20),
                 "flow_signals": _flow_signals(chain),
+                "flow_bias": (flow_data or {}).get("bias"),
+                "pcr_signal": result.sentiment_signal or {},
+                "gex_regime": (gex_data or {}).get("gex_regime"),
                 "expected_move_pct": (result.iv_signal or {}).get("expected_move_pct"),
                 "term_structure": (result.iv_signal or {}).get("term_structure"),
                 "iv_skew": (result.iv_signal or {}).get("iv_skew"),
@@ -738,6 +856,9 @@ class BackgroundBrainScanner:
                     "expected_move_pct": data.get("expected_move_pct"),
                     "vol_risk_premium": data.get("vol_risk_premium"),
                     "relative_strength": data.get("relative_strength"),
+                    "flow_bias": data.get("flow_bias"),
+                    "pcr_signal": data.get("pcr_signal"),
+                    "gex_regime": data.get("gex_regime"),
                 }
                 continue
 
@@ -785,6 +906,9 @@ class BackgroundBrainScanner:
                 "expected_move_pct": data.get("expected_move_pct"),
                 "term_structure": data.get("term_structure"),
                 "flow_signals": data.get("flow_signals"),
+                "flow_bias": data.get("flow_bias"),
+                "pcr_signal": data.get("pcr_signal"),
+                "gex_regime": data.get("gex_regime"),
                 "vol_risk_premium": data.get("vol_risk_premium"),
             }
 

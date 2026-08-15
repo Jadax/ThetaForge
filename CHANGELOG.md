@@ -1,5 +1,31 @@
 # ThetaForge Changelog
 
+## v1.10.0 - 2026-08-15
+
+The live brain is now fed: the background scan previously ran with three of the
+AIBrain's regime-weight buckets (flow, put/call sentiment, dealer GEX) inert,
+because only the manual `/api/advisor/brain/analyze` path supplied those
+inputs. This release wires them into the scan path so the composite score
+actually uses the weights the architecture declares.
+
+- New `agents/volatility/pcr_history.py`: append-only per-symbol put/call-ratio
+  store (daily idempotent snapshots, `MIN_SAMPLES` 20), mirroring the
+  IVHistoryStore contract. Symbol-level PCR is only meaningful relative to its
+  own recent distribution, so the sentiment engine now reads a z-score over
+  accumulated history instead of a bare absolute ratio.
+- `background_scanner.py`: `_flow_data()` (UnusualActivityDetector over the
+  free chain, aggregated into the exact shape the Brain consumes),
+  `_pcr_read()` (put/call volume ratio, OI fallback, persisted daily), and
+  `_gex_data()` (full-chain dealer GEX regime). All three fail closed to None,
+  and the Brain treats a missing read as neutral — a broken source can never
+  fabricate a signal. The scan payload and results rows now carry `flow_bias`,
+  `pcr_signal`, and `gex_regime`.
+- `gex_engine.py`: prefer the provider-computed `dte` field when the chain row
+  carries it (exact, and avoids a strptime per option).
+- Dashboard (`dashboard/app/page.tsx` v1.10.0): VERSION bump only.
+- Tests: 306 pass (was 299; +5 live-brain feed tests, +1 date-robust desk
+  analytics fix). VERSION → v1.10.0.
+
 ## v1.9.0 - 2026-08-13
 
 Second engine shipped: an autonomous momentum-equity (stock/ETF) long trader

@@ -56,7 +56,16 @@ class GEXEngine:
             opt_type = opt.get("option_type", "CALL")
             expiry = opt.get("expiry", "")
 
-            T = self._days_to_expiry(expiry) / 365.0
+            # Prefer the provider-computed days-to-expiry when the chain row
+            # carries it (the CBOE/free chains always do) -- it avoids a
+            # strptime per row and is exact on the provider's own calendar.
+            if opt.get("dte"):
+                try:
+                    T = float(opt["dte"]) / 365.0
+                except (TypeError, ValueError):
+                    T = self._days_to_expiry(expiry) / 365.0
+            else:
+                T = self._days_to_expiry(expiry) / 365.0
             if T <= 0 or T > 2.0:
                 continue
 

@@ -91,14 +91,18 @@ def test_calculate_iv_skew_picks_most_traded_expiry():
 
 
 def test_implied_earnings_move_from_front_straddle():
+    # The front straddle must be a *future* expiry (0DTE is excluded), so it is
+    # derived from today rather than pinned to a literal that goes stale.
+    from datetime import date, timedelta
+    front = (date.today() + timedelta(days=3)).isoformat()
     chain = _chain()
     chain.append({
-        "symbol": "TESTC", "strike": 100, "expiry": "2026-08-15",
+        "symbol": "TESTC", "strike": 100, "expiry": front,
         "option_type": "CALL", "delta": 0.5, "implied_volatility": 0.3,
         "bid": 2.0, "ask": 2.2, "last": 2.1,
     })
     chain.append({
-        "symbol": "TESTP", "strike": 100, "expiry": "2026-08-15",
+        "symbol": "TESTP", "strike": 100, "expiry": front,
         "option_type": "PUT", "delta": -0.5, "implied_volatility": 0.3,
         "bid": 2.0, "ask": 2.2, "last": 2.1,
     })

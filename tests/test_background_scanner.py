@@ -224,3 +224,159 @@ async def test_skipping_a_closed_market_does_not_clobber_the_last_real_scan(scan
     assert status_after_skip["last_run"] == status_after_scan["last_run"]
     assert status_after_skip["symbols_scanned_last_run"] == status_after_scan["symbols_scanned_last_run"]
     assert status_after_skip["last_closed_market_check"] is not None
+
+
+# ── Live-brain feeds: flow / put-call sentiment / GEX ──────────────────────
+# The Brain's regime weights allocate real weight to flow, sentiment, and GEX
+# buckets; the scanner must actually feed them (they were previously only set
+# on the manual /brain/analyze path, leaving those weights inert in the scan).
+
+
+def _flow_opt(strike, opt_type, volume=500, oi=100, bid=1.0, ask=1.5, last=1.2, dte=30):
+    return {
+        "strike": strike,
+        "dte": dte,
+        "option_type": opt_type,
+        "volume": volume,
+        "open_interest": oi,
+        "bid": bid,
+        "ask": ask,
+        "last": last,
+    }
+
+
+def test_flow_data_aggregates_directional_flow():
+    chain = [
+        _flow_opt(95, "put", volume=600, oi=100),
+        _flow_opt(105, "call", volume=400, oi=100),
+        _flow_opt(110, "call", volume=50, oi=80),  # below min volume/OI -> ignored
+    ]
+    read = scanner_module._flow_data(chain, stock_price=100.0, iv=0.30)
+
+    assert read is not None
+    assert read["total_signals"] >= 2
+    assert read["bullish_signals"] >= 1
+    assert read["bearish_signals"] >= 1
+    assert set(read) >= {"bias", "total_premium_bull", "total_premium_bear"}
+
+
+def test_flow_data_none_when_no_unusual_activity():
+    chain = [_flow_opt(100, "call", volume=5, oi=10)]
+    assert scanner_module._flow_data(chain, stock_price=100.0, iv=0.30) is None
+    assert scanner_module._flow_data([], stock_price=100.0, iv=0.30) is None
+
+
+def test_pcr_read_computes_ratio_and_persists_daily(monkeypatch, tmp_path):
+    monkeypatch.setattr(scanner_module, "PCR_HISTORY_FILE", str(tmp_path / "pcr_history.json"))
+    chain = [
+        _flow_opt(95, "put", volume=300),
+        _flow_opt(105, "call", volume=200),
+    ]
+
+    read = scanner_module._pcr_read("SPY", chain)
+
+    assert read["put_volume"] == 300
+    assert read["call_volume"] == 200
+    assert read["current"] == pytest.approx(1.5, abs=1e-4)
+    # One snapshot recorded (idempotent within the same day).
+    assert len(read["historical"]) == 1
+
+    again = scanner_module._pcr_read("SPY", chain)
+    assert again["current"] == pytest.approx(1.5, abs=1e-4)
+    assert len(again["historical"]) == 1
+
+
+def test_pcr_read_degrades_to_oi_and_none():
+    # No volume anywhere -> OI ratio.
+    chain = [
+        {**_flow_opt(95, "put", volume=0), "open_interest": 400},
+        {**_flow_opt(105, "call", volume=0), "open_interest": 200},
+    ]
+    read = scanner_module._pcr_read("QQQ", chain)
+    assert read["current"] == pytest.approx(2.0, abs=1e-4)
+
+    assert scanner_module._pcr_read("QQQ", []) is None
+
+
+def test_gex_data_returns_a_regime():
+    chain = [
+        _flow_opt(95, "put", oi=200, bid=0.5, ask=0.7, last=0.6, dte=30),
+        _flow_opt(100, "put", oi=150, bid=1.0, ask=1.2, last=1.1, dte=30),
+        _flow_opt(100, "call", oi=180, bid=1.1, ask=1.3, last=1.2, dte=30),
+        _flow_opt(105, "call", oi=220, bid=0.6, ask=0.8, last=0.7, dte=30),
+    ]
+    read = scanner_module._gex_data(chain, stock_price=100.0)
+
+    assert read is not None
+    assert read["gex_regime"] in {"HIGH_POSITIVE_GEX", "HIGH_NEGATIVE_GEX", "NEUTRAL", "FLIP_ZONE"}
+    assert read["net_gex"] == pytest.approx(read["total_call_gex"] + read["total_put_gex"], abs=0.02)
+
+    assert scanner_module._gex_data([], stock_price=100.0) is None
+
+
+def _hist_60(closes):
+    """Minimal provider-history stub (a real DataFrame-shaped Close/High/Low)."""
+    import pandas as pd
+    return pd.DataFrame({"Close": closes, "High": closes, "Low": closes})
+
+
+@pytest.mark.asyncio
+async def test_analyze_one_feeds_flow_pcr_gex_to_the_brain(scanner, monkeypatch):
+    from agents.trade_engine.ai_brain import BrainOutput, SignalStrength
+
+    captured = {}
+
+    class FakeBrain:
+        def analyze(self, **kwargs):
+            captured.update(kwargs)
+            return BrainOutput(
+                symbol="SPY",
+                stock_price=100.0,
+                overall_signal=SignalStrength.BUY,
+                overall_score=60.0,
+                confidence=60.0,
+                best_strategy="bull_put_credit",
+                best_strategy_reasoning="test reasoning",
+                regime="bullish",
+                iv_signal={"iv_rank": 55},
+                sentiment_signal={"signal": "neutral", "confidence": 30},
+                relative_strength=0.1,
+            )
+
+    closes = [100.0 + i * 0.1 for i in range(60)]
+    async def fake_price(_symbol):
+        return 100.0
+    async def fake_chain(_symbol):
+        return [_flow_opt(95, "put", volume=600), _flow_opt(105, "call", volume=400)]
+    async def fake_vix():
+        return 20.0
+    async def fake_hist(_symbol, period="1y"):
+        return _hist_60(closes)
+    async def fake_none(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(scanner._provider, "get_stock_price", fake_price)
+    monkeypatch.setattr(scanner._provider, "get_option_chain", fake_chain)
+    monkeypatch.setattr(scanner._provider, "get_vix", fake_vix)
+    monkeypatch.setattr(scanner._provider, "get_historical_prices", fake_hist)
+    monkeypatch.setattr(scanner._provider, "get_vix_term_structure", fake_none)
+    monkeypatch.setattr(scanner._provider, "get_next_earnings_date", fake_none)
+    monkeypatch.setattr(scanner._provider, "get_short_interest", fake_none)
+    monkeypatch.setattr(scanner._provider, "get_earnings_dates", fake_none)
+    monkeypatch.setattr(scanner_module, "_flow_data",
+                        lambda chain, price, iv: {"bias": "bullish", "total_signals": 2})
+    monkeypatch.setattr(scanner_module, "_pcr_read",
+                        lambda symbol, chain: {"current": 1.5, "historical": [], "put_volume": 300, "call_volume": 200})
+    monkeypatch.setattr(scanner_module, "_gex_data",
+                        lambda chain, price: {"gex_regime": "NEUTRAL", "net_gex": 0.0})
+    scanner._brain = FakeBrain()
+
+    data, skip = await scanner._analyze_one("SPY")
+
+    assert skip is None
+    assert captured["flow_data"]["bias"] == "bullish"
+    assert captured["pcr_data"]["current"] == 1.5
+    assert captured["gex_data"]["gex_regime"] == "NEUTRAL"
+    assert data["flow_bias"] == "bullish"
+    assert data["pcr_signal"] == {"signal": "neutral", "confidence": 30}
+    assert data["gex_regime"] == "NEUTRAL"
