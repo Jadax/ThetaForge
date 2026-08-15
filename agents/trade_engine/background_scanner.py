@@ -551,6 +551,14 @@ class BackgroundBrainScanner:
         except Exception:
             return None, "price_unavailable"
 
+        # Self-learning feedback: score any due recorded predictions for this
+        # symbol against the price we already fetched (no extra network call).
+        # Advisory-only and fail-closed -- a tracker hiccup never breaks a scan.
+        try:
+            self._brain.record_outcome(symbol, price)
+        except Exception:
+            pass
+
         try:
             chain = await self._provider.get_option_chain(symbol) or []
         except Exception:
@@ -746,7 +754,7 @@ class BackgroundBrainScanner:
             if iv_52w_bounds:
                 analyze_kwargs["iv_52w_high"] = iv_52w_bounds["iv_52w_high"]
                 analyze_kwargs["iv_52w_low"] = iv_52w_bounds["iv_52w_low"]
-            result = brain.analyze(**analyze_kwargs)
+            result = brain.analyze(**analyze_kwargs, record_feedback=True)
             return {
                 "score": result.overall_score,
                 "signal": result.overall_signal.value,

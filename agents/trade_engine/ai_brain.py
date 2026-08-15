@@ -122,6 +122,17 @@ class AIBrain:
     # confidences are excluded from the agreement average below this strength.
     INFORMATIVE_STRENGTH_EPS = 0.05
 
+    # Self-learning feedback (SignalTracker): a source's learned hit rate may
+    # nudge its regime weight, but only after enough outcomes, and only within
+    # a bounded drift -- sparse history must never dominate a live decision.
+    MIN_DYNAMIC_SAMPLES = 10      # outcomes before a source earns a nudge
+    DYNAMIC_TRUST_SAMPLES = 60    # outcomes at which full trust is reached
+    DYNAMIC_WEIGHT_DRIFT = 0.35   # max multiplier move off the base weight
+    FEEDBACK_REFRESH_SECONDS = 60
+    # Strategies that are explicitly "no decision" -- a fail-closed no-trade
+    # verdict is not a prediction and is never recorded for outcome scoring.
+    NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
+
     # Signal weights by market regime
     REGIME_WEIGHTS = {
         "bullish": {
@@ -170,6 +181,10 @@ class AIBrain:
     def __init__(self):
         self.signal_engines = {}
         self._load_engines()
+        # Lazily-created SignalTracker (self-learning feedback loop).
+        self._tracker = None
+        self._accuracy_cache = None
+        self._accuracy_cache_at = 0.0
 
     def _load_engines(self):
         """Lazy-load all signal engines."""
@@ -203,6 +218,101 @@ class AIBrain:
         except ImportError:
             self.bs = None
 
+    # ---- self-learning feedback loop -----------------------------------
+    # Advisory learning only: it adjusts how signals are weighed and is never
+    # an order path, and a broken/inaccessible tracker must fail closed to
+    # neutral (base weights), never into an exception inside a live scan.
+
+    def _signal_tracker(self):
+        if self._tracker is None:
+            from agents.trade_engine.signal_tracker import SignalTracker
+            self._tracker = SignalTracker()
+        return self._tracker
+
+    def record_outcome(self, symbol: str, price: float) -> int:
+        """Score any due recorded predictions for ``symbol`` against a live price.
+
+        The scan path calls this with prices it already fetched, so feedback
+        costs no extra network calls. Fail-closed: never raises into the scan.
+        """
+        try:
+            return self._signal_tracker().record_outcome(symbol, price)
+        except Exception:
+            return 0
+
+    def _feedback_accuracy(self) -> Dict:
+        """Cached per-source accuracy, refreshed at most once a minute."""
+        import time as _time
+        now = _time.time()
+        if self._accuracy_cache is None or now - self._accuracy_cache_at > self.FEEDBACK_REFRESH_SECONDS:
+            try:
+                self._accuracy_cache = self._signal_tracker().get_accuracy_by_source(min_samples=1)
+            except Exception:
+                self._accuracy_cache = {}
+            self._accuracy_cache_at = now
+        return self._accuracy_cache
+
+    def _feedback_blended_weights(self, base_weights: Dict[str, float]):
+        """Nudge each base regime weight by that source's learned hit rate.
+
+        The nudge is `(accuracy_pct - 50) / 100 * trust` where trust grows
+        toward 1 as the outcome count reaches DYNAMIC_TRUST_SAMPLES, clamped to
+        ±DYNAMIC_WEIGHT_DRIFT so a sparse or unlucky history can't overwhelm a
+        live decision. Weights renormalize to the base total so the composite
+        stays on the same scale. Sources below MIN_DYNAMIC_SAMPLES are
+        untouched (multiplier 1.0). Returns (effective_weights, accuracy).
+        """
+        accuracy = self._feedback_accuracy()
+        effective = dict(base_weights)
+
+        for src in base_weights:
+            stats = accuracy.get(src)
+            if not stats:
+                continue
+            try:
+                n = int(stats.get("total_predictions", 0))
+            except (TypeError, ValueError):
+                continue
+            if n < self.MIN_DYNAMIC_SAMPLES:
+                continue
+            try:
+                hit_advantage = float(stats.get("accuracy_pct", 50.0)) - 50.0
+            except (TypeError, ValueError):
+                continue
+            trust = min(1.0, n / self.DYNAMIC_TRUST_SAMPLES)
+            drift = max(
+                -self.DYNAMIC_WEIGHT_DRIFT,
+                min(self.DYNAMIC_WEIGHT_DRIFT, hit_advantage / 100.0 * trust),
+            )
+            effective[src] = base_weights[src] * (1.0 + drift)
+
+        base_total = sum(base_weights.values()) or 1.0
+        effective_total = sum(effective.values())
+        if effective_total > 0 and abs(effective_total - base_total) > 1e-9:
+            scale = base_total / effective_total
+            effective = {src: round(w * scale, 4) for src, w in effective.items()}
+
+        return effective, accuracy
+
+    def _record_feedback_prediction(
+        self, symbol, stock_price, overall_signal, overall_score,
+        confidence, regime, best_strategy, all_signals,
+    ) -> None:
+        """Persist an actionable analysis as a scored prediction, fail-closed."""
+        try:
+            self._signal_tracker().record_prediction(
+                symbol=symbol,
+                stock_price=stock_price,
+                overall_signal=overall_signal,
+                overall_score=overall_score,
+                confidence=confidence,
+                regime=regime,
+                best_strategy=best_strategy,
+                signals=all_signals,
+            )
+        except Exception:
+            pass
+
     def analyze(
         self,
         symbol: str,
@@ -230,6 +340,7 @@ class AIBrain:
         earnings_move: Dict = None,
         vol_risk_premium: Dict = None,
         relative_strength: float = None,
+        record_feedback: bool = False,
     ) -> BrainOutput:
         """
         MAIN ENTRY POINT: Analyze a symbol and produce comprehensive recommendation.
@@ -597,13 +708,17 @@ class AIBrain:
             gex_data = {"regime": "neutral"}
 
         # === COMPOSITE SCORING ===
-        weights = self.REGIME_WEIGHTS.get(regime, self.REGIME_WEIGHTS["neutral"])
+        # Learned per-source accuracy nudges the regime weights (shrunk and
+        # bounded -- see _feedback_blended_weights). The effective weights are
+        # what the composite actually uses and are surfaced for transparency.
+        base_weights = self.REGIME_WEIGHTS.get(regime, self.REGIME_WEIGHTS["neutral"])
+        effective_weights, signal_accuracy = self._feedback_blended_weights(base_weights)
         composite_score = 0
         total_weight = 0
         all_signal_dicts = []
 
         for sig in signals:
-            w = weights.get(sig.source, 0.1) * sig.confidence / 100
+            w = effective_weights.get(sig.source, 0.1) * sig.confidence / 100
             composite_score += sig.strength * w * 100
             total_weight += w
             all_signal_dicts.append({
@@ -692,6 +807,22 @@ class AIBrain:
                 f"Portfolio has {len(existing_positions)} positions — near capacity limit"
             )
 
+        # Only actionable analyses (a real strategy was selected) are recorded
+        # for outcome scoring -- a fail-closed no-trade verdict is not a
+        # prediction and must never be counted as a wrong call.
+        chosen_strategy = best_strategy.get("strategy") or ""
+        if record_feedback and chosen_strategy not in self.NON_ACTIONABLE_STRATEGIES:
+            self._record_feedback_prediction(
+                symbol=symbol,
+                stock_price=stock_price,
+                overall_signal=overall_signal.value,
+                overall_score=overall_score,
+                confidence=avg_confidence,
+                regime=regime,
+                best_strategy=chosen_strategy,
+                all_signals=all_signal_dicts,
+            )
+
         return BrainOutput(
             symbol=symbol,
             stock_price=stock_price,
@@ -711,6 +842,8 @@ class AIBrain:
             sideways_signal=sideways,
             all_signals=all_signal_dicts,
             portfolio_warnings=portfolio_warnings,
+            signal_accuracy=signal_accuracy,
+            dynamic_weights=effective_weights,
             relative_strength=relative_strength,
         )
 

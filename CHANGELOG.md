@@ -1,5 +1,34 @@
 # ThetaForge Changelog
 
+## v1.11.0 - 2026-08-15
+
+The self-learning feedback loop is now real: the Brain has always *declared*
+`signal_accuracy` and `dynamic_weights` on its output (and the advisor exposed a
+trailing `/signals/performance` summary), but nothing recorded predictions from
+the live scan, nothing scored outcomes automatically, and the composite score
+ignored learned accuracy. This release closes the loop.
+
+- `signal_tracker.py`: predictions are now scored per source — a source is
+  credited only when its OWN directional read agrees with the realized move
+  (neutral reads are data-absence and are neither credited nor faulted).
+  File read-modify-write is serialized under a module lock so concurrent scan
+  workers can't lose rows.
+- `ai_brain.py`: `analyze()` accepts `record_feedback` and, when actionable
+  (a real strategy, never a `no_trade` fail-closed verdict), persists a
+  prediction snapshot. Learned per-source hit rates nudge the regime weights:
+  a source earns a nudge only after `MIN_DYNAMIC_SAMPLES` outcomes, the nudge
+  is `(accuracy - 50%) / 100 × trust` clamped to ±0.35, trust ramps to full
+  over 60 outcomes, and the blended weights renormalize to the base total.
+  The composite score uses the blended weights and the effective weights plus
+  the accuracy table are surfaced on `BrainOutput.signal_accuracy` /
+  `BrainOutput.dynamic_weights`. `record_outcome()` is exposed for the scan
+  path; the whole feedback layer is advisory and fails closed to base weights.
+- `background_scanner.py`: the scan now records actionable analyses
+  (`record_feedback=True`) and scores any due predictions for a symbol with the
+  price it already fetched — outcome evaluation costs no extra network calls.
+- VERSION → v1.11.0. Tests: 313 pass (was 306; +7 feedback-loop tests, +1
+  scanner outcome-feed assertion).
+
 ## v1.10.0 - 2026-08-15
 
 The live brain is now fed: the background scan previously ran with three of the

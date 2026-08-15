@@ -15,6 +15,7 @@ Architecture:
 import json
 import os
 import math
+import threading
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field, asdict
@@ -23,6 +24,14 @@ from dataclasses import dataclass, field, asdict
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 SIGNAL_LOG_FILE = os.path.join(DATA_DIR, "signal_history.json")
 SIGNAL_ACCURACY_FILE = os.path.join(DATA_DIR, "signal_accuracy.json")
+
+# The scanner runs several Brain analyses concurrently; the read-modify-write
+# on the JSON history is serialized so one cycle can never lose another's rows.
+_LOCK = threading.Lock()
+
+# A directional read below this strength is treated as no-read (never credited
+# or faulted) -- mirrors the Brain's INFORMATIVE_STRENGTH_EPS.
+NEUTRAL_STRENGTH_EPS = 0.05
 
 
 @dataclass
@@ -98,75 +107,85 @@ class SignalTracker:
         days_to_outcome: int = 5,
     ):
         """Record a Brain prediction for later evaluation."""
-        log = self._read_log()
+        with _LOCK:
+            log = self._read_log()
 
-        record = SignalRecord(
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            symbol=symbol.upper(),
-            stock_price=stock_price,
-            overall_signal=overall_signal,
-            overall_score=overall_score,
-            confidence=confidence,
-            regime=regime,
-            best_strategy=best_strategy,
-            signals=signals,
-            days_to_outcome=days_to_outcome,
-        )
+            record = SignalRecord(
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                symbol=symbol.upper(),
+                stock_price=stock_price,
+                overall_signal=overall_signal,
+                overall_score=overall_score,
+                confidence=confidence,
+                regime=regime,
+                best_strategy=best_strategy,
+                signals=signals,
+                days_to_outcome=days_to_outcome,
+            )
 
-        log.append(asdict(record))
+            log.append(asdict(record))
 
-        # Keep last 5000 records to avoid file bloat
-        if len(log) > 5000:
-            log = log[-5000:]
+            # Keep last 5000 records to avoid file bloat
+            if len(log) > 5000:
+                log = log[-5000:]
 
-        self._write_log(log)
+            self._write_log(log)
 
     def record_outcome(self, symbol: str, current_price: float):
         """
         Record the outcome for pending predictions on this symbol.
         Evaluates all un-outcome'd predictions that are old enough.
         """
-        log = self._read_log()
-        updated = 0
-        now = datetime.now(timezone.utc)
+        with _LOCK:
+            log = self._read_log()
+            updated = 0
+            now = datetime.now(timezone.utc)
 
-        for record in log:
-            if record["outcome_recorded"]:
-                continue
-            if record["symbol"] != symbol.upper():
-                continue
+            for record in log:
+                if record["outcome_recorded"]:
+                    continue
+                if record["symbol"] != symbol.upper():
+                    continue
 
-            pred_time = datetime.fromisoformat(record["timestamp"])
-            days_elapsed = (now - pred_time).days
+                pred_time = datetime.fromisoformat(record["timestamp"])
+                days_elapsed = (now - pred_time).days
 
-            if days_elapsed < record["days_to_outcome"]:
-                continue
+                if days_elapsed < record["days_to_outcome"]:
+                    continue
 
-            # Calculate outcome
-            entry_price = record["stock_price"]
-            ret_pct = (current_price - entry_price) / entry_price * 100
+                # Calculate outcome
+                entry_price = record["stock_price"]
+                ret_pct = (current_price - entry_price) / entry_price * 100
 
-            # Was the signal correct?
-            signal = record["overall_signal"]
-            if signal in ("strong_buy", "buy", "weak_buy"):
-                was_correct = ret_pct > 0
-            elif signal in ("strong_sell", "sell", "weak_sell"):
-                was_correct = ret_pct < 0
-            else:
-                was_correct = abs(ret_pct) < 2.0  # Neutral is "correct" if stock didn't move much
+                # Was the signal correct?
+                signal = record["overall_signal"]
+                if signal in ("strong_buy", "buy", "weak_buy"):
+                    was_correct = ret_pct > 0
+                elif signal in ("strong_sell", "sell", "weak_sell"):
+                    was_correct = ret_pct < 0
+                else:
+                    was_correct = abs(ret_pct) < 2.0  # Neutral is "correct" if stock didn't move much
 
-            record["price_at_outcome"] = current_price
-            record["outcome_recorded"] = True
-            record["was_correct"] = was_correct
-            record["actual_return_pct"] = round(ret_pct, 2)
-            updated += 1
+                record["price_at_outcome"] = current_price
+                record["outcome_recorded"] = True
+                record["was_correct"] = was_correct
+                record["actual_return_pct"] = round(ret_pct, 2)
+                updated += 1
 
-        self._write_log(log)
-        return updated
+            self._write_log(log)
+            return updated
 
     def get_accuracy_by_source(self, min_samples: int = 5) -> Dict[str, Dict]:
         """
         Calculate accuracy per signal source.
+
+        Each source is judged on its OWN directional read, not the composite
+        call: a source whose strength agrees with the realized move (sign of
+        strength == sign of realized return) is a hit. Neutral reads (strength
+        near zero) are data-absence, so they are neither credited nor faulted.
+        Legacy rows without a per-signal strength fall back to the composite
+        `was_correct`.
+
         Returns: {"cpr": {"correct": 15, "total": 20, "accuracy": 75.0}, ...}
         """
         log = self._read_log()
@@ -175,17 +194,28 @@ class SignalTracker:
         for record in log:
             if not record.get("outcome_recorded"):
                 continue
+            ret = record.get("actual_return_pct")
+            if ret is None:
+                continue
+            overall_correct = bool(record.get("was_correct"))
 
             for sig in record.get("signals", []):
                 src = sig.get("source", "unknown")
-                if src not in source_stats:
-                    source_stats[src] = {"correct": 0, "total": 0, "returns": []}
+                stats = source_stats.setdefault(
+                    src, {"correct": 0, "total": 0, "returns": []}
+                )
+                strength = sig.get("strength")
+                if strength is None:
+                    correct = overall_correct
+                elif abs(float(strength)) < NEUTRAL_STRENGTH_EPS:
+                    continue
+                else:
+                    correct = (float(strength) > 0) == (ret > 0)
 
-                source_stats[src]["total"] += 1
-                if record.get("was_correct"):
-                    source_stats[src]["correct"] += 1
-                if record.get("actual_return_pct") is not None:
-                    source_stats[src]["returns"].append(record["actual_return_pct"])
+                stats["total"] += 1
+                if correct:
+                    stats["correct"] += 1
+                stats["returns"].append(ret)
 
         # Calculate metrics
         result = {}

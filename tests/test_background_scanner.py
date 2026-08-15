@@ -325,6 +325,7 @@ async def test_analyze_one_feeds_flow_pcr_gex_to_the_brain(scanner, monkeypatch)
     from agents.trade_engine.ai_brain import BrainOutput, SignalStrength
 
     captured = {}
+    outcomes = []
 
     class FakeBrain:
         def analyze(self, **kwargs):
@@ -342,6 +343,9 @@ async def test_analyze_one_feeds_flow_pcr_gex_to_the_brain(scanner, monkeypatch)
                 sentiment_signal={"signal": "neutral", "confidence": 30},
                 relative_strength=0.1,
             )
+
+        def record_outcome(self, symbol, price):
+            outcomes.append((symbol, price))
 
     closes = [100.0 + i * 0.1 for i in range(60)]
     async def fake_price(_symbol):
@@ -380,3 +384,5 @@ async def test_analyze_one_feeds_flow_pcr_gex_to_the_brain(scanner, monkeypatch)
     assert data["flow_bias"] == "bullish"
     assert data["pcr_signal"] == {"signal": "neutral", "confidence": 30}
     assert data["gex_regime"] == "NEUTRAL"
+    # The scan feeds the feedback loop with the price it already fetched.
+    assert outcomes == [("SPY", 100.0)]
