@@ -5,7 +5,7 @@ Wired to the AI Brain for unified signal analysis.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import asyncio
 import math
 import statistics
@@ -35,6 +35,7 @@ from agents.trade_engine.trade_manager import (
     evaluate_position,
     portfolio_plan,
 )
+from agents.trade_engine.portfolio_analytics import analyze_ledger
 from agents.trade_engine.macro_calendar import macro_days_until
 from agents.equity_trader.equity_scanner import get_background_equity_scanner
 from agents.equity_trader.equity_recommender import EquityRecommender
@@ -129,6 +130,14 @@ async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, 
     if stock_price <= 0:
         raise HTTPException(status_code=502, detail=f"Unable to retrieve a valid price for {symbol}")
 
+    # A decision endpoint must never turn an unavailable market feed into a
+    # plausible-looking neutral regime.  The Brain's direct-call defaults are
+    # useful for unit tests, but live API requests fail closed instead.
+    if not option_chain:
+        raise HTTPException(status_code=502, detail=f"Unable to retrieve a live option chain for {symbol}")
+    if not isinstance(vix, (int, float)) or not math.isfinite(float(vix)) or float(vix) <= 0:
+        raise HTTPException(status_code=502, detail="Unable to retrieve a live VIX reading")
+
     if len(historical) >= 21:
         returns = [math.log(historical[i] / historical[i - 1]) for i in range(1, len(historical))]
         hv_20 = statistics.stdev(returns[-20:]) * math.sqrt(252) if len(returns) >= 2 else 0.18
@@ -203,7 +212,7 @@ async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, 
         "iv_52w_high": iv_52w_high,
         "iv_52w_low": iv_52w_low,
         "technical_data": technical_data,
-        "vix": float(vix) if isinstance(vix, (int, float)) and vix > 0 else 20.0,
+        "vix": float(vix),
         "gex_data": gex_data,
         "flow_data": flow_data,
         "pcr_data": {"current": float(pcr), "historical": []} if isinstance(pcr, (int, float)) and pcr > 0 else None,
@@ -274,6 +283,12 @@ class AlertCheckRequest(BaseModel):
 class SignalOutcomeRequest(BaseModel):
     symbol: str
     current_price: float = Field(gt=0)
+
+
+class AlertGalleryCreateRequest(BaseModel):
+    template_id: str = Field(..., min_length=1, max_length=40)
+    symbol: str = Field(..., min_length=1, max_length=12)
+    threshold: Optional[Union[float, str]] = None
 
 
 # === AI Brain Endpoints ===
@@ -381,6 +396,32 @@ async def check_alerts(request: AlertCheckRequest):
 async def alert_history(symbol: Optional[str] = None, limit: int = 50):
     """Return the newest triggered alerts first by storage order."""
     return {"events": AlertEngine().get_history(symbol, max(1, min(limit, 200))) }
+
+
+@router.get("/alerts/gallery")
+async def alert_gallery():
+    """Curated alert templates the dashboard can instantiate in one click."""
+    from agents.trade_engine.alerts import ALERT_GALLERY
+    return {"templates": ALERT_GALLERY}
+
+
+@router.post("/alerts/gallery")
+async def create_alert_from_gallery(request: AlertGalleryCreateRequest):
+    """Instantiate a gallery template into a saved alert rule."""
+    from agents.trade_engine.alerts import AlertEngine, AlertPriority, rule_from_template
+    try:
+        spec = rule_from_template(request.template_id, request.symbol, request.threshold)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    rule = AlertEngine().add_rule(
+        symbol=spec["symbol"],
+        alert_type=AlertType(spec["alert_type"]),
+        threshold=spec["threshold"],
+        message=f"{spec['name']} ({spec['symbol']})",
+        priority=AlertPriority(spec["priority"]),
+        one_time=True,
+    )
+    return {"status": "created", "rule": rule.__dict__}
 
 
 @router.get("/signals/performance")
@@ -733,6 +774,18 @@ class EquityManagementRequest(BaseModel):
     capital: float = Field(10_000, gt=0)
 
 
+class PortfolioAnalyticsRequest(BaseModel):
+    """The Bridge's paper-order ledger, supplied by the caller.
+
+    The Advisor and the Bridge run on different hosts (Render vs the Oracle
+    VM), so the ledger records travel here in the request body -- the same
+    pattern as /positions/management, which the VM auto-manager already uses.
+    """
+    ledger: List[Dict[str, Any]] = Field(default_factory=list, max_length=2000)
+    capital: float = Field(100_000, gt=0)
+    starting_capital: Optional[float] = None
+
+
 def _find_short_leg_mid(chain: List[Dict], position: PositionInput) -> Optional[float]:
     """Current mid of the short leg(s) from a fresh chain, if present.
 
@@ -841,6 +894,27 @@ async def positions_management(request: ManagementRequest):
         weekly_capital_used=request.weekly_capital_used,
     )
     return {"actions": actions, "portfolio": plan}
+
+
+@router.post("/portfolio/analytics", dependencies=[Depends(scan_rate_limit)])
+async def portfolio_analytics(request: PortfolioAnalyticsRequest):
+    """Portfolio analytics over the caller-supplied paper-order ledger.
+
+    The Bridge ledger is the single source of truth for every paper trade;
+    this folds closing records into their entries and reports realized P&L,
+    drawdown, per-strategy/symbol/sector outcomes, monthly breakdowns, an
+    equity curve, and open-risk concentration vs the trade manager's caps.
+    Nothing is fetched or fabricated: absent data reads as zero/None.
+    """
+    try:
+        return analyze_ledger(
+            request.ledger,
+            request.capital,
+            starting_capital=request.starting_capital,
+        )
+    except Exception:
+        logger.exception("Portfolio analytics failed")
+        raise HTTPException(status_code=500, detail="portfolio analytics failed")
 
 
 # === Legacy Endpoints ===

@@ -921,6 +921,22 @@ def test_alert_engine_triggers_one_time_rule(tmp_path, monkeypatch):
     assert engine.check({"AAPL": {"price": 202}}) == []
 
 
+def test_alert_engine_missing_inputs_fail_closed(tmp_path, monkeypatch):
+    monkeypatch.setattr(alerts_module, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(alerts_module, "ALERTS_FILE", str(tmp_path / "alerts.json"))
+    monkeypatch.setattr(alerts_module, "ALERT_HISTORY_FILE", str(tmp_path / "history.json"))
+    engine = AlertEngine()
+    engine.add_rule("AAPL", AlertType.PRICE_BELOW, 200)
+    engine.add_rule("AAPL", AlertType.VIX_BELOW, 25)
+    engine.add_rule("AAPL", AlertType.SCORE_BELOW, 50)
+    engine.add_rule("AAPL", AlertType.SIGNAL_FLIP, 0)
+
+    # Absent or malformed fields must never become fabricated alerts.
+    assert engine.check({"aapl": {}}) == []
+    assert engine.check({"AAPL": {"price": "not-a-number", "vix": None}}) == []
+    assert engine.get_history() == []
+
+
 def test_signal_tracker_records_due_outcome(tmp_path, monkeypatch):
     monkeypatch.setattr(tracker_module, "DATA_DIR", str(tmp_path))
     monkeypatch.setattr(tracker_module, "SIGNAL_LOG_FILE", str(tmp_path / "signals.json"))

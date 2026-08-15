@@ -12,6 +12,8 @@ Alert types:
 """
 import json
 import os
+import uuid
+import math
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone
 from dataclasses import dataclass, field, asdict
@@ -38,6 +40,17 @@ class AlertType(str, Enum):
     EARNINGS_WARNING = "earnings_warning"
     VIX_BELOW = "vix_below"
     VIX_ABOVE = "vix_above"
+    # Scan-native threshold alerts (fed straight from the scanner's
+    # per-symbol result rows, so alerts fire on the same numbers the
+    # dashboard shows -- no duplicated data pulls).
+    SCORE_ABOVE = "score_above"
+    SCORE_BELOW = "score_below"
+    IV_PERCENTILE_ABOVE = "iv_percentile_above"
+    IV_PERCENTILE_BELOW = "iv_percentile_below"
+    GEX_REGIME = "gex_regime"
+    PCR_ABOVE = "pcr_above"
+    PCR_BELOW = "pcr_below"
+    THEORETICAL_EDGE_ABOVE = "theoretical_edge_above"
 
 
 class AlertPriority(str, Enum):
@@ -47,13 +60,71 @@ class AlertPriority(str, Enum):
     CRITICAL = "critical"
 
 
+# Curated, ready-to-instantiate alert templates. The dashboard surfaces
+# these so the user can create a rule with one click instead of remembering
+# type names and sensible thresholds.
+ALERT_GALLERY: List[Dict[str, Any]] = [
+    {"template_id": "score_above", "name": "Brain score crosses above", "alert_type": AlertType.SCORE_ABOVE.value, "default_threshold": 70.0, "priority": "high",
+     "description": "Fires when a symbol's composite scan score rises above the threshold."},
+    {"template_id": "score_below", "name": "Brain score falls below", "alert_type": AlertType.SCORE_BELOW.value, "default_threshold": 50.0, "priority": "medium",
+     "description": "Fires when a symbol's composite scan score drops below the threshold."},
+    {"template_id": "iv_rank_above", "name": "IV rank crosses above", "alert_type": AlertType.IV_RANK_ABOVE.value, "default_threshold": 70.0, "priority": "high",
+     "description": "Fires when the symbol's IV rank (vs its own history) exceeds the threshold — premium selling context."},
+    {"template_id": "iv_rank_below", "name": "IV rank falls below", "alert_type": AlertType.IV_RANK_BELOW.value, "default_threshold": 30.0, "priority": "medium",
+     "description": "Fires when IV rank drops below the threshold — cheap premium."},
+    {"template_id": "iv_percentile_above", "name": "IV percentile above", "alert_type": AlertType.IV_PERCENTILE_ABOVE.value, "default_threshold": 80.0, "priority": "medium",
+     "description": "Fires when ATM IV sits above its historical percentile."},
+    {"template_id": "iv_percentile_below", "name": "IV percentile below", "alert_type": AlertType.IV_PERCENTILE_BELOW.value, "default_threshold": 20.0, "priority": "low",
+     "description": "Fires when ATM IV sits below its historical percentile."},
+    {"template_id": "price_above", "name": "Price crosses above", "alert_type": AlertType.PRICE_ABOVE.value, "default_threshold": 0.0, "priority": "medium",
+     "description": "Fires when the current price exceeds the threshold."},
+    {"template_id": "price_below", "name": "Price falls below", "alert_type": AlertType.PRICE_BELOW.value, "default_threshold": 0.0, "priority": "medium",
+     "description": "Fires when the current price drops below the threshold."},
+    {"template_id": "vix_above", "name": "VIX crosses above", "alert_type": AlertType.VIX_ABOVE.value, "default_threshold": 25.0, "priority": "high",
+     "description": "Fires when the VIX exceeds the threshold (risk-off regime context)."},
+    {"template_id": "vix_below", "name": "VIX falls below", "alert_type": AlertType.VIX_BELOW.value, "default_threshold": 14.0, "priority": "low",
+     "description": "Fires when the VIX drops below the threshold."},
+    {"template_id": "pcr_above", "name": "Put/call ratio above", "alert_type": AlertType.PCR_ABOVE.value, "default_threshold": 1.5, "priority": "medium",
+     "description": "Fires when the symbol's put/call ratio exceeds the threshold (put-heavy)."},
+    {"template_id": "pcr_below", "name": "Put/call ratio below", "alert_type": AlertType.PCR_BELOW.value, "default_threshold": 0.7, "priority": "medium",
+     "description": "Fires when the symbol's put/call ratio drops below the threshold (call-heavy)."},
+    {"template_id": "gex_regime", "name": "GEX regime flips", "alert_type": AlertType.GEX_REGIME.value, "default_threshold": 0.0, "priority": "high",
+     "description": "Fires when the GEX regime equals the configured value — set the threshold to a regime string like 'wall_below'."},
+    {"template_id": "theoretical_edge_above", "name": "Theoretical edge above", "alert_type": AlertType.THEORETICAL_EDGE_ABOVE.value, "default_threshold": 1.0, "priority": "medium",
+     "description": "Fires when the symbol's theoretical edge (own BS value vs CBOE mid, %) exceeds the threshold."},
+    {"template_id": "earnings_warning", "name": "Earnings in N days", "alert_type": AlertType.EARNINGS_WARNING.value, "default_threshold": 5.0, "priority": "high",
+     "description": "Fires when earnings are within the threshold number of trading days."},
+    {"template_id": "drawdown", "name": "Portfolio drawdown exceeds", "alert_type": AlertType.DRAWDOWN.value, "default_threshold": 10.0, "priority": "critical",
+     "description": "Fires when realized drawdown (%) exceeds the threshold."},
+]
+
+
+def rule_from_template(template_id: str, symbol: str, threshold: Any = None) -> Dict[str, Any]:
+    """Instantiate a rule spec from the gallery.
+
+    Returns the alert_type and the threshold to pass to AlertEngine.add_rule.
+    Missing/unknown templates fail closed (raise) rather than minting a rule
+    with wrong thresholds.
+    """
+    template = next((t for t in ALERT_GALLERY if t["template_id"] == template_id), None)
+    if template is None:
+        raise ValueError(f"unknown alert template: {template_id}")
+    spec = dict(template)
+    spec["symbol"] = symbol.upper()
+    if threshold is not None:
+        spec["threshold"] = threshold
+    else:
+        spec["threshold"] = template["default_threshold"]
+    return spec
+
+
 @dataclass
 class AlertRule:
     """A user-defined alert rule."""
     rule_id: str
     symbol: str
     alert_type: str
-    threshold: float
+    threshold: Any
     priority: str = "medium"
     message: str = ""
     triggered: bool = False
@@ -75,7 +146,7 @@ class AlertEvent:
     priority: str
     message: str
     current_value: float
-    threshold: float
+    threshold: Any
     timestamp: str = ""
     acknowledged: bool = False
 
@@ -101,24 +172,39 @@ class AlertEngine:
         os.makedirs(DATA_DIR, exist_ok=True)
         for f in [ALERTS_FILE, ALERT_HISTORY_FILE]:
             if not os.path.exists(f):
-                with open(f, "w") as fh:
+                with open(f, "w", encoding="utf-8") as fh:
                     json.dump([], fh)
 
     def _read_rules(self) -> List[Dict]:
-        with open(ALERTS_FILE, "r") as f:
+        with open(ALERTS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
 
     def _write_rules(self, data: List[Dict]):
-        with open(ALERTS_FILE, "w") as f:
-            json.dump(data, f, indent=2)
+        self._atomic_write(ALERTS_FILE, data)
 
     def _read_history(self) -> List[Dict]:
-        with open(ALERT_HISTORY_FILE, "r") as f:
+        with open(ALERT_HISTORY_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
 
     def _write_history(self, data: List[Dict]):
-        with open(ALERT_HISTORY_FILE, "w") as f:
-            json.dump(data, f, indent=2)
+        self._atomic_write(ALERT_HISTORY_FILE, data)
+
+    @staticmethod
+    def _atomic_write(path: str, data: Any) -> None:
+        """Replace JSON state atomically so concurrent requests cannot corrupt it."""
+        tmp_path = f"{path}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, path)
+        finally:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
 
     def add_rule(
         self,
@@ -132,7 +218,7 @@ class AlertEngine:
         """Add a new alert rule."""
         rules = self._read_rules()
         rule = AlertRule(
-            rule_id=f"{symbol}_{alert_type.value}_{int(datetime.now(timezone.utc).timestamp())}",
+            rule_id=f"{symbol.upper()}_{alert_type.value}_{uuid.uuid4().hex[:12]}",
             symbol=symbol.upper(),
             alert_type=alert_type.value,
             threshold=threshold,
@@ -157,98 +243,127 @@ class AlertEngine:
             rules = [r for r in rules if r["symbol"] == symbol.upper()]
         return rules
 
-    def check(self, market_data: Dict[str, Dict]) -> List[Dict]:
+    def _evaluate_rule(self, rule: Dict, data: Dict) -> tuple:
+        """(triggered, current_value) for one rule against one symbol's data.
+
+        Missing reads fail closed: no data field means no trigger, never a
+        placeholder value that fabricates an alert.
         """
-        Check all rules against current market data.
-        
-        market_data: {"AAPL": {"price": 195, "iv": 0.25, "iv_rank": 40, "prev_price": 190}, ...}
-        Returns: list of triggered alert events
-        """
-        rules = self._read_rules()
+        alert_type = rule["alert_type"]
+        threshold = rule["threshold"]
+
+        def number(key: str) -> Optional[float]:
+            value = data.get(key)
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                return None
+            return value if math.isfinite(value) else None
+
+        if alert_type == AlertType.PRICE_ABOVE.value:
+            value = number("price")
+            return (value is not None and value > threshold), value or 0
+        if alert_type == AlertType.PRICE_BELOW.value:
+            value = number("price")
+            return (value is not None and value < threshold), value or 0
+        if alert_type == AlertType.PRICE_MOVE_PCT.value:
+            price = number("price")
+            prev_price = number("prev_price")
+            if price is not None and prev_price is not None and prev_price > 0:
+                move = abs((price - prev_price) / prev_price * 100)
+                return move > threshold, move
+            return False, 0
+        if alert_type == AlertType.IV_RANK_ABOVE.value:
+            value = number("iv_rank")
+            return (value is not None and value > threshold), value or 0
+        if alert_type == AlertType.IV_RANK_BELOW.value:
+            value = number("iv_rank")
+            return (value is not None and value < threshold), value or 0
+        if alert_type == AlertType.IV_PERCENTILE_ABOVE.value:
+            value = number("iv_percentile")
+            return (value is not None and value > threshold), value or 0
+        if alert_type == AlertType.IV_PERCENTILE_BELOW.value:
+            value = number("iv_percentile")
+            return (value is not None and value < threshold), value or 0
+        if alert_type == AlertType.IV_ABOVE.value:
+            value = number("iv")
+            return (value is not None and value > threshold), value or 0
+        if alert_type == AlertType.IV_BELOW.value:
+            value = number("iv")
+            return (value is not None and value < threshold), value or 0
+        if alert_type == AlertType.VIX_ABOVE.value:
+            value = number("vix")
+            return (value is not None and value > threshold), value or 0
+        if alert_type == AlertType.VIX_BELOW.value:
+            value = number("vix")
+            return (value is not None and value < threshold), value or 0
+        if alert_type == AlertType.SIGNAL_FLIP.value:
+            current = data.get("current_signal")
+            previous = data.get("prev_signal")
+            flip = current is not None and previous is not None and current != previous
+            return bool(flip), 1 if flip else 0
+        if alert_type == AlertType.DRAWDOWN.value:
+            value = number("drawdown_pct")
+            return (value is not None and value > threshold), value or 0
+        if alert_type == AlertType.GREEKS_BREACH.value:
+            raw = number("net_delta")
+            value = abs(raw) if raw is not None else 0
+            return raw is not None and value > threshold, value
+        if alert_type == AlertType.EARNINGS_WARNING.value:
+            days = number("days_to_earnings")
+            return days is not None and 0 < days <= threshold, days or 0
+        if alert_type == AlertType.SCORE_ABOVE.value:
+            value = number("score")
+            return (value is not None and value > threshold), value or 0
+        if alert_type == AlertType.SCORE_BELOW.value:
+            value = number("score")
+            return (value is not None and value < threshold), value or 0
+        if alert_type == AlertType.GEX_REGIME.value:
+            matched = str(data.get("gex_regime") or "") == str(threshold)
+            return matched, 1 if matched else 0
+        if alert_type == AlertType.PCR_ABOVE.value:
+            pcr = number("pcr")
+            if pcr is None:
+                return False, 0
+            return pcr > threshold, pcr
+        if alert_type == AlertType.PCR_BELOW.value:
+            pcr = data.get("pcr")
+            if pcr is None:
+                return False, 0
+            return pcr < threshold, pcr
+        if alert_type == AlertType.THEORETICAL_EDGE_ABOVE.value:
+            edge = number("theoretical_edge_pct")
+            if edge is None:
+                return False, 0
+            return edge > threshold, edge
+        return False, 0
+
+    def _check_rule_set(self, rules: List[Dict], market_data: Dict[str, Dict]) -> List[Dict]:
+        """Evaluate *rules* against *market_data*; persist triggered events."""
         events = []
+        normalized_data = {
+            str(symbol).upper(): snapshot for symbol, snapshot in market_data.items()
+        }
 
         for rule in rules:
             if rule.get("triggered") and rule.get("one_time"):
                 continue
 
             symbol = rule["symbol"]
-            data = market_data.get(symbol, {})
+            data = normalized_data.get(str(symbol).upper(), {})
             if not data:
                 continue
 
-            triggered = False
-            current_value = 0
-
-            alert_type = rule["alert_type"]
-            threshold = rule["threshold"]
-
-            if alert_type == AlertType.PRICE_ABOVE.value:
-                current_value = data.get("price", 0)
-                triggered = current_value > threshold
-
-            elif alert_type == AlertType.PRICE_BELOW.value:
-                current_value = data.get("price", 0)
-                triggered = current_value < threshold
-
-            elif alert_type == AlertType.PRICE_MOVE_PCT.value:
-                price = data.get("price", 0)
-                prev_price = data.get("prev_price", price)
-                if prev_price > 0:
-                    current_value = abs((price - prev_price) / prev_price * 100)
-                    triggered = current_value > threshold
-
-            elif alert_type == AlertType.IV_RANK_ABOVE.value:
-                current_value = data.get("iv_rank", 50)
-                triggered = current_value > threshold
-
-            elif alert_type == AlertType.IV_RANK_BELOW.value:
-                current_value = data.get("iv_rank", 50)
-                triggered = current_value < threshold
-
-            elif alert_type == AlertType.IV_ABOVE.value:
-                current_value = data.get("iv", 0.20)
-                triggered = current_value > threshold
-
-            elif alert_type == AlertType.IV_BELOW.value:
-                current_value = data.get("iv", 0.20)
-                triggered = current_value < threshold
-
-            elif alert_type == AlertType.VIX_ABOVE.value:
-                current_value = data.get("vix", 20)
-                triggered = current_value > threshold
-
-            elif alert_type == AlertType.VIX_BELOW.value:
-                current_value = data.get("vix", 20)
-                triggered = current_value < threshold
-
-            elif alert_type == AlertType.SIGNAL_FLIP.value:
-                current_signal = data.get("current_signal", "neutral")
-                prev_signal = data.get("prev_signal", "neutral")
-                current_value = 1 if current_signal != prev_signal else 0
-                triggered = current_value == 1
-
-            elif alert_type == AlertType.DRAWDOWN.value:
-                current_value = data.get("drawdown_pct", 0)
-                triggered = current_value > threshold
-
-            elif alert_type == AlertType.GREEKS_BREACH.value:
-                current_value = abs(data.get("net_delta", 0))
-                triggered = current_value > threshold
-
-            elif alert_type == AlertType.EARNINGS_WARNING.value:
-                days = data.get("days_to_earnings", 999)
-                current_value = days
-                triggered = 0 < days <= threshold
-
+            triggered, current_value = self._evaluate_rule(rule, data)
             if triggered:
                 event = AlertEvent(
                     rule_id=rule["rule_id"],
                     symbol=symbol,
-                    alert_type=alert_type,
+                    alert_type=rule["alert_type"],
                     priority=rule["priority"],
                     message=rule["message"],
-                    current_value=round(current_value, 4),
-                    threshold=threshold,
+                    current_value=round(float(current_value), 4),
+                    threshold=rule["threshold"],
                 )
                 events.append(asdict(event))
 
@@ -267,6 +382,19 @@ class AlertEngine:
             self._write_history(history)
 
         return events
+
+    def check(self, market_data: Dict[str, Dict]) -> List[Dict]:
+        """
+        Check all rules against current market data.
+
+        market_data: {"AAPL": {"price": 195, "iv": 0.25, "iv_rank": 40, "prev_price": 190}, ...}
+        Returns: list of triggered alert events
+        """
+        return self._check_rule_set(self._read_rules(), market_data)
+
+    def check_one(self, symbol: str, data: Dict) -> List[Dict]:
+        """Check all rules against a single symbol's market-data snapshot."""
+        return self._check_rule_set(self._read_rules(), {symbol.upper(): data})
 
     def get_history(self, symbol: str = None, limit: int = 50) -> List[Dict]:
         """Get recent alert history."""

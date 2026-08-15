@@ -1,5 +1,19 @@
 # ThetaForge Changelog
 
+## v1.12.0 - 2026-08-15
+
+Production hardening release.
+
+- Alert rules now fail closed when a market-data field is missing or malformed,
+  normalize symbol keys, use collision-resistant IDs, and write state atomically.
+- Live single-symbol analysis no longer fabricates an empty option chain or
+  neutral VIX reading when upstream market data is unavailable.
+- Advisor and Bridge CORS defaults now allow only the local terminal and the
+  Cloudflare Access-gated terminal origin; broad wildcard methods/headers and
+  the retired GitHub Pages dashboard origin are removed.
+- Removed unused historical-backtest helpers and added regression coverage for
+  missing alert inputs.
+
 ## v1.11.0 - 2026-08-15
 
 The self-learning feedback loop is now real: the Brain has always *declared*

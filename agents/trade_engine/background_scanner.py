@@ -763,6 +763,7 @@ class BackgroundBrainScanner:
                 "strategy_reasoning": result.best_strategy_reasoning,
                 "no_trade_reason": _no_trade_reason_code(result.best_strategy, result.best_strategy_reasoning),
                 "confidence": result.confidence,
+                "price": price,
                 "vix": vix,
                 "days_to_earnings": days_to_earnings,
                 "macro_days_until": days_to_macro,
@@ -775,6 +776,7 @@ class BackgroundBrainScanner:
                 "flow_signals": _flow_signals(chain),
                 "flow_bias": (flow_data or {}).get("bias"),
                 "pcr_signal": result.sentiment_signal or {},
+                "pcr": (pcr_data or {}).get("current"),
                 "gex_regime": (gex_data or {}).get("gex_regime"),
                 "expected_move_pct": (result.iv_signal or {}).get("expected_move_pct"),
                 "term_structure": (result.iv_signal or {}).get("term_structure"),
@@ -788,6 +790,18 @@ class BackgroundBrainScanner:
         except Exception:
             logger.exception("Brain analysis failed for %s", symbol)
             return None, "brain_error"
+
+    def _check_alerts(self, symbol: str, data: dict) -> None:
+        """Run user-defined threshold rules against one scan result.
+
+        Fail-closed: a rule-store or evaluation hiccup never breaks the scan.
+        This is advisory only -- alerts never gate or delay a scan.
+        """
+        try:
+            from agents.trade_engine.alerts import AlertEngine
+            AlertEngine().check_one(symbol, data)
+        except Exception:
+            logger.exception("Alert evaluation failed for %s", symbol)
 
     async def scan_once(self, symbols: Optional[List[str]] = None) -> int:
         """Run one full scan pass over *symbols* (or the auto-built universe).
@@ -836,6 +850,10 @@ class BackgroundBrainScanner:
                 reason = skip_reason or "unknown"
                 skipped[reason] = skipped.get(reason, 0) + 1
                 continue
+
+            # Threshold alerts run on every analyzed symbol -- tradeable or
+            # not -- so rules like "VIX above" fire regardless of signal.
+            self._check_alerts(symbol, data)
 
             # Only alert on tradeable signals — skip no_trade. The no-trade
             # rows keep their full analysis payload (reasoning, confidence,

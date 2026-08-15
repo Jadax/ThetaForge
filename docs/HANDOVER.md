@@ -5,7 +5,7 @@
 ThetaForge is a personal, paper-only options decision-support system.
 
 ```
-Dashboard (GitHub Pages or localhost)
+Dashboard (Cloudflare Access-gated terminal or localhost)
     -> authenticated requests -> Advisor (Render FastAPI, free tier)
     -> authenticated local requests -> Paper Bridge (local FastAPI)
     -> Paper TWS or IB Gateway

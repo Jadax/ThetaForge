@@ -10,7 +10,8 @@
 
 ## Current Production Path
 
-- **Website dashboard**: GitHub Pages frontend backed by the Render Advisor.
+- **Private terminal**: local or Cloudflare Pages behind Cloudflare Access,
+  backed by the Render Advisor. GitHub Pages hosts only the public journal.
 - **Automatic discovery**: Screens up to 300 liquid/active underlyings and runs
   deeper options analysis on the evidence-based shortlist.
 - **Unified Brain**: Combines regime, volatility, technical, positioning, flow,
@@ -116,7 +117,7 @@ and execution tests.
 ## Architecture
 
 ```
-Dashboard (GitHub Pages or localhost)
+Dashboard (Cloudflare Access-gated terminal or localhost)
         │ authenticated HTTPS requests
 Advisor on Render (FastAPI + background scanner)
         │ authenticated local request when an order is requested

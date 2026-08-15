@@ -52,7 +52,11 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="ThetaForge Local IBKR Bridge", version="0.3.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://jadax.github.io"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://thetaforge-terminal.pages.dev",
+    ],
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "X-ThetaForge-Bridge-Token"],
     allow_private_network=True,

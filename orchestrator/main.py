@@ -57,14 +57,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="ThetaForge Orchestrator",
     description="Multi-agent AI-augmented options and equity trading intelligence system.",
-    version="1.11.0",
+    version="1.12.0",
     lifespan=lifespan
 )
 
 allowed_origins = [
     origin.strip() for origin in os.getenv(
         "DASHBOARD_ORIGINS",
-        "https://jadax.github.io,http://localhost:3000,http://127.0.0.1:3000",
+        "https://thetaforge-terminal.pages.dev,http://localhost:3000,http://127.0.0.1:3000",
     ).split(",") if origin.strip()
 ]
 
@@ -72,8 +72,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-ThetaForge-Advisor-Token"],
 )
 
 # Include routers. Only the health probe is public; it carries no account,

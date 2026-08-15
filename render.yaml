@@ -17,7 +17,7 @@ services:
       - key: ADVISOR_API_TOKEN
         sync: false
       - key: DASHBOARD_ORIGINS
-        value: https://jadax.github.io,http://localhost:3000,http://127.0.0.1:3000
+        value: https://thetaforge-terminal.pages.dev,http://localhost:3000,http://127.0.0.1:3000
       # VM's read-only IBKR market-data proxy (deployment/vm_market_data_service.py).
       # Both sync: false so they're entered once in the Render dashboard, same
       # as ADVISOR_API_TOKEN above -- left unset, get_option_chain just skips
