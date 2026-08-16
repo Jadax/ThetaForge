@@ -1,5 +1,25 @@
 # ThetaForge Changelog
 
+## v1.13.0 - 2026-08-16
+
+Standalone historical strategy backtesting (TradeStation/Option Alpha pattern):
+turn free daily closes into a rolling short-vertical backtest, or replay your
+own realized events — without inventing fills.
+
+- `historical_backtest.py`: new `backtest_strategy_series()` opens a short
+  vertical every `dte` days (strikes derived from that day's close: OTM by
+  `otm_pct`, width `width_pct` of spot) and realizes it at the later close.
+  Because free data has no historical option mids, the credit is MODELED as
+  `width × credit_fraction` per contract; every result carries `proxy: true`
+  plus its assumptions so it can never be mistaken for a backtest of real
+  fills. New `backtest_credit_spread_detailed()` adds per-event rows, a
+  monthly breakdown, and an equity curve over caller-supplied realized events.
+- `orchestrator/routes/advisor.py`: `POST /api/advisor/backtest/credit-spread`
+  (replay supplied events) and `POST /api/advisor/backtest/strategy`
+  (rolling-window proxy over the free provider's daily closes).
+- New `tests/test_track_cde.py` covering portfolio analytics, the alert
+  gallery/scan wiring, and both backtest paths (20 tests).
+
 ## v1.12.0 - 2026-08-15
 
 Production hardening release.

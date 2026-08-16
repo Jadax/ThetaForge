@@ -786,6 +786,21 @@ class PortfolioAnalyticsRequest(BaseModel):
     starting_capital: Optional[float] = None
 
 
+class BacktestCreditSpreadRequest(BaseModel):
+    events: List[Dict[str, Any]] = Field(default_factory=list, max_length=5000)
+
+
+class BacktestStrategyRequest(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=12)
+    right: str = Field("put", pattern="^(put|call)$")
+    dte: int = Field(14, ge=1, le=60)
+    otm_pct: float = Field(0.02, gt=0, lt=0.50)
+    width_pct: float = Field(0.05, gt=0, lt=0.50)
+    credit_fraction: float = Field(0.25, gt=0, lt=1.0)
+    contracts: int = Field(1, ge=1, le=10)
+    period: str = Field("2y", pattern="^([1-9][0-9]*[dmy]|2y|5y)$")
+
+
 def _find_short_leg_mid(chain: List[Dict], position: PositionInput) -> Optional[float]:
     """Current mid of the short leg(s) from a fresh chain, if present.
 
@@ -915,6 +930,54 @@ async def portfolio_analytics(request: PortfolioAnalyticsRequest):
     except Exception:
         logger.exception("Portfolio analytics failed")
         raise HTTPException(status_code=500, detail="portfolio analytics failed")
+
+
+@router.post("/backtest/credit-spread", dependencies=[Depends(scan_rate_limit)])
+async def backtest_credit_spread(request: BacktestCreditSpreadRequest):
+    """Replay caller-supplied realized credit-spread events.
+
+    Each event: {'expiry_price', 'short_strike', 'long_strike', 'credit',
+    'right'='put', 'expiry_date'?}. Returns overall stats, a monthly
+    breakdown, an equity curve, and per-event P&L. The caller owns the data
+    quality; this never fabricates inputs.
+    """
+    from agents.trade_engine.historical_backtest import backtest_credit_spread_detailed
+    return backtest_credit_spread_detailed(request.events)
+
+
+@router.post("/backtest/strategy", dependencies=[Depends(scan_rate_limit)])
+async def backtest_strategy(request: BacktestStrategyRequest):
+    """Rolling-window proxy backtest of a short vertical over free daily closes.
+
+    TradeStation/EasyLanguage-style: opens a short vertical OTM by
+    ``otm_pct``, width ``width_pct`` of spot, each ``dte`` days apart, and
+    realizes it at the later close. CREDIT IS MODELED (width *
+    credit_fraction) because free data has no historical option mids — every
+    result is labeled ``proxy: true`` and must never be read as a backtest of
+    real fills.
+    """
+    from agents.trade_engine.historical_backtest import backtest_strategy_series
+    try:
+        hist = await provider.get_historical_prices(request.symbol.upper(), period=request.period)
+        if hist is None or len(hist) < 30:
+            raise HTTPException(status_code=422, detail="insufficient price history")
+        closes = [float(value) for value in hist["Close"].tolist()]
+        dates = [str(day)[:10] for day in hist.index]
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Strategy backtest data fetch failed for %s", request.symbol)
+        raise HTTPException(status_code=502, detail="price history unavailable")
+    return backtest_strategy_series(
+        closes,
+        dates=dates,
+        right=request.right,
+        dte=request.dte,
+        otm_pct=request.otm_pct,
+        width_pct=request.width_pct,
+        credit_fraction=request.credit_fraction,
+        contracts=request.contracts,
+    )
 
 
 # === Legacy Endpoints ===
