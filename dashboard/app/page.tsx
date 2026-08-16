@@ -319,6 +319,94 @@ type PlaybookDetail = PlaybookSummary & {
   found?: boolean;
 };
 
+type ChainSide = {
+  bid: number;
+  ask: number;
+  mid: number;
+  last: number;
+  iv: number;
+  open_interest: number;
+  volume: number;
+  delta: number;
+  gamma: number;
+  theta: number;
+  vega: number;
+};
+
+type ChainRow = {
+  strike: number;
+  call?: ChainSide;
+  put?: ChainSide;
+  put_call_oi_ratio?: number;
+};
+
+type ChainExpiry = { expiry: string; dte: number };
+
+type ChainResult = {
+  underlying: number;
+  expiry: string;
+  dte: number;
+  expiries: ChainExpiry[];
+  table: ChainRow[];
+  summary: {
+    dte: number;
+    atm_iv: number;
+    atm_straddle_mid: number;
+    expected_move_pct: number;
+    expected_move_1sd: number;
+    expected_move_low: number;
+    expected_move_high: number;
+    max_pain_strike: number | null;
+    call_wall?: number;
+    put_floor?: number;
+    call_oi_total: number;
+    put_oi_total: number;
+    put_call_oi_ratio: number | null;
+    call_volume_total: number;
+    put_volume_total: number;
+    put_call_volume_ratio: number | null;
+    iv_rank?: number;
+    iv_percentile?: number;
+    hv_20?: number;
+    nvrp?: number;
+    nvrp_regime?: string;
+    iv_skew?: { expiry: string; atm_iv: number; rr25: number; bf25: number; rr25_norm: number; bf25_norm: number; regime: string; reasoning: string };
+  };
+  error?: string;
+};
+
+type AlertRule = {
+  rule_id: string;
+  symbol: string;
+  alert_type: string;
+  threshold: number | string;
+  priority: string;
+  message: string;
+  triggered: boolean;
+  created_at: string;
+  one_time: boolean;
+};
+
+type AlertTemplate = {
+  template_id: string;
+  name: string;
+  alert_type: string;
+  default_threshold: number;
+  priority: string;
+  description: string;
+};
+
+type AlertHistoryEvent = {
+  rule_id: string;
+  symbol: string;
+  alert_type: string;
+  priority: string;
+  message: string;
+  current_value: number;
+  threshold: number | string;
+  timestamp: string;
+};
+
 const signalLabel = (signal: string) => signal.replaceAll("_", " ");
 const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
 const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
@@ -427,7 +515,7 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v1.14.0";
+const VERSION = "v1.15.0";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -508,6 +596,19 @@ export default function Home() {
   const [webhookSaving, setWebhookSaving] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState("");
 
+  const [chainSymbol, setChainSymbol] = useState("");
+  const [chainTargetDte, setChainTargetDte] = useState("30");
+  const [chainResult, setChainResult] = useState<ChainResult | null>(null);
+  const [chainLoading, setChainLoading] = useState(false);
+  const [chainError, setChainError] = useState("");
+
+  const [alertRules, setAlertRules] = useState<AlertRule[]>([]);
+  const [alertTemplates, setAlertTemplates] = useState<AlertTemplate[]>([]);
+  const [alertHistory, setAlertHistory] = useState<AlertHistoryEvent[]>([]);
+  const [alertGallerySymbol, setAlertGallerySymbol] = useState("");
+  const [alertGalleryThreshold, setAlertGalleryThreshold] = useState("");
+  const [alertCenterError, setAlertCenterError] = useState("");
+
   // The hosted Advisor holds one shared watchlist, alert set, and notification
   // queue. Every call carries the shared secret so that a public URL does not
   // mean public control of this account's state.
@@ -573,6 +674,7 @@ export default function Home() {
     if (!apiBase || !advisorToken) return;
     void loadPlaybooks();
     void loadWebhook();
+    void loadAlerts();
   }, [apiBase, advisorToken]);
 
   useEffect(() => {
@@ -1045,6 +1147,97 @@ export default function Home() {
     }
   }
 
+  async function loadChain(event: FormEvent, expiry?: string) {
+    event.preventDefault();
+    setChainLoading(true);
+    setChainError("");
+    if (!chainSymbol.trim()) {
+      setChainError("Enter a symbol first.");
+      setChainLoading(false);
+      return;
+    }
+    try {
+      const response = await advisorRequest("/api/advisor/analytics/chain", {
+        method: "POST",
+        body: JSON.stringify({
+          symbol: chainSymbol.trim().toUpperCase(),
+          target_dte: chainTargetDte ? Number(chainTargetDte) : 30,
+          expiry: expiry || null,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Chain explorer returned ${response.status}`);
+      }
+      setChainResult(await response.json());
+    } catch (requestError) {
+      setChainError(requestError instanceof Error ? requestError.message : "Unable to load the option chain");
+    } finally {
+      setChainLoading(false);
+    }
+  }
+
+  async function loadAlerts() {
+    try {
+      const [rulesResponse, templatesResponse, historyResponse] = await Promise.all([
+        advisorRequest("/api/advisor/alerts"),
+        advisorRequest("/api/advisor/alerts/gallery"),
+        advisorRequest("/api/advisor/alerts/history?limit=30"),
+      ]);
+      if (rulesResponse.ok) {
+        const data = await rulesResponse.json() as { rules: AlertRule[] };
+        setAlertRules(data.rules || []);
+      }
+      if (templatesResponse.ok) {
+        const data = await templatesResponse.json() as { templates: AlertTemplate[] };
+        setAlertTemplates(data.templates || []);
+      }
+      if (historyResponse.ok) {
+        const data = await historyResponse.json() as { events: AlertHistoryEvent[] };
+        setAlertHistory(data.events || []);
+      }
+    } catch { /* backend may be down */ }
+  }
+
+  async function createGalleryAlert(template: AlertTemplate) {
+    if (!alertGallerySymbol.trim()) {
+      setAlertCenterError("Enter a symbol to attach the alert to.");
+      return;
+    }
+    setAlertCenterError("");
+    const threshold = alertGalleryThreshold.trim();
+    try {
+      const response = await advisorRequest("/api/advisor/alerts/gallery", {
+        method: "POST",
+        body: JSON.stringify({
+          template_id: template.template_id,
+          symbol: alertGallerySymbol.trim().toUpperCase(),
+          threshold: threshold ? Number(threshold) : null,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Alert creation returned ${response.status}`);
+      }
+      await loadAlerts();
+    } catch (requestError) {
+      setAlertCenterError(requestError instanceof Error ? requestError.message : "Unable to create the alert");
+    }
+  }
+
+  async function deleteAlert(ruleId: string) {
+    try {
+      const response = await advisorRequest(`/api/advisor/alerts/${encodeURIComponent(ruleId)}`, { method: "DELETE" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Alert deletion returned ${response.status}`);
+      }
+      setAlertRules((prev) => prev.filter((rule) => rule.rule_id !== ruleId));
+    } catch (requestError) {
+      setAlertCenterError(requestError instanceof Error ? requestError.message : "Unable to delete the alert");
+    }
+  }
+
   async function verifyWithIBKR(result: RecommendationResponse): Promise<RecommendationResponse> {
     const uniqueLegs = new Map<string, { symbol: string; expiry: string; strike: number; right: "C" | "P" }>();
     for (const trade of result.recommendations) for (const leg of trade.legs) {
@@ -1397,6 +1590,53 @@ export default function Home() {
 
       <section className="opportunity-panel">
         <div className="opportunity-heading">
+          <div><p className="eyebrow">OPTIONS CHAIN EXPLORER · FULL TABLE</p><h2>Chain explorer</h2><p>The desk-style chain view: every strike with its call and put sides side-by-side (bid/ask/mid, IV, open interest, volume, greeks), plus the expiry's desk readings — ATM IV, the ATM straddle's expected move, max pain, put/call ratios, IV skew, and IV rank vs this symbol's own history.</p></div>
+          <form className="scan-form" onSubmit={(event) => loadChain(event)}>
+            <input className="api" value={chainSymbol} onChange={(event) => setChainSymbol(event.target.value)} placeholder="Symbol, e.g. SPY" aria-label="Chain symbol" maxLength={8} />
+            <input className="api" value={chainTargetDte} onChange={(event) => setChainTargetDte(event.target.value)} placeholder="Target DTE (default 30)" aria-label="Target days to expiry" inputMode="numeric" />
+            <button disabled={chainLoading}>{chainLoading ? "Reading chain…" : "Load option chain"}</button>
+          </form>
+        </div>
+        {chainError && <p className="error">{chainError}</p>}
+        {chainResult && !chainResult.error && <div className="chain-result">
+          <div className="chain-utils">
+            <div className="chain-expiries">{chainResult.expiries.map((entry) => <button type="button" key={entry.expiry} className={`chain-expiry ${chainResult.expiry === entry.expiry ? "selected" : ""}`} onClick={(event) => loadChain(event, entry.expiry)}>{entry.dte} DTE · {entry.expiry.slice(5)}</button>)}</div>
+            <div className="chain-summary">
+              <span><small>ATM IV</small><b>{chainResult.summary.atm_iv > 0 ? `${(chainResult.summary.atm_iv * 100).toFixed(1)}%` : "—"}</b></span>
+              {typeof chainResult.summary.iv_rank === "number" && <span><small>IV RANK</small><b>{chainResult.summary.iv_rank.toFixed(0)}</b></span>}
+              {typeof chainResult.summary.iv_percentile === "number" && <span><small>IV PCT</small><b>{chainResult.summary.iv_percentile.toFixed(0)}</b></span>}
+              {typeof chainResult.summary.nvrp === "number" && <span><small>NVRP {chainResult.summary.hv_20 != null ? `(HV ${(chainResult.summary.hv_20 * 100).toFixed(1)}%)` : ""}</small><b>{(chainResult.summary.nvrp * 100).toFixed(1)}%</b></span>}
+              <span><small>EXP MOVE</small><b>±{(chainResult.summary.expected_move_pct).toFixed(1)}%</b></span>
+              <span><small>EXP BAND</small><b>${chainResult.summary.expected_move_low.toFixed(2)}–${chainResult.summary.expected_move_high.toFixed(2)}</b></span>
+              <span><small>MAX PAIN</small><b>{chainResult.summary.max_pain_strike != null ? `$${chainResult.summary.max_pain_strike.toFixed(0)}` : "—"}</b></span>
+              <span><small>P/C OI</small><b>{chainResult.summary.put_call_oi_ratio != null ? chainResult.summary.put_call_oi_ratio.toFixed(2) : "—"}</b></span>
+              <span><small>P/C VOL</small><b>{chainResult.summary.put_call_volume_ratio != null ? chainResult.summary.put_call_volume_ratio.toFixed(2) : "—"}</b></span>
+              {chainResult.summary.iv_skew && <span><small>SKEW</small><b>{signalLabel(chainResult.summary.iv_skew.regime)}</b></span>}
+              <span><small>STRADDLE</small><b>${chainResult.summary.atm_straddle_mid.toFixed(2)}</b></span>
+            </div>
+          </div>
+          <div className="chain-table">
+            <div className="chain-table-head"><span>STRIKE</span><span>CALL BID/ASK</span><span>CALL IV</span><span>CALL OI</span><span>CALL DELTA</span><span>P/C OI</span><span>PUT DELTA</span><span>PUT OI</span><span>PUT IV</span><span>PUT BID/ASK</span></div>
+            {chainResult.table.map((row) => <div className={`chain-row ${row.strike === chainResult.underlying ? "atm" : ""}`} key={row.strike}>
+              <b>${row.strike.toFixed(0)}</b>
+              <span>{row.call ? `${row.call.bid.toFixed(2)} / ${row.call.ask.toFixed(2)}` : "—"}</span>
+              <span>{row.call && row.call.iv > 0 ? `${(row.call.iv * 100).toFixed(1)}%` : "—"}</span>
+              <span>{row.call ? row.call.open_interest.toLocaleString() : "—"}</span>
+              <span>{row.call ? row.call.delta.toFixed(2) : "—"}</span>
+              <span>{row.put_call_oi_ratio != null ? row.put_call_oi_ratio.toFixed(2) : "—"}</span>
+              <span>{row.put ? row.put.delta.toFixed(2) : "—"}</span>
+              <span>{row.put ? row.put.open_interest.toLocaleString() : "—"}</span>
+              <span>{row.put && row.put.iv > 0 ? `${(row.put.iv * 100).toFixed(1)}%` : "—"}</span>
+              <span>{row.put ? `${row.put.bid.toFixed(2)} / ${row.put.ask.toFixed(2)}` : "—"}</span>
+            </div>)}
+          </div>
+          <p className="scan-note">Underlying ${chainResult.underlying.toFixed(2)} · {chainResult.summary.call_oi_total.toLocaleString()} call OI vs {chainResult.summary.put_oi_total.toLocaleString()} put OI on this expiry{chainResult.summary.iv_skew ? ` · ${chainResult.summary.iv_skew.reasoning}` : ""}.</p>
+        </div>}
+        {chainResult?.error && <p className="error">{chainResult.error}</p>}
+      </section>
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
           <div><p className="eyebrow">STRATEGY PLAYBOOKS · EDUCATION</p><h2>Playbook library</h2><p>The strategies this engine actually evaluates, tied to the gates the Brain, Recommender, and Trade Manager already enforce — with each strategy's real risk profile spelled out. Education, never an order path.</p></div>
         </div>
         <div className="stock-list playbook-grid">
@@ -1426,6 +1666,35 @@ export default function Home() {
           <button type="button" className="webhook-clear" onClick={clearWebhook} disabled={webhookSaving}>Disable</button>
         </form>
         {webhookStatus && <p className="scan-note">{webhookStatus}</p>}
+      </section>
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">ALERT RULES · THRESHOLDS · HISTORY</p><h2>Alert center</h2><p>Rule-based triggers evaluated on every scan: score, IV rank/percentile, price, VIX, put/call ratio, GEX regime, theoretical edge, and earnings proximity. Create one in a click from the gallery below, or manage the rules already saved on the Advisor. Fired rules land in the history list.</p></div>
+        </div>
+        {alertCenterError && <p className="error">{alertCenterError}</p>}
+        <div className="alert-gallery">
+          <div className="alert-gallery-head"><label>Watch symbol<input className="api" value={alertGallerySymbol} onChange={(event) => setAlertGallerySymbol(event.target.value)} placeholder="Symbol, e.g. SPY" aria-label="Alert watch symbol" maxLength={8} /></label><label>Threshold (optional)<input className="api" value={alertGalleryThreshold} onChange={(event) => setAlertGalleryThreshold(event.target.value)} placeholder="Leave blank for default" aria-label="Alert threshold override" inputMode="decimal" /></label></div>
+          <div className="alert-templates">{alertTemplates.map((template) => <div className="alert-template" key={template.template_id}>
+            <div><b>{template.name}</b><p>{template.description}</p><small>{signalLabel(template.alert_type)} · default {template.default_threshold} · {template.priority}</small></div>
+            <button type="button" onClick={() => createGalleryAlert(template)}>+ Add</button>
+          </div>)}</div>
+        </div>
+        <div className="alert-split">
+          <div className="alert-column">
+            <h3>Active rules ({alertRules.length})</h3>
+            {alertRules.length === 0 ? <p className="notif-empty">No alert rules saved on the Advisor yet. Add one from the gallery above.</p> : alertRules.map((rule) => <div className="alert-rule" key={rule.rule_id}>
+              <div><b>{rule.symbol}</b><span>{signalLabel(rule.alert_type)} {typeof rule.threshold === "number" ? `≥ ${rule.threshold}` : `= ${rule.threshold}`} · {rule.priority}</span></div>
+              <button type="button" aria-label={`Delete ${rule.symbol} ${rule.alert_type} alert`} onClick={() => deleteAlert(rule.rule_id)}>×</button>
+            </div>)}
+          </div>
+          <div className="alert-column">
+            <h3>Triggered history ({alertHistory.length})</h3>
+            {alertHistory.length === 0 ? <p className="notif-empty">No alerts have fired yet. Rules evaluate on the next scan once they have the market data they need.</p> : alertHistory.map((event, index) => <div className="alert-rule history" key={`${event.rule_id}-${index}`}>
+              <div><b>{event.symbol}</b><span>{signalLabel(event.alert_type)} · {event.message}</span><small>{new Date(event.timestamp).toLocaleString()}</small></div>
+            </div>)}
+          </div>
+        </div>
       </section>
 
       <section className="bridge-panel">

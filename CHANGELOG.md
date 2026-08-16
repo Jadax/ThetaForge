@@ -1,5 +1,33 @@
 # ThetaForge Changelog
 
+## v1.15.0 - 2026-08-16
+
+Two more "one-stop shop" surfaces on free data: the desk-style chain explorer
+and the alert center UI, closing the loop on the alert engine that was built
+in v1.12 but never visible in the terminal.
+
+- `trade_engine/chain_explorer.py` (new): turns the free option chain into a
+  desk table — one row per strike with call and put sides side-by-side
+  (bid/ask/mid, IV, open interest, volume, the free feed's own greeks) — plus
+  a per-expiry summary: ATM IV, ATM straddle expected move, max pain, call and
+  put OI/volume walls, put/call ratios, and IV skew (RR25/BF25) when the
+  chain's delta/IV surface allows. Fail-closed: no usable rows, an absent
+  requested expiry, or a bad spot returns an error payload, never an empty
+  table pretending to be a chain.
+- `orchestrator/routes/advisor.py`: `POST /api/advisor/analytics/chain`
+  (`symbol`, optional `expiry`, `target_dte`). NVRP (IV vs 20-day realized vol)
+  and IV rank/percentile (vs the local per-symbol history store) are enriched
+  from history when available and fail open on any miss.
+- `dashboard/app/page.tsx` (v1.15.0): new **Chain explorer** section (expiry
+  selector, desk summary chips, full strike table with ATM row highlight) and
+  **Alert center** section (one-click gallery rule creation with symbol +
+  threshold override, active-rules list with delete, triggered-history feed).
+  The v1.14 P/L calculator, GEX heatmap, playbook library, and webhook
+  sections were visually smoke-tested in a browser against the dev server.
+- New `tests/test_chain_explorer.py` covering expiry selection, the strike
+  table sides/ratio, summary readings, the expiries list, fail-closed paths,
+  and the endpoint's NVRP + IV-rank enrichment (8 tests).
+
 ## v1.14.0 - 2026-08-16
 
 Best-of-genre feature batch: the "one-stop shop" tooling layer. Each addition

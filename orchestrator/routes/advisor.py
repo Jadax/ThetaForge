@@ -850,6 +850,12 @@ class EquityBacktestRequest(BaseModel):
     max_holding_days: int = Field(90, ge=5, le=500)
 
 
+class ChainRequest(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=12)
+    expiry: Optional[str] = Field(None, max_length=12)
+    target_dte: int = Field(30, ge=1, le=400)
+
+
 def _find_short_leg_mid(chain: List[Dict], position: PositionInput) -> Optional[float]:
     """Current mid of the short leg(s) from a fresh chain, if present.
 
@@ -1069,6 +1075,71 @@ async def gex_heatmap(request: SymbolRequest):
     except Exception:
         logger.exception("GEX heatmap failed for %s", symbol)
         raise HTTPException(status_code=502, detail="GEX heatmap unavailable")
+
+
+@router.post("/analytics/chain", dependencies=[Depends(scan_rate_limit)])
+async def chain_explorer(request: ChainRequest):
+    """Desk-style option chain table (Market Chameleon / thinkorswim pattern).
+
+    One row per strike with call and put sides side-by-side (bid/ask/mid, IV,
+    open interest, volume, greeks), plus the expiry's desk readings: ATM IV,
+    the ATM straddle's expected move, max pain, put/call ratios, and IV skew.
+    Free-chain data only; NVRP and IV rank are enriched from history when the
+    provider and local store have them, and fail open on any miss.
+    """
+    from agents.trade_engine.chain_explorer import build_chain_explorer
+    from agents.volatility.iv_metrics import realized_volatility
+    from agents.volatility.iv_history import IVHistoryStore
+    symbol = request.symbol.upper()
+    try:
+        price = await provider.get_stock_price(symbol)
+        if not price or price <= 0:
+            raise HTTPException(status_code=422, detail="price unavailable")
+        chain = await provider.get_option_chain(symbol) or []
+        if not chain:
+            raise HTTPException(status_code=422, detail="option chain unavailable")
+        result = build_chain_explorer(chain, price, expiry=request.expiry, target_dte=request.target_dte)
+        if result.get("error"):
+            raise HTTPException(status_code=422, detail=result["error"])
+
+        summary = result["summary"]
+        # NVRP (IV vs realized vol) — a missed history fetch must not sink the
+        # chain, so this enrichment is best-effort and fail-open.
+        try:
+            hist = await provider.get_historical_prices(symbol, period="6mo")
+            if hist is not None and len(hist) >= 21:
+                closes = [float(value) for value in hist["Close"].tolist()]
+                hv_20 = realized_volatility(closes, 20)
+                if hv_20 and summary.get("atm_iv"):
+                    nvrp = summary["atm_iv"] - hv_20
+                    summary["hv_20"] = round(hv_20, 4)
+                    summary["nvrp"] = round(nvrp, 4)
+                    summary["nvrp_regime"] = (
+                        "sell_premium" if nvrp > 0.02
+                        else "neutral" if nvrp >= -0.02
+                        else "buy_premium"
+                    )
+        except Exception:
+            logger.debug("Chain NVRP enrichment unavailable for %s", symbol)
+        # IV rank/percentile vs the local per-symbol history store (if any).
+        try:
+            store = IVHistoryStore()
+            atm_iv = summary.get("atm_iv")
+            if atm_iv:
+                rank = store.iv_rank(symbol, atm_iv)
+                pct = store.iv_percentile(symbol, atm_iv)
+                if rank is not None:
+                    summary["iv_rank"] = round(rank, 1)
+                if pct is not None:
+                    summary["iv_percentile"] = round(pct, 1)
+        except Exception:
+            logger.debug("Chain IV-rank enrichment unavailable for %s", symbol)
+        return result
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Chain explorer failed for %s", symbol)
+        raise HTTPException(status_code=502, detail="chain explorer unavailable")
 
 
 @router.post("/backtest/equity-momentum", dependencies=[Depends(scan_rate_limit)])
