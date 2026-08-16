@@ -1,5 +1,27 @@
 # ThetaForge Changelog
 
+## v1.16.0 - 2026-08-16
+
+Two more terminal surfaces, both built on backend that already existed but was
+invisible in the dashboard: the full-brain scan sheet and the watchlist.
+
+- **Scan sheet** — the terminal now renders the background Brain scanner's last
+  full run: every analyzed symbol in a sortable-by-score desk grid with its
+  composite score (direction-signed, color-coded), signal, strategy fit,
+  regime, IV rank, VIX term-structure read, put/call flow bias, ATM expected
+  move, dealer-GEX regime, and vol risk premium. A live status chip shows
+  running/idle, last and next run, and the interval, with a manual refresh.
+  Read-only — a scan-sheet score is discovery context, never an order.
+- **Watchlist** — add/remove symbols in one click against the existing
+  `/api/advisor/watchlist` store (which already carried custom delta/DTE
+  preferences but had no UI), plus an "Analyze watchlist" button that runs the
+  Brain over every member and ranks them by overall score. The list and its
+  preferences were always fed into idea generation; now you can manage them.
+- Both are pure dashboard work — no new endpoints, no behavior changes to the
+  scanners or stores, and no order path touched.
+- New v1.16 CSS for the scan grid and watchlist table (scrollable on narrow
+  screens), matching the existing chain-explorer table style.
+
 ## v1.15.0 - 2026-08-16
 
 Two more "one-stop shop" surfaces on free data: the desk-style chain explorer

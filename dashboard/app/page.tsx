@@ -76,11 +76,45 @@ type BrainNotification = {
   acknowledged: boolean;
 };
 
+type ScanEntry = {
+  score: number;
+  signal: string;
+  regime?: string;
+  strategy: string;
+  iv_rank?: number | null;
+  iv_percentile?: number | null;
+  eff_iv_rank?: number | null;
+  iv_hv_signal?: string | null;
+  rv_band?: string | null;
+  expected_move_pct?: number | null;
+  term_structure?: string | null;
+  flow_bias?: string | null;
+  pcr_signal?: string | null;
+  gex_regime?: string | null;
+  vol_risk_premium?: number | null;
+};
+
 type ScannerStatus = {
+  is_running?: boolean;
+  market_open?: boolean;
   last_run: string | null;
+  next_run?: string | null;
+  interval_seconds?: number;
   symbols_scanned_last_run: number;
   symbols_with_trades: number;
-  last_results?: { symbols?: Record<string, unknown> };
+  pending_notifications?: number;
+  total_notifications?: number;
+  last_results?: { symbols?: Record<string, ScanEntry>; last_full_run?: string };
+};
+
+type WatchlistItem = {
+  symbol: string;
+  added_at: string;
+  notes: string;
+  tags: string[];
+  custom_delta: number;
+  custom_dte: number;
+  custom_strategies: string[];
 };
 
 type AssetRead = {
@@ -515,7 +549,7 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v1.15.0";
+const VERSION = "v1.16.0";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -609,6 +643,13 @@ export default function Home() {
   const [alertGalleryThreshold, setAlertGalleryThreshold] = useState("");
   const [alertCenterError, setAlertCenterError] = useState("");
 
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [newWatchSymbol, setNewWatchSymbol] = useState("");
+  const [watchlistMsg, setWatchlistMsg] = useState("");
+  const [watchlistError, setWatchlistError] = useState("");
+  const [watchlistRankings, setWatchlistRankings] = useState<Analysis[]>([]);
+  const [watchlistAnalyzing, setWatchlistAnalyzing] = useState(false);
+
   // The hosted Advisor holds one shared watchlist, alert set, and notification
   // queue. Every call carries the shared secret so that a public URL does not
   // mean public control of this account's state.
@@ -675,6 +716,7 @@ export default function Home() {
     void loadPlaybooks();
     void loadWebhook();
     void loadAlerts();
+    void loadWatchlist();
   }, [apiBase, advisorToken]);
 
   useEffect(() => {
@@ -1238,6 +1280,84 @@ export default function Home() {
     }
   }
 
+  async function refreshScanSheet() {
+    try {
+      const statusResponse = await advisorRequest("/api/advisor/scanner/status");
+      if (statusResponse.ok) setScannerStatus(await statusResponse.json() as ScannerStatus);
+    } catch { /* backend may be down */ }
+  }
+
+  async function loadWatchlist() {
+    try {
+      const res = await advisorRequest("/api/advisor/watchlist");
+      if (res.ok) {
+        const data = await res.json() as { items: WatchlistItem[] };
+        setWatchlist(data.items || []);
+      }
+    } catch { /* backend may be down */ }
+  }
+
+  async function addWatchSymbol(event: FormEvent) {
+    event.preventDefault();
+    const symbol = newWatchSymbol.trim().toUpperCase();
+    if (!symbol) return;
+    setWatchlistMsg("");
+    setWatchlistError("");
+    try {
+      const res = await advisorRequest("/api/advisor/watchlist/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `Add returned ${res.status}`);
+      }
+      setNewWatchSymbol("");
+      setWatchlistMsg(`${symbol} added to the watchlist.`);
+      await loadWatchlist();
+    } catch (addError) {
+      setWatchlistError(addError instanceof Error ? addError.message : "Could not add the symbol.");
+    }
+  }
+
+  async function removeWatchSymbol(symbol: string) {
+    setWatchlistError("");
+    try {
+      const res = await advisorRequest(`/api/advisor/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `Remove returned ${res.status}`);
+      }
+      setWatchlist((prev) => prev.filter((item) => item.symbol !== symbol));
+    } catch (removeError) {
+      setWatchlistError(removeError instanceof Error ? removeError.message : "Could not remove the symbol.");
+    }
+  }
+
+  async function analyzeWatchlist() {
+    setWatchlistAnalyzing(true);
+    setWatchlistError("");
+    setWatchlistRankings([]);
+    try {
+      const res = await advisorRequest("/api/advisor/brain/analyze-watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `Analysis returned ${res.status}`);
+      }
+      const data = await res.json() as { total_analyzed: number; rankings: Analysis[] };
+      setWatchlistRankings(data.rankings || []);
+    } catch (analyzeError) {
+      setWatchlistError(analyzeError instanceof Error ? analyzeError.message : "Watchlist analysis failed.");
+    } finally {
+      setWatchlistAnalyzing(false);
+    }
+  }
+
   async function verifyWithIBKR(result: RecommendationResponse): Promise<RecommendationResponse> {
     const uniqueLegs = new Map<string, { symbol: string; expiry: string; strike: number; right: "C" | "P" }>();
     for (const trade of result.recommendations) for (const leg of trade.legs) {
@@ -1372,6 +1492,10 @@ export default function Home() {
     }
   }
 
+  const scanEntries = Object.entries(scannerStatus?.last_results?.symbols || {})
+    .map(([symbol, entry]) => ({ symbol, ...entry }))
+    .sort((a, b) => b.score - a.score);
+
   return (
     <main>
       <nav>
@@ -1451,6 +1575,40 @@ export default function Home() {
 
       <section className="opportunity-panel">
         <div className="opportunity-heading">
+          <div><p className="eyebrow">WATCHLIST · YOUR SYMBOL UNIVERSE</p><h2>Watchlist</h2><p>The symbols you follow, saved on the Advisor. The watchlist feeds the Brain's watchlist analysis with your default delta/DTE preferences for idea generation. Managing the list here never places an order.</p></div>
+          <form className="scan-form" onSubmit={addWatchSymbol}><input className="api" value={newWatchSymbol} onChange={(event) => setNewWatchSymbol(event.target.value)} placeholder="Add symbol, e.g. NVDA" aria-label="Watchlist symbol" maxLength={8} /><button type="submit">+ Add</button></form>
+        </div>
+        {watchlistError && <p className="error">{watchlistError}</p>}
+        {watchlistMsg && <p className="scan-note">{watchlistMsg}</p>}
+        <div className="watchlist-bar">
+          <p className="scan-note">{watchlist.length} symbols on the watchlist · Analyze runs the full Brain pass (option chain, flow, and vol context) over every member and ranks them by score.</p>
+          <button type="button" onClick={analyzeWatchlist} disabled={watchlistAnalyzing || watchlist.length === 0}>{watchlistAnalyzing ? "Analyzing watchlist…" : "Analyze watchlist"}</button>
+        </div>
+        {watchlist.length === 0 ? <p className="notif-empty">The watchlist is empty. Add symbols above — they become your focused universe for watchlist analysis.</p> : <div className="watchlist-table">
+          <div className="watchlist-head"><span>SYMBOL</span><span>DELTA / DTE</span><span>TAGS</span><span>ADDED</span><span /></div>
+          {watchlist.map((item) => <div className="watchlist-row" key={item.symbol}>
+            <b>{item.symbol}</b>
+            <span>{item.custom_delta} Δ / {item.custom_dte} DTE</span>
+            <span>{item.tags.length ? item.tags.join(", ") : (item.notes || "—")}</span>
+            <span>{new Date(item.added_at).toLocaleDateString()}</span>
+            <button type="button" aria-label={`Remove ${item.symbol} from watchlist`} onClick={() => removeWatchSymbol(item.symbol)}>×</button>
+          </div>)}
+        </div>}
+        {watchlistRankings.length > 0 && <>
+          <h3 className="watchlist-rank-title">Watchlist ranking — best Brain scores</h3>
+          <div className="watchlist-rankings">
+            {watchlistRankings.map((ranking) => <div className="watchlist-ranking" key={ranking.symbol}>
+              <b>{ranking.symbol}</b>
+              <span className={`scan-score ${ranking.overall_score >= 0 ? "bull" : "bear"}`}>{ranking.overall_score >= 0 ? "+" : ""}{ranking.overall_score.toFixed(0)}</span>
+              <span>{signalLabel(ranking.overall_signal)} · {signalLabel(ranking.regime)} · {signalLabel(ranking.best_strategy)}</span>
+              <small>${ranking.stock_price.toFixed(2)} · {ranking.confidence}% confidence</small>
+            </div>)}
+          </div>
+        </>}
+      </section>
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
           <div><p className="eyebrow">POSITION MANAGEMENT · THETA EXITS</p><h2>Manage open short-premium positions</h2><p>The research playbook, applied to positions you already hold: take profit at 50% of max credit, close or roll inside the 21-DTE gamma window, stop at 2× the credit, and never hold short premium through an earnings print. Read-only guidance — closing orders still go through the paper Bridge.</p></div>
           <form className="scan-form" onSubmit={loadManagement}><textarea className="api" value={managementPositions} onChange={(event) => setManagementPositions(event.target.value)} rows={3} placeholder='[{"symbol":"AAPL","strategy":"bull_put","short_strike":200,"long_strike":190,"credit_received":1.20,"dte":30}]' aria-label="Open positions JSON" /><input className="api" value={managementCapital} onChange={(event) => setManagementCapital(event.target.value)} placeholder="Portfolio capital (default 100,000)" aria-label="Portfolio capital" /><input className="api" value={managementRealized} onChange={(event) => setManagementRealized(event.target.value)} placeholder="Realized P&L, negative = losses" aria-label="Realized P&L" /><button disabled={managementLoading}>{managementLoading ? "Evaluating…" : "Run management check"}</button></form>
         </div>
@@ -1490,6 +1648,32 @@ export default function Home() {
         </article>)}</div> : <div className="no-trades"><b>No defined-risk candidates passed the Advisor’s filters.</b><span>This is a valid outcome—avoid forcing a trade. Expand the scan universe or try again when market data changes.</span></div>)}
         {topTrades?.shortlisted_symbols?.length ? <p className="scan-warning">Screened {topTrades.universe_size} liquid and actively traded underlyings ({topTrades.active_discoveries || 0} live screener discoveries); full options analysis ran on {topTrades.shortlisted_symbols.join(", ")}.</p> : null}
         {topTrades?.warnings.length ? <p className="scan-warning">{topTrades.warnings.join(" · ")}</p> : null}
+      </section>
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">BRAIN SCANNER · LAST FULL RUN</p><h2>Scan sheet</h2><p>The per-symbol output of the last complete background scan: every analyzed underlying with its composite score, signal, regime, strategy fit, and the vol/flow context the Brain saw. A score here is a discovery — a real trade still has to pass the full chain, portfolio, and paper-Bridge checks.</p>
+          {scannerStatus && <div className="market-chip"><small>SCANNER</small><b>{scannerStatus.market_open ? "Market open · scanning" : "Markets closed"}</b><span>{scannerStatus.is_running ? "running" : "idle"} · last run {scannerStatus.last_run ? new Date(scannerStatus.last_run).toLocaleString() : "—"}{scannerStatus.next_run ? ` · next ${new Date(scannerStatus.next_run).toLocaleTimeString()}` : ""} · every {scannerStatus.interval_seconds ? `${scannerStatus.interval_seconds}s` : "300s"}</span></div>}
+          </div>
+          <button type="button" onClick={refreshScanSheet} disabled={!scannerStatus}>Refresh</button>
+        </div>
+        {scanEntries.length === 0 ? <p className="notif-empty">No scan results yet. The background scanner records each symbol it analyzed on its last full run; results appear here after the first scan.</p> : <div className="scan-sheet">
+          <div className="scan-sheet-head"><span>SYMBOL</span><span>SCORE</span><span>SIGNAL</span><span>STRATEGY</span><span>REGIME</span><span>IVR</span><span>TERM</span><span>FLOW</span><span>EXP MOVE</span><span>GEX</span><span>VRP</span></div>
+          {scanEntries.map((entry) => <div className="scan-sheet-row" key={entry.symbol}>
+            <b>{entry.symbol}</b>
+            <span className={`scan-score ${entry.score >= 0 ? "bull" : "bear"}`}>{entry.score >= 0 ? "+" : ""}{entry.score.toFixed(0)}</span>
+            <span>{signalLabel(entry.signal)}</span>
+            <span>{signalLabel(entry.strategy)}</span>
+            <span>{entry.regime ? signalLabel(entry.regime) : "—"}</span>
+            <span>{typeof entry.iv_rank === "number" ? entry.iv_rank.toFixed(0) : "—"}</span>
+            <span>{entry.term_structure ? signalLabel(entry.term_structure) : "—"}</span>
+            <span>{entry.flow_bias ? signalLabel(entry.flow_bias) : "—"}</span>
+            <span>{typeof entry.expected_move_pct === "number" ? `±${entry.expected_move_pct.toFixed(1)}%` : "—"}</span>
+            <span>{entry.gex_regime ? signalLabel(entry.gex_regime) : "—"}</span>
+            <span>{typeof entry.vol_risk_premium === "number" ? `${entry.vol_risk_premium.toFixed(1)}%` : "—"}</span>
+          </div>)}
+        </div>}
+        <p className="scan-note">Score sign = expected direction of the setup · IVR = IV rank vs the symbol's own history · term = VIX term-structure read · flow = put/call flow bias · exp move = ATM expected move · GEX = dealer gamma regime · VRP = vol risk premium.</p>
       </section>
 
       <section className="opportunity-panel">
