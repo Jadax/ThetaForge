@@ -29,3 +29,17 @@ footer{padding:24px 0 0;color:var(--muted);font-size:11px;letter-spacing:.4px}fo
 /* Terminal nav link to the public journal */
 .terminal-link{font-size:12px;color:#b8c1bc;text-decoration:none;border:1px solid var(--line);padding:9px 13px}.terminal-link:hover{border-color:var(--lime);color:var(--lime)}
 .loss{color:#f0a79b}
+
+/* v1.14 strategy P/L calculator */
+.pnl-legs{display:grid;gap:8px}.pnl-leg{display:grid;grid-template-columns:110px 100px 1fr 1fr 36px;gap:8px;align-items:end}.pnl-leg select{background:#0c120f;border:1px solid var(--line);border-radius:4px;color:var(--ink);padding:13px 10px;font-size:13px;outline:none;text-transform:uppercase}.pnl-leg input{margin-top:0;font-size:14px}.pnl-remove{background:transparent;color:var(--muted);font-size:18px;padding:10px 6px}.pnl-inputs{display:flex;gap:14px;align-items:end;flex-wrap:wrap;margin-top:12px}.pnl-inputs label{font-size:10px}.pnl-inputs .api{width:110px;font-size:13px}.pnl-leg-actions{margin-top:8px}.pnl-leg-actions button{background:#2c3933;color:var(--ink);padding:9px 12px;font-size:11px}.pnl-result{margin-top:20px}.pnl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.pnl-grid span{border-left:1px solid var(--line);padding-left:10px}.pnl-grid small{display:block;color:var(--muted);font-size:9px;letter-spacing:1px}.pnl-grid b{font-size:15px}.pnl-grid .loss b{color:#f0a79b}.pnl-grid .profit b{color:var(--lime)}.pnl-svg{width:100%;height:auto;display:block;margin-top:16px;background:#0c120f;border:1px solid var(--line);padding:10px 6px 4px}
+
+/* v1.14 GEX heatmap */
+.gex-summary{display:flex;gap:26px;flex-wrap:wrap;margin-bottom:16px}.gex-summary span{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted)}.gex-summary small{font-size:9px;letter-spacing:1px}.gex-summary b{color:var(--lime);font-size:15px}.gex-strip{display:flex;gap:4px;overflow-x:auto;padding-bottom:6px}.gex-cell{flex:1 1 0;min-width:76px;border:1px solid var(--line);padding:9px 6px;text-align:center;background:#0c120f}.gex-cell small{display:block;color:var(--muted);font-size:9px;letter-spacing:.5px;margin-bottom:5px;white-space:nowrap}.gex-cell b{font-size:12px}.gex-cell.normal{border-color:#2f4b3a;color:#b8e09a;background:rgba(201,255,93,.07)}.gex-cell.elevated{border-color:#c9ff5d;color:var(--lime);background:rgba(201,255,93,.16)}.gex-cell.hot{border-color:#f0c982;color:#142017;background:#f0c982}.gex-cell.extreme{border-color:#f0a79b;color:#142017;background:#f0a79b}.gex-cell.flat{color:var(--muted)}.gex-cell.wall{outline:2px solid rgba(201,255,93,.45);outline-offset:-2px}
+
+/* v1.14 playbook library */
+.playbook-grid{margin-top:24px}.playbook-detail{border:1px solid var(--line);background:#0c120f;padding:22px;margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:18px}.playbook-detail section small{display:block;color:var(--lime);font-size:9px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}.playbook-detail section p{margin:0;color:#b7c1bc;font-size:12px;line-height:1.6}
+
+/* v1.14 alert webhook */
+.webhook-clear{background:#2c3933;color:var(--ink)}
+
+@media(max-width:700px){.pnl-leg{grid-template-columns:1fr 1fr}.pnl-leg input,.pnl-leg select{padding:11px 8px}.pnl-grid{grid-template-columns:1fr 1fr}.gex-strip{flex-wrap:nowrap}.playbook-detail{grid-template-columns:1fr}.scan-form .api{width:100%}}

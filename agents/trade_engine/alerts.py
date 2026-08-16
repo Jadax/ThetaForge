@@ -14,6 +14,7 @@ import json
 import os
 import uuid
 import math
+import threading
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone
 from dataclasses import dataclass, field, asdict
@@ -23,6 +24,53 @@ from enum import Enum
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 ALERTS_FILE = os.path.join(DATA_DIR, "alerts.json")
 ALERT_HISTORY_FILE = os.path.join(DATA_DIR, "alert_history.json")
+WEBHOOK_CONFIG_FILE = os.path.join(DATA_DIR, "alert_webhook.json")
+
+
+def _read_webhook_config() -> Optional[Dict[str, Any]]:
+    """Webhook delivery target, or None when unconfigured/disabled."""
+    try:
+        if not os.path.exists(WEBHOOK_CONFIG_FILE):
+            return None
+        with open(WEBHOOK_CONFIG_FILE, "r") as fh:
+            config = json.load(fh)
+        url = str(config.get("url") or "").strip()
+        if not url or not config.get("enabled", True):
+            return None
+        return {"url": url}
+    except Exception:
+        return None
+
+
+def _notify_webhook(events: List[Dict]) -> None:
+    """Fire-and-forget delivery of triggered alerts to the configured webhook.
+
+    Discord/Slack-compatible JSON POST on a daemon thread, so a slow or down
+    webhook never blocks the scan or the API. Fail-closed: any delivery error
+    is swallowed — an alert failing to reach a webhook must not break the
+    pipeline that produced it.
+    """
+    config = _read_webhook_config()
+    if not config or not events:
+        return
+
+    payload = {
+        "source": "thetaforge",
+        "sent_at": datetime.now(timezone.utc).isoformat(),
+        "events": events,
+    }
+
+    def _deliver():
+        try:
+            import httpx
+            httpx.post(
+                config["url"], json=payload, timeout=10,
+                headers={"Content-Type": "application/json"},
+            )
+        except Exception:
+            pass
+
+    threading.Thread(target=_deliver, daemon=True).start()
 
 
 class AlertType(str, Enum):
@@ -381,7 +429,36 @@ class AlertEngine:
                 history = history[-2000:]
             self._write_history(history)
 
+            _notify_webhook(events)
+
         return events
+
+    def set_webhook(self, url: str) -> Dict[str, Any]:
+        """Configure the alert webhook delivery URL (Discord/Slack-compatible)."""
+        os.makedirs(DATA_DIR, exist_ok=True)
+        config = {"url": str(url or "").strip(), "enabled": True, "updated_at": datetime.now(timezone.utc).isoformat()}
+        with open(WEBHOOK_CONFIG_FILE, "w") as fh:
+            json.dump(config, fh, indent=2)
+        return {"configured": bool(config["url"]), "enabled": True}
+
+    def clear_webhook(self) -> Dict[str, Any]:
+        """Disable webhook delivery."""
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(WEBHOOK_CONFIG_FILE, "w") as fh:
+            json.dump({"url": "", "enabled": False}, fh, indent=2)
+        return {"configured": False, "enabled": False}
+
+    def get_webhook(self) -> Dict[str, Any]:
+        """Current webhook configuration (URL included; single-user API)."""
+        config = _read_webhook_config()
+        if not config:
+            try:
+                with open(WEBHOOK_CONFIG_FILE, "r") as fh:
+                    stored = json.load(fh)
+                return {"configured": False, "enabled": bool(stored.get("enabled")), "url": stored.get("url", "")}
+            except Exception:
+                return {"configured": False, "enabled": False, "url": ""}
+        return {"configured": True, "enabled": True, "url": config["url"]}
 
     def check(self, market_data: Dict[str, Dict]) -> List[Dict]:
         """

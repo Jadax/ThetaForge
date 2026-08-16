@@ -1,5 +1,41 @@
 # ThetaForge Changelog
 
+## v1.14.0 - 2026-08-16
+
+Best-of-genre feature batch: the "one-stop shop" tooling layer. Each addition
+follows the free-data/paper-only invariants — anything a competitor sells from
+a paid feed (dealer heatmaps, historical option fills, chat alerts) is
+implemented as an honest pattern over free data, never a fabricated signal.
+
+- `pnl_calculator.py` (new): at-expiry P/L profile for any multi-leg structure —
+  max profit/loss, breakevens via dense root scan, risk/reward, and
+  probability-of-profit at expiry from IV + DTE (stdlib erf, no scipy).
+  Premium always comes from the caller; pure math, fail-closed on missing legs.
+- `flow_analysis/gex_engine.py`: `gex_heatmap()` turns the free-chain GEX
+  aggregate into per-strike heat rows plus positive/negative walls and the
+  zero-gamma level (Flowasis pattern).
+- `equity_trader/equity_backtest.py` (new): event-driven long-momentum backtest
+  over free daily closes, driven by the equity brain's own trend gates
+  (SMA200/SMA50 alignment, RSI cap, 126-day momentum, holding-period stop).
+  Proxy-labeled — no fills, commissions, or slippage are assumed.
+- `trade_engine/playbooks.py` (new): curated strategy playbook library (7
+  strategies, including why 0-DTE is excluded) tying each strategy's entry and
+  management rules back to the Brain/Recommender/Trade Manager gates. Education
+  only, never an order path.
+- `trade_engine/alerts.py`: optional Discord/Slack-compatible webhook delivery
+  for triggered alert rules — fire-and-forget from a background thread so a down
+  webhook never blocks the scan; URL stored only in the local data dir.
+- `orchestrator/routes/advisor.py`: `POST /analytics/pnl-calculator`,
+  `POST /analytics/gex-heatmap`, `POST /backtest/equity-momentum`,
+  `GET /playbooks`, `GET /playbooks/{id}`, and `GET/POST/DELETE /alerts/notify`
+  (webhook config) — 39 routes total.
+- `dashboard/app/page.tsx` (v1.14.0): new terminal sections for the strategy
+  P/L calculator (with SVG curve), the dealer GEX heatmap strip, the playbook
+  library (click-to-read detail), and webhook alert routing; version bumped.
+- New `tests/test_v1_14_batch.py` covering the calculator math, GEX heatmap
+  shape/fail-closed rows, webhook set/get/clear + delivery, equity backtest
+  (incl. insufficient history), and playbooks list/get/unknown (12 tests).
+
 ## v1.13.0 - 2026-08-16
 
 Standalone historical strategy backtesting (TradeStation/Option Alpha pattern):

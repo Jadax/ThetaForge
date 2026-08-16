@@ -118,6 +118,63 @@ class GEXEngine:
 
         return signals
 
+    def gex_heatmap(self, gex_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Per-strike gamma heatmap rows (Flowasis GEX-heatmap pattern).
+
+        Turns the aggregate GEX result into an ordered table the dashboard can
+        render as a heat strip: each strike carries its net dealer GEX (in
+        millions), percent distance from spot, and a heat bucket. Walls (the
+        strikes with the largest positive and negative GEX) are surfaced
+        explicitly along with the zero-gamma level. Fail-closed: no strike
+        data returns empty rows, never fabricated levels.
+        """
+        strike_gex = (gex_data or {}).get("strike_gex") or {}
+        if not strike_gex:
+            return {
+                "underlying": (gex_data or {}).get("underlying"),
+                "zero_gamma_strike": (gex_data or {}).get("zero_gamma_strike"),
+                "walls": {"positive": None, "negative": None},
+                "rows": [],
+            }
+
+        underlying = (gex_data or {}).get("underlying") or 0.0
+        rows = []
+        for strike, net in sorted(strike_gex.items()):
+            strike = float(strike)
+            pct_away = ((strike - underlying) / underlying * 100) if underlying else 0.0
+            rows.append({
+                "strike": strike,
+                "net_gex_millions": round(float(net), 4),
+                "pct_away": round(pct_away, 2),
+                "heat": self._heat_bucket(float(net)),
+            })
+
+        positive_wall = max(rows, key=lambda r: r["net_gex_millions"]) if rows else None
+        negative_wall = min(rows, key=lambda r: r["net_gex_millions"]) if rows else None
+        return {
+            "underlying": underlying,
+            "zero_gamma_strike": (gex_data or {}).get("zero_gamma_strike"),
+            "walls": {
+                "positive": positive_wall,
+                "negative": negative_wall,
+            },
+            "rows": rows,
+        }
+
+    @staticmethod
+    def _heat_bucket(net_gex_millions: float) -> str:
+        """Coarse heat label for one strike (abs values tuned to retail OI sizes)."""
+        value = abs(net_gex_millions)
+        if value >= 50:
+            return "extreme"
+        if value >= 20:
+            return "hot"
+        if value >= 5:
+            return "elevated"
+        if value > 0:
+            return "normal"
+        return "flat"
+
     def _approx_gamma(self, S: float, K: float, T: float, sigma: float) -> float:
         """Approximate gamma using Black-Scholes formula."""
         if sigma <= 0 or T <= 0 or S <= 0:

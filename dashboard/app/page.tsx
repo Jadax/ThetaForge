@@ -267,6 +267,58 @@ type RecommendationResponse = {
   shortlisted_symbols?: string[];
 };
 
+type PnLLeg = {
+  action: "BUY" | "SELL";
+  option_type: "call" | "put";
+  strike: string;
+  entry_price: string;
+};
+
+type PnLResult = {
+  spot: number;
+  contracts: number;
+  net_entry_per_share: number;
+  net_entry: number;
+  max_profit: number;
+  max_loss: number;
+  risk_reward: number;
+  breakevens: number[];
+  pop_at_expiry: number | null;
+  pnl_points: Array<{ spot: number; pnl: number }>;
+  error?: string;
+};
+
+type GexHeatmapResult = {
+  underlying: number;
+  total_call_gex: number;
+  total_put_gex: number;
+  net_gex: number;
+  dealer_gex: number;
+  gex_regime: string;
+  zero_gamma_strike: number | null;
+  strike_gex: Record<string, number>;
+  error?: string;
+};
+
+type PlaybookSummary = {
+  id: string;
+  name: string;
+  strategy_type: string;
+  risk_profile: string;
+  premium_printer: boolean;
+};
+
+type PlaybookDetail = PlaybookSummary & {
+  mechanics: string;
+  entry_rules: string;
+  management: string;
+  common_mistakes: string;
+  best_for: string;
+  risk_warning: string;
+  error?: string;
+  found?: boolean;
+};
+
 const signalLabel = (signal: string) => signal.replaceAll("_", " ");
 const dollars = (value: number) => `$${Math.max(0, value || 0).toFixed(0)}`;
 const percent = (value: number) => `${Math.max(0, value || 0).toFixed(0)}%`;
@@ -322,11 +374,60 @@ function ExpectedMoveChart({ trade }: { trade: TradeRecommendation }) {
     </div>
   );
 }
+// At-expiry P/L curve for a multi-leg structure (OptionStrat / Market
+// Chameleon pattern). Pure client-side drawing over the calculator's points.
+function PnLCurve({ result }: { result: PnLResult }) {
+  const points = result.pnl_points || [];
+  if (points.length < 2) return <div className="em-chart em-chart-empty">Not enough price points to draw the curve.</div>;
+  const W = 560;
+  const H = 120;
+  const PADX = 10;
+  const PADY = 8;
+  const xs = points.map((point) => point.spot);
+  const ys = points.map((point) => point.pnl);
+  const loX = Math.min(...xs);
+  const hiX = Math.max(...xs);
+  const loY = Math.min(0, ...ys);
+  const hiY = Math.max(0, ...ys);
+  const spanX = Math.max(hiX - loX, 1e-6);
+  const spanY = Math.max(hiY - loY, 1e-6);
+  const x = (value: number) => PADX + ((value - loX) / spanX) * (W - PADX * 2);
+  const y = (value: number) => PADY + (1 - (value - loY) / spanY) * (H - PADY * 2);
+  const path = points.map((point, index) => `${index === 0 ? "M" : "L"}${x(point.spot).toFixed(1)},${y(point.pnl).toFixed(1)}`).join(" ");
+  const zeroY = y(0);
+  const fillPath = `${path} L${x(hiX)},${zeroY.toFixed(1)} L${x(loX)},${zeroY.toFixed(1)} Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg" role="img" aria-label="At-expiry P/L curve">
+      <defs>
+        <linearGradient id="pnlFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#c9ff5d" stopOpacity="0.26" />
+          <stop offset="100%" stopColor="#c9ff5d" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <line x1={PADX} y1={zeroY} x2={W - PADX} y2={zeroY} stroke="#4c6754" strokeWidth="1" strokeDasharray="3 3" />
+      <path d={fillPath} fill="url(#pnlFill)" />
+      <path d={path} fill="none" stroke="#c9ff5d" strokeWidth="1.8" />
+      {(result.breakevens || []).map((be, index) => (
+        <line key={index} x1={x(be)} y1={PADY} x2={x(be)} y2={H - PADY} stroke="#f0c982" strokeWidth="1" strokeDasharray="2 3" />
+      ))}
+    </svg>
+  );
+}
+
+const gexHeatBucket = (value: number) => {
+  const magnitude = Math.abs(value);
+  if (magnitude >= 50) return "extreme";
+  if (magnitude >= 20) return "hot";
+  if (magnitude >= 5) return "elevated";
+  if (magnitude > 0) return "normal";
+  return "flat";
+};
+
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v1.13.0";
+const VERSION = "v1.14.0";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -379,6 +480,33 @@ export default function Home() {
   const [equityManagementResult, setEquityManagementResult] = useState<EquityManagementResponse | null>(null);
   const [equityManagementLoading, setEquityManagementLoading] = useState(false);
   const [equityManagementError, setEquityManagementError] = useState("");
+
+  const [pnlLegs, setPnlLegs] = useState<PnLLeg[]>([
+    { action: "SELL", option_type: "put", strike: "45", entry_price: "1.50" },
+    { action: "BUY", option_type: "put", strike: "40", entry_price: "0.60" },
+  ]);
+  const [pnlSpot, setPnlSpot] = useState("50");
+  const [pnlContracts, setPnlContracts] = useState("1");
+  const [pnlIv, setPnlIv] = useState("0.30");
+  const [pnlDte, setPnlDte] = useState("30");
+  const [pnlResult, setPnlResult] = useState<PnLResult | null>(null);
+  const [pnlLoading, setPnlLoading] = useState(false);
+  const [pnlError, setPnlError] = useState("");
+
+  const [gexSymbol, setGexSymbol] = useState("");
+  const [gexResult, setGexResult] = useState<GexHeatmapResult | null>(null);
+  const [gexLoading, setGexLoading] = useState(false);
+  const [gexError, setGexError] = useState("");
+
+  const [playbooks, setPlaybooks] = useState<PlaybookSummary[]>([]);
+  const [playbookDetail, setPlaybookDetail] = useState<Record<string, PlaybookDetail>>({});
+  const [playbookOpen, setPlaybookOpen] = useState<string | null>(null);
+  const [playbookLoading, setPlaybookLoading] = useState("");
+  const [playbookError, setPlaybookError] = useState("");
+
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [webhookSaving, setWebhookSaving] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState("");
 
   // The hosted Advisor holds one shared watchlist, alert set, and notification
   // queue. Every call carries the shared secret so that a public URL does not
@@ -439,6 +567,12 @@ export default function Home() {
     void poll();
     const interval = setInterval(poll, 30000);
     return () => clearInterval(interval);
+  }, [apiBase, advisorToken]);
+
+  useEffect(() => {
+    if (!apiBase || !advisorToken) return;
+    void loadPlaybooks();
+    void loadWebhook();
   }, [apiBase, advisorToken]);
 
   useEffect(() => {
@@ -757,6 +891,160 @@ export default function Home() {
     }
   }
 
+  function updatePnlLeg(index: number, field: keyof PnLLeg, value: string) {
+    setPnlLegs((prev) => prev.map((leg, i) => (i === index ? { ...leg, [field]: value as never } : leg)));
+  }
+
+  function addPnlLeg() {
+    setPnlLegs((prev) => [...prev, { action: "BUY", option_type: "put", strike: "", entry_price: "" }]);
+  }
+
+  function removePnlLeg(index: number) {
+    setPnlLegs((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function calculatePnl(event: FormEvent) {
+    event.preventDefault();
+    setPnlLoading(true);
+    setPnlError("");
+    const legs = pnlLegs
+      .map((leg) => ({ action: leg.action, option_type: leg.option_type, strike: Number(leg.strike), entry_price: Number(leg.entry_price) }))
+      .filter((leg) => leg.strike > 0);
+    if (legs.length === 0) {
+      setPnlError("Add at least one leg with a strike and entry premium.");
+      setPnlLoading(false);
+      return;
+    }
+    try {
+      const response = await advisorRequest("/api/advisor/analytics/pnl-calculator", {
+        method: "POST",
+        body: JSON.stringify({
+          legs,
+          spot: Number(pnlSpot),
+          contracts: Number(pnlContracts) || 1,
+          iv: pnlIv ? Number(pnlIv) : null,
+          dte: pnlDte ? Number(pnlDte) : null,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `P/L calculator returned ${response.status}`);
+      }
+      setPnlResult(await response.json());
+    } catch (requestError) {
+      setPnlError(requestError instanceof Error ? requestError.message : "Unable to run the P/L calculator");
+    } finally {
+      setPnlLoading(false);
+    }
+  }
+
+  async function loadGex(event: FormEvent) {
+    event.preventDefault();
+    setGexLoading(true);
+    setGexError("");
+    if (!gexSymbol.trim()) {
+      setGexError("Enter a symbol first.");
+      setGexLoading(false);
+      return;
+    }
+    try {
+      const response = await advisorRequest("/api/advisor/analytics/gex-heatmap", {
+        method: "POST",
+        body: JSON.stringify({ symbol: gexSymbol.trim().toUpperCase() }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `GEX heatmap returned ${response.status}`);
+      }
+      setGexResult(await response.json());
+    } catch (requestError) {
+      setGexError(requestError instanceof Error ? requestError.message : "Unable to load the GEX heatmap");
+    } finally {
+      setGexLoading(false);
+    }
+  }
+
+  async function loadPlaybooks() {
+    try {
+      const response = await advisorRequest("/api/advisor/playbooks");
+      if (!response.ok) return;
+      const data = await response.json() as { playbooks: PlaybookSummary[] };
+      setPlaybooks(data.playbooks || []);
+    } catch { /* backend may be down */ }
+  }
+
+  async function openPlaybook(id: string) {
+    setPlaybookOpen(id);
+    setPlaybookError("");
+    if (playbookDetail[id]) return;
+    setPlaybookLoading(id);
+    try {
+      const response = await advisorRequest(`/api/advisor/playbooks/${id}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Playbook returned ${response.status}`);
+      }
+      const detail = await response.json() as PlaybookDetail;
+      setPlaybookDetail((prev) => ({ ...prev, [id]: detail }));
+    } catch (requestError) {
+      setPlaybookError(requestError instanceof Error ? requestError.message : "Unable to load the playbook");
+    } finally {
+      setPlaybookLoading("");
+    }
+  }
+
+  async function loadWebhook() {
+    try {
+      const response = await advisorRequest("/api/advisor/alerts/notify");
+      if (!response.ok) return;
+      const config = await response.json() as { configured: boolean; url: string };
+      setWebhookUrl(config.url || "");
+    } catch { /* backend may be down */ }
+  }
+
+  async function saveWebhook(event: FormEvent) {
+    event.preventDefault();
+    setWebhookSaving(true);
+    setWebhookStatus("");
+    if (!webhookUrl.trim().startsWith("https://")) {
+      setWebhookStatus("Webhook URL must start with https://.");
+      setWebhookSaving(false);
+      return;
+    }
+    try {
+      const response = await advisorRequest("/api/advisor/alerts/notify", {
+        method: "POST",
+        body: JSON.stringify({ url: webhookUrl.trim() }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Webhook returned ${response.status}`);
+      }
+      setWebhookStatus("Webhook saved — triggered alerts will be posted here.");
+    } catch (requestError) {
+      setWebhookStatus(requestError instanceof Error ? requestError.message : "Unable to save the webhook");
+    } finally {
+      setWebhookSaving(false);
+    }
+  }
+
+  async function clearWebhook() {
+    setWebhookSaving(true);
+    try {
+      const response = await advisorRequest("/api/advisor/alerts/notify", { method: "DELETE" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Webhook returned ${response.status}`);
+      }
+      setWebhookUrl("");
+      setWebhookStatus("Webhook disabled.");
+    } catch (requestError) {
+      setWebhookStatus(requestError instanceof Error ? requestError.message : "Unable to clear the webhook");
+    } finally {
+      setWebhookSaving(false);
+    }
+  }
+
   async function verifyWithIBKR(result: RecommendationResponse): Promise<RecommendationResponse> {
     const uniqueLegs = new Map<string, { symbol: string; expiry: string; strike: number; right: "C" | "P" }>();
     for (const trade of result.recommendations) for (const leg of trade.legs) {
@@ -1038,6 +1326,106 @@ export default function Home() {
           <div className="trade-title"><p className="eyebrow">{action.symbol} · {action.shares} shares{action.current_price != null ? ` · spot ${action.current_price.toFixed(2)}` : ""}</p><h3>{signalLabel(action.action)}</h3><p>{action.reason}</p></div>
           <div className="trade-metrics"><span><small>HIGHEST HIGH</small><b>{action.highest_high != null ? `$${action.highest_high.toFixed(2)}` : "—"}</b></span><span><small>ACTION</small><b>{signalLabel(action.action)}</b></span></div>
         </article>)}</div>}
+      </section>
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">STRATEGY P/L CALCULATOR · AT EXPIRY</p><h2>Model any structure's payoff</h2><p>Enter the legs and spot to get the classic at-expiry P/L curve: max profit, max loss, breakevens, risk/reward, and probability of profit at expiry when you supply IV and DTE. Pure math over your entries — the premium comes from your own numbers, never invented here.</p></div>
+        </div>
+        <form className="scan-form" onSubmit={calculatePnl}>
+          <div className="pnl-legs">
+            {pnlLegs.map((leg, index) => (
+              <div className="pnl-leg" key={index}>
+                <select aria-label={`Leg ${index + 1} action`} value={leg.action} onChange={(event) => updatePnlLeg(index, "action", event.target.value as "BUY" | "SELL")}><option value="SELL">SELL</option><option value="BUY">BUY</option></select>
+                <select aria-label={`Leg ${index + 1} type`} value={leg.option_type} onChange={(event) => updatePnlLeg(index, "option_type", event.target.value as "call" | "put")}><option value="put">PUT</option><option value="call">CALL</option></select>
+                <input aria-label={`Leg ${index + 1} strike`} value={leg.strike} onChange={(event) => updatePnlLeg(index, "strike", event.target.value)} placeholder="Strike" inputMode="decimal" />
+                <input aria-label={`Leg ${index + 1} premium`} value={leg.entry_price} onChange={(event) => updatePnlLeg(index, "entry_price", event.target.value)} placeholder="Premium / share" inputMode="decimal" />
+                {pnlLegs.length > 1 && <button type="button" className="pnl-remove" aria-label={`Remove leg ${index + 1}`} onClick={() => removePnlLeg(index)}>×</button>}
+              </div>
+            ))}
+          </div>
+          <div className="pnl-inputs">
+            <label>Spot<input className="api" value={pnlSpot} onChange={(event) => setPnlSpot(event.target.value)} inputMode="decimal" aria-label="Spot price" /></label>
+            <label>Contracts<input className="api" value={pnlContracts} onChange={(event) => setPnlContracts(event.target.value)} inputMode="numeric" aria-label="Contracts" /></label>
+            <label>IV<input className="api" value={pnlIv} onChange={(event) => setPnlIv(event.target.value)} inputMode="decimal" aria-label="Implied volatility" /></label>
+            <label>DTE<input className="api" value={pnlDte} onChange={(event) => setPnlDte(event.target.value)} inputMode="numeric" aria-label="Days to expiry" /></label>
+            <button disabled={pnlLoading}>{pnlLoading ? "Calculating…" : "Run P/L calculator"}</button>
+          </div>
+          <div className="pnl-leg-actions"><button type="button" onClick={addPnlLeg}>+ Add leg</button></div>
+        </form>
+        {pnlError && <p className="error">{pnlError}</p>}
+        {pnlResult && !pnlResult.error && <div className="pnl-result">
+          <div className="pnl-grid">
+            <span className="profit"><small>MAX PROFIT</small><b>{dollars(pnlResult.max_profit)}</b></span>
+            <span className="loss"><small>MAX LOSS</small><b>{dollars(Math.abs(pnlResult.max_loss))}</b></span>
+            <span><small>RISK / REWARD</small><b>1 : {pnlResult.risk_reward.toFixed(2)}</b></span>
+            <span><small>NET ENTRY</small><b>{pnlResult.net_entry >= 0 ? "+" : ""}${pnlResult.net_entry.toFixed(2)}</b></span>
+            <span><small>BREAKEVEN{(pnlResult.breakevens || []).length > 1 ? "S" : ""}</small><b>{(pnlResult.breakevens || []).map((be) => be.toFixed(2)).join(" · ") || "—"}</b></span>
+            <span><small>POP AT EXPIRY</small><b>{pnlResult.pop_at_expiry != null ? `${pnlResult.pop_at_expiry.toFixed(1)}%` : "Add IV + DTE"}</b></span>
+            <span><small>PER SHARE</small><b>${pnlResult.net_entry_per_share.toFixed(2)}</b></span>
+            <span><small>SPOT</small><b>${pnlResult.spot.toFixed(2)}</b></span>
+          </div>
+          <PnLCurve result={pnlResult} />
+        </div>}
+        {pnlResult?.error && <p className="error">{pnlResult.error}</p>}
+      </section>
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">DEALER GAMMA EXPOSURE · HEATMAP</p><h2>Where dealer hedging pins or amplifies</h2><p>Net gamma per strike from the free option chain: positive GEX acts as a price magnet (dealers sell rallies, buy dips), negative GEX amplifies moves, and the zero-gamma level is where realized volatility peaks. Free-chain GEX is an approximation of institutional positioning — a context gauge, not a signal by itself.</p></div>
+          <form className="scan-form" onSubmit={loadGex}><input className="api" value={gexSymbol} onChange={(event) => setGexSymbol(event.target.value)} placeholder="Symbol, e.g. SPY" aria-label="GEX symbol" maxLength={8} /><button disabled={gexLoading}>{gexLoading ? "Reading chain…" : "Load GEX heatmap"}</button></form>
+        </div>
+        {gexError && <p className="error">{gexError}</p>}
+        {gexResult && !gexResult.error && <div className="gex-result">
+          <div className="gex-summary">
+            <span><small>UNDERLYING</small><b>${gexResult.underlying.toFixed(2)}</b></span>
+            <span><small>NET GEX</small><b>{gexResult.net_gex >= 0 ? "+" : ""}{gexResult.net_gex.toFixed(1)}M</b></span>
+            <span><small>CALL GEX</small><b>{gexResult.total_call_gex.toFixed(1)}M</b></span>
+            <span><small>PUT GEX</small><b>{gexResult.total_put_gex.toFixed(1)}M</b></span>
+            <span><small>ZERO GAMMA</small><b>{gexResult.zero_gamma_strike != null ? `$${gexResult.zero_gamma_strike.toFixed(0)}` : "—"}</b></span>
+            <span><small>REGIME</small><b>{signalLabel(gexResult.gex_regime)}</b></span>
+          </div>
+          <div className="gex-strip">{Object.entries(gexResult.strike_gex || {}).sort(([a], [b]) => Number(a) - Number(b)).map(([strike, net]) => {
+            const value = Number(net);
+            const isWall = Math.abs(value) >= Math.max(5, Math.abs(gexResult.net_gex) * 0.9);
+            return <div key={strike} className={`gex-cell ${gexHeatBucket(value)}${isWall && gexHeatBucket(value) !== "flat" ? " wall" : ""}`} title={`${strike}: ${value >= 0 ? "+" : ""}${value.toFixed(2)}M dealer GEX`}><small>${Number(strike).toFixed(0)}{gexResult.zero_gamma_strike != null && Math.abs(Number(strike) - gexResult.zero_gamma_strike) < 0.5 ? " · ZG" : ""}</small><b>{value >= 0 ? "+" : ""}{value.toFixed(1)}</b></div>;
+          })}</div>
+          <p className="scan-note">Cell color = |dealer GEX| at that strike. Red = positive wall (support), amber = hot, lime = elevated, grey = flat.</p>
+        </div>}
+        {gexResult?.error && <p className="error">{gexResult.error}</p>}
+      </section>
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">STRATEGY PLAYBOOKS · EDUCATION</p><h2>Playbook library</h2><p>The strategies this engine actually evaluates, tied to the gates the Brain, Recommender, and Trade Manager already enforce — with each strategy's real risk profile spelled out. Education, never an order path.</p></div>
+        </div>
+        <div className="stock-list playbook-grid">
+          {playbooks.map((playbook) => <button type="button" key={playbook.id} className={`stock-card ${playbookOpen === playbook.id ? "selected" : ""}`} onClick={() => openPlaybook(playbook.id)}><small>{signalLabel(playbook.strategy_type)} · {signalLabel(playbook.risk_profile)}</small><b>{playbook.name}</b><span>{playbook.premium_printer ? "premium printer" : "defined-risk"} · open to read</span></button>)}
+        </div>
+        {playbookLoading && <p className="scan-note">Loading playbook…</p>}
+        {playbookError && <p className="error">{playbookError}</p>}
+        {playbookOpen && playbookDetail[playbookOpen] && !playbookDetail[playbookOpen].error && (
+          <div className="playbook-detail">
+            <section><small>MECHANICS</small><p>{playbookDetail[playbookOpen].mechanics}</p></section>
+            <section><small>ENTRY RULES</small><p>{playbookDetail[playbookOpen].entry_rules}</p></section>
+            <section><small>MANAGEMENT</small><p>{playbookDetail[playbookOpen].management}</p></section>
+            <section><small>COMMON MISTAKES</small><p>{playbookDetail[playbookOpen].common_mistakes}</p></section>
+            <section><small>BEST FOR</small><p>{playbookDetail[playbookOpen].best_for}</p></section>
+            <section><small>RISK WARNING</small><p>{playbookDetail[playbookOpen].risk_warning}</p></section>
+          </div>
+        )}
+      </section>
+
+      <section className="opportunity-panel">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">ALERT NOTIFICATIONS · WEBHOOK</p><h2>Route triggered alerts to chat</h2><p>When a saved alert rule fires during a scan, the Advisor posts the event to a Discord or Slack-compatible webhook URL. Delivery is fire-and-forget from a background thread — a down webhook never blocks the scan.</p></div>
+        </div>
+        <form className="scan-form" onSubmit={saveWebhook}>
+          <input className="api" value={webhookUrl} onChange={(event) => setWebhookUrl(event.target.value)} placeholder="https://discord.com/api/webhooks/…" aria-label="Alert webhook URL" />
+          <button disabled={webhookSaving}>{webhookSaving ? "Saving…" : "Save webhook"}</button>
+          <button type="button" className="webhook-clear" onClick={clearWebhook} disabled={webhookSaving}>Disable</button>
+        </form>
+        {webhookStatus && <p className="scan-note">{webhookStatus}</p>}
       </section>
 
       <section className="bridge-panel">

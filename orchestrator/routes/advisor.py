@@ -291,6 +291,10 @@ class AlertGalleryCreateRequest(BaseModel):
     threshold: Optional[Union[float, str]] = None
 
 
+class WebhookConfigRequest(BaseModel):
+    url: str = Field(..., min_length=1, max_length=2048)
+
+
 # === AI Brain Endpoints ===
 
 @router.post("/brain/analyze", dependencies=[Depends(analysis_rate_limit)])
@@ -422,6 +426,28 @@ async def create_alert_from_gallery(request: AlertGalleryCreateRequest):
         one_time=True,
     )
     return {"status": "created", "rule": rule.__dict__}
+
+
+@router.get("/alerts/notify")
+async def get_webhook():
+    """Current alert webhook configuration."""
+    return AlertEngine().get_webhook()
+
+
+@router.post("/alerts/notify")
+async def set_webhook(request: WebhookConfigRequest):
+    """Route triggered alerts to a Discord/Slack-compatible webhook URL.
+
+    Delivery is fire-and-forget from a background thread; a down webhook never
+    blocks the scan. The URL is stored only in the local data dir.
+    """
+    return AlertEngine().set_webhook(request.url)
+
+
+@router.delete("/alerts/notify")
+async def clear_webhook():
+    """Disable webhook delivery."""
+    return AlertEngine().clear_webhook()
 
 
 @router.get("/signals/performance")
@@ -801,6 +827,29 @@ class BacktestStrategyRequest(BaseModel):
     period: str = Field("2y", pattern="^([1-9][0-9]*[dmy]|2y|5y)$")
 
 
+class PnLCalculatorRequest(BaseModel):
+    legs: List[Dict[str, Any]] = Field(default_factory=list, min_length=1, max_length=8)
+    spot: float = Field(..., gt=0)
+    contracts: int = Field(1, ge=1, le=50)
+    iv: Optional[float] = Field(None, gt=0, lt=5)
+    dte: Optional[int] = Field(None, ge=1, le=730)
+    target_prices: Optional[List[float]] = Field(None, max_length=50)
+
+
+class SymbolRequest(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=12)
+
+
+class EquityBacktestRequest(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=12)
+    period: str = Field("2y", pattern="^([1-9][0-9]*[dmy]|2y|5y)$")
+    rsi_max: float = Field(70, gt=5, lt=95)
+    sma_fast: int = Field(50, ge=10, le=100)
+    sma_slow: int = Field(200, ge=50, le=400)
+    momentum_days: int = Field(126, ge=20, le=400)
+    max_holding_days: int = Field(90, ge=5, le=500)
+
+
 def _find_short_leg_mid(chain: List[Dict], position: PositionInput) -> Optional[float]:
     """Current mid of the short leg(s) from a fresh chain, if present.
 
@@ -978,6 +1027,97 @@ async def backtest_strategy(request: BacktestStrategyRequest):
         credit_fraction=request.credit_fraction,
         contracts=request.contracts,
     )
+
+
+@router.post("/analytics/pnl-calculator", dependencies=[Depends(scan_rate_limit)])
+async def pnl_calculator(request: PnLCalculatorRequest):
+    """At-expiry P/L profile for a multi-leg structure (Market Chameleon/tastytrade pattern).
+
+    legs: [{'action': 'SELL'|'BUY', 'option_type': 'call'|'put', 'strike': float,
+    'entry_price': float}]. Returns max profit/loss, breakevens, risk/reward,
+    probability-of-profit at expiry (when iv+dte supplied), and P/L curve
+    points. Pure math; premium comes from the caller, never invented here.
+    """
+    from agents.trade_engine.pnl_calculator import calculate_pnl
+    return calculate_pnl(
+        request.legs,
+        request.spot,
+        contracts=request.contracts,
+        iv=request.iv,
+        dte=request.dte,
+        target_prices=request.target_prices,
+    )
+
+
+@router.post("/analytics/gex-heatmap", dependencies=[Depends(scan_rate_limit)])
+async def gex_heatmap(request: SymbolRequest):
+    """Per-strike dealer GEX heatmap (Flowasis pattern) from the free chain."""
+    symbol = request.symbol.upper()
+    try:
+        price = await provider.get_stock_price(symbol)
+        if not price or price <= 0:
+            raise HTTPException(status_code=422, detail="price unavailable")
+        chain = await provider.get_option_chain(symbol) or []
+        if not chain:
+            raise HTTPException(status_code=422, detail="option chain unavailable")
+        gex_data = GEXEngine(underlying_price=price).calculate_chain_gex(chain, price)
+        if "error" in gex_data:
+            raise HTTPException(status_code=422, detail=gex_data["error"])
+        return gex_data
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("GEX heatmap failed for %s", symbol)
+        raise HTTPException(status_code=502, detail="GEX heatmap unavailable")
+
+
+@router.post("/backtest/equity-momentum", dependencies=[Depends(scan_rate_limit)])
+async def backtest_equity_momentum(request: EquityBacktestRequest):
+    """Long-equity momentum backtest over free daily closes (TradeStation pattern).
+
+    Enters when the equity brain's trend gates agree (price > SMA200, SMA50 >
+    SMA200, RSI below the cap, positive 126-day momentum) and exits on trend
+    failure or the holding-period stop. Simulated equity curve — no fills,
+    commissions, or slippage; results carry ``proxy: true``.
+    """
+    from agents.equity_trader.equity_backtest import backtest_momentum
+    try:
+        hist = await provider.get_historical_prices(request.symbol.upper(), period=request.period)
+        if hist is None or len(hist) < 300:
+            raise HTTPException(status_code=422, detail="insufficient price history")
+        closes = [float(value) for value in hist["Close"].tolist()]
+        dates = [str(day)[:10] for day in hist.index]
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Equity backtest data fetch failed for %s", request.symbol)
+        raise HTTPException(status_code=502, detail="price history unavailable")
+    return backtest_momentum(
+        closes,
+        dates=dates,
+        rsi_max=request.rsi_max,
+        sma_fast=request.sma_fast,
+        sma_slow=request.sma_slow,
+        momentum_days=request.momentum_days,
+        max_holding_days=request.max_holding_days,
+    )
+
+
+@router.get("/playbooks")
+async def list_playbooks():
+    """Strategy playbook library (education, never an order path)."""
+    from agents.trade_engine.playbooks import list_playbooks as _list
+    return {"playbooks": _list()}
+
+
+@router.get("/playbooks/{playbook_id}")
+async def get_playbook(playbook_id: str):
+    """One full strategy playbook."""
+    from agents.trade_engine.playbooks import get_playbook as _get
+    playbook = _get(playbook_id.lower())
+    if playbook.get("error"):
+        raise HTTPException(status_code=404, detail=playbook["error"])
+    return playbook
 
 
 # === Legacy Endpoints ===
