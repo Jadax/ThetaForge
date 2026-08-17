@@ -1,5 +1,29 @@
 # ThetaForge Changelog
 
+## v1.17.0 - 2026-08-16
+
+The terminal now opens with a one-call command center, and the one-call
+`POST /api/advisor/dashboard` endpoint that powers it finally has proper
+test coverage.
+
+- **Command Center** section at the top of the terminal: one form (equity,
+  buying power, optional delta/vega/margin JSON for open positions) fires
+  `POST /api/advisor/dashboard` and renders the VIX/regime read, your account
+  posture (equity, buying power, capital deployed, position count), portfolio
+  risk (net delta and net vega with a within-limits / outside-limits badge
+  — concentrated directional or volatility exposure is surfaced the moment
+  you look), and horizon picks (top watchlist candidates with suitability ≥
+  70% for 1-week and 1-month horizons).  The command center is a one-glance
+  summary — it never places an order.
+- `tests/test_dashboard_endpoint.py` (new, 7 tests): pins the dashboard
+  endpoint's aggregation logic — VIX/regime tier mapping (bullish ≤ 15, bearish
+  ≥ 22, high_vol ≥ 30), default-universe fallback when the watchlist is
+  empty, capital-deployed and within-limits calculations, horizon-pick
+  filtering, and fail-open behavior when individual Brain analyses fail.
+- All three v1.14-v1.16 dashboard sections (P/L calculator, GEX heatmap,
+  chain explorer, alert center, watchlist, scan sheet) remain unchanged and
+  are structurally unaffected — the command center is purely additive.
+
 ## v1.16.0 - 2026-08-16
 
 Two more terminal surfaces, both built on backend that already existed but was

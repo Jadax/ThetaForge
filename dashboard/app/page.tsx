@@ -117,6 +117,24 @@ type WatchlistItem = {
   custom_strategies: string[];
 };
 
+type DashboardTopPick = { symbol: string; signal: string; score: number };
+
+type DashboardResult = {
+  vix: number;
+  regime: string;
+  account: {
+    equity: number;
+    buying_power: number;
+    capital_deployed: number;
+    capital_deployed_pct: number;
+    num_positions: number;
+  };
+  portfolio_risk: { net_delta: number; net_vega: number; within_limits: boolean };
+  watchlist_rankings: Analysis[];
+  top_picks_1w: DashboardTopPick[];
+  top_picks_1m: DashboardTopPick[];
+};
+
 type AssetRead = {
   label: string;
   level?: number;
@@ -549,7 +567,7 @@ const quoteKey = (symbol: string, expiry: string, strike: number, right: string)
 const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v1.16.0";
+const VERSION = "v1.17.0";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -649,6 +667,13 @@ export default function Home() {
   const [watchlistError, setWatchlistError] = useState("");
   const [watchlistRankings, setWatchlistRankings] = useState<Analysis[]>([]);
   const [watchlistAnalyzing, setWatchlistAnalyzing] = useState(false);
+
+  const [commandCenterResult, setCommandCenterResult] = useState<DashboardResult | null>(null);
+  const [commandCapital, setCommandCapital] = useState("100000");
+  const [commandBuyingPower, setCommandBuyingPower] = useState("50000");
+  const [commandPositions, setCommandPositions] = useState("");
+  const [commandLoading, setCommandLoading] = useState(false);
+  const [commandError, setCommandError] = useState("");
 
   // The hosted Advisor holds one shared watchlist, alert set, and notification
   // queue. Every call carries the shared secret so that a public URL does not
@@ -1358,6 +1383,38 @@ export default function Home() {
     }
   }
 
+  async function loadCommandCenter(event: FormEvent) {
+    event.preventDefault();
+    setCommandLoading(true);
+    setCommandError("");
+    setCommandCenterResult(null);
+    try {
+      let positions: unknown[] = [];
+      if (commandPositions.trim()) {
+        const parsed = JSON.parse(commandPositions.trim());
+        positions = Array.isArray(parsed) ? parsed : [];
+      }
+      const res = await advisorRequest("/api/advisor/dashboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          capital: Number(commandCapital) || 100000,
+          buying_power: Number(commandBuyingPower) || 50000,
+          current_positions: positions,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `Command center returned ${res.status}`);
+      }
+      setCommandCenterResult(await res.json() as DashboardResult);
+    } catch (loadError) {
+      setCommandError(loadError instanceof Error ? loadError.message : "Command center could not be loaded.");
+    } finally {
+      setCommandLoading(false);
+    }
+  }
+
   async function verifyWithIBKR(result: RecommendationResponse): Promise<RecommendationResponse> {
     const uniqueLegs = new Map<string, { symbol: string; expiry: string; strike: number; right: "C" | "P" }>();
     for (const trade of result.recommendations) for (const leg of trade.legs) {
@@ -1537,6 +1594,52 @@ export default function Home() {
         </details>
         {!advisorToken && <p className="error">Enter your Advisor API token to load market analysis.</p>}
         {error && <p className="error">{error}. Check the Render Advisor URL, then try again.</p>}
+      </section>
+
+      <section className="opportunity-panel command-center">
+        <div className="opportunity-heading">
+          <div><p className="eyebrow">COMMAND CENTER · ONE-CALL MARKET + PORTFOLIO READ</p><h2>At a glance</h2><p>One call to the Advisor: VIX and the current market regime, your account posture, portfolio-level delta/vega risk, and the best watchlist candidates over one week and one month. Read-only context — nothing here places an order.</p></div>
+          <form className="scan-form" onSubmit={loadCommandCenter}>
+            <input className="api" value={commandCapital} onChange={(event) => setCommandCapital(event.target.value)} placeholder="Equity (default 100,000)" aria-label="Portfolio equity" inputMode="decimal" />
+            <input className="api" value={commandBuyingPower} onChange={(event) => setCommandBuyingPower(event.target.value)} placeholder="Buying power (default 50,000)" aria-label="Buying power" inputMode="decimal" />
+            <textarea className="api" value={commandPositions} onChange={(event) => setCommandPositions(event.target.value)} rows={2} placeholder='[{"symbol":"AAPL","delta":-0.12,"vega":0.02,"margin":1500}]' aria-label="Open positions with delta/vega/margin" />
+            <button disabled={commandLoading}>{commandLoading ? "Reading the tape…" : "Load command center"}</button>
+          </form>
+        </div>
+        {commandError && <p className="error">{commandError}</p>}
+        {commandCenterResult && <>
+          <div className="command-grid">
+            <div className="market-chip"><small>VIX</small><b>{commandCenterResult.vix.toFixed(1)}</b><span>{signalLabel(commandCenterResult.regime)} regime</span></div>
+            <div className="command-card">
+              <small>ACCOUNT</small>
+              <span><b>${commandCenterResult.account.equity.toLocaleString()}</b> equity</span>
+              <span><b>${commandCenterResult.account.buying_power.toLocaleString()}</b> buying power</span>
+              <span><b>${commandCenterResult.account.capital_deployed.toLocaleString()}</b> deployed · <b>{commandCenterResult.account.capital_deployed_pct.toFixed(1)}%</b></span>
+              <span><b>{commandCenterResult.account.num_positions}</b> open position{commandCenterResult.account.num_positions !== 1 ? "s" : ""}</span>
+            </div>
+            <div className={`command-card command-risk ${commandCenterResult.portfolio_risk.within_limits ? "" : "warn"}`}>
+              <small>PORTFOLIO RISK</small>
+              <span><small>NET DELTA</small><b>{commandCenterResult.portfolio_risk.net_delta >= 0 ? "+" : ""}{commandCenterResult.portfolio_risk.net_delta.toFixed(4)}</b></span>
+              <span><small>NET VEGA</small><b>{commandCenterResult.portfolio_risk.net_vega >= 0 ? "+" : ""}{commandCenterResult.portfolio_risk.net_vega.toFixed(4)}</b></span>
+              <span className={commandCenterResult.portfolio_risk.within_limits ? "ok" : "warn"}><small>LIMITS</small><b>{commandCenterResult.portfolio_risk.within_limits ? "Within limits" : "Outside limits"}</b></span>
+            </div>
+          </div>
+          {(commandCenterResult.top_picks_1w.length > 0 || commandCenterResult.top_picks_1m.length > 0) && <div className="command-picks">
+            {commandCenterResult.top_picks_1w.length > 0 && <div className="command-pick-list">
+              <small>TOP PICKS — 1 WEEK</small>
+              {commandCenterResult.top_picks_1w.map((pick) => <div className="command-pick" key={pick.symbol}>
+                <b>{pick.symbol}</b><span className={`scan-score ${pick.score >= 0 ? "bull" : "bear"}`}>{pick.score >= 0 ? "+" : ""}{pick.score.toFixed(0)}</span><span>{signalLabel(pick.signal)}</span>
+              </div>)}
+            </div>}
+            {commandCenterResult.top_picks_1m.length > 0 && <div className="command-pick-list">
+              <small>TOP PICKS — 1 MONTH</small>
+              {commandCenterResult.top_picks_1m.map((pick) => <div className="command-pick" key={pick.symbol}>
+                <b>{pick.symbol}</b><span className={`scan-score ${pick.score >= 0 ? "bull" : "bear"}`}>{pick.score >= 0 ? "+" : ""}{pick.score.toFixed(0)}</span><span>{signalLabel(pick.signal)}</span>
+              </div>)}
+            </div>}
+          </div>}
+        </>}
+        {commandCenterResult && <p className="scan-note">Regime from VIX tier ({commandCenterResult.vix.toFixed(1)}). Portfolio risk = sum of your position deltas and vegas — outside limits means concentrated directional or volatility exposure. Pick thresholds: suitability ≥ 70%.</p>}
       </section>
 
       {!analysis ? <section className="empty"><b>Ready when you are.</b><span>Enter a symbol to combine volatility, technical, flow, PCR, and dealer-positioning context.</span></section> : <>
