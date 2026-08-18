@@ -53,7 +53,14 @@ def _finite_number(value: Any, default: float = 0.0) -> float:
 
 
 class CBOEDataProvider:
-    """Free 15-minute-delayed CBOE quotes (options + indices)."""
+    """Free 15-minute-delayed CBOE quotes (options + indices).
+
+    A single ``httpx.AsyncClient`` is reused for the provider's lifetime,
+    avoiding the ~520 client instantiations per 130-symbol scan that the
+    previous per-request pattern created.  Each client allocated its own
+    connection pool; on Render free tier (512 MB) those transient pools
+    were a significant contributor to OOM events.
+    """
 
     def __init__(self, timeout: float = 10.0, min_request_interval: float = 0.25):
         self.timeout = timeout
@@ -62,6 +69,15 @@ class CBOEDataProvider:
         # universe in reasonable time.
         self.min_interval = min_request_interval
         self._last_request: float = 0.0
+        self._client: Optional[httpx.AsyncClient] = httpx.AsyncClient(
+            timeout=timeout, headers=BROWSER_HEADERS,
+        )
+
+    async def close(self):
+        """Shut down the persistent client (call on process exit if desired)."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
     async def _get_json(self, url: str) -> Optional[Dict[str, Any]]:
         """GET a JSON document with throttling, returning None on any failure."""
@@ -70,9 +86,12 @@ class CBOEDataProvider:
         if wait > 0:
             await asyncio.sleep(wait)
         self._last_request = now
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                timeout=self.timeout, headers=BROWSER_HEADERS,
+            )
         try:
-            async with httpx.AsyncClient(timeout=self.timeout, headers=BROWSER_HEADERS) as client:
-                response = await client.get(url)
+            response = await self._client.get(url)
             if response.status_code == 200:
                 return response.json()
             logger.debug("CBOE %s returned HTTP %s", url, response.status_code)

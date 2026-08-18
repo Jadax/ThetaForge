@@ -56,7 +56,7 @@ class SignalRecord:
 class SignalTracker:
     """
     Tracks Brain signal accuracy over time.
-    
+
     Usage:
         tracker = SignalTracker()
         tracker.record_prediction(symbol, price, signal, score, ...)
@@ -68,8 +68,15 @@ class SignalTracker:
     # Outcomes measured at these horizons
     OUTCOME_HORIZONS = [5, 10, 20, 45]  # trading days
 
+    # In-memory cache TTL in seconds — avoids re-parsing JSON on every Brain
+    # analysis during the same scan pass.
+    _CACHE_TTL = 10.0
+
     def __init__(self):
         self._ensure_files()
+        self._log_cache: Optional[List[Dict]] = None
+        self._log_cache_ts: float = 0.0
+        self._log_cache_mtime: float = 0.0
 
     def _ensure_files(self):
         os.makedirs(DATA_DIR, exist_ok=True)
@@ -79,12 +86,39 @@ class SignalTracker:
                     json.dump([], fh)
 
     def _read_log(self) -> List[Dict]:
+        import time, os
+        now = time.monotonic()
+        try:
+            mtime = os.path.getmtime(SIGNAL_LOG_FILE)
+        except OSError:
+            mtime = 0.0
+        # Serve from cache if: cache exists, TTL not expired, AND the file on
+        # disk was not modified after the cache was populated (mtime check
+        # catches cross-instance writes from the test suite and concurrent
+        # processes).  mtime is compared against _log_cache_mtime (set from
+        # the same os.path.getmtime clock) rather than _log_cache_ts (which
+        # comes from time.monotonic).
+        if (self._log_cache is not None
+                and (now - self._log_cache_ts) < self._CACHE_TTL
+                and mtime <= self._log_cache_mtime):
+            return self._log_cache
         with open(SIGNAL_LOG_FILE, "r") as f:
-            return json.load(f)
+            data = json.load(f)
+        self._log_cache = data
+        self._log_cache_ts = now
+        self._log_cache_mtime = mtime
+        return data
 
     def _write_log(self, data: List[Dict]):
         with open(SIGNAL_LOG_FILE, "w") as f:
             json.dump(data, f, indent=2)
+        import time, os
+        self._log_cache = data
+        self._log_cache_ts = time.monotonic()
+        try:
+            self._log_cache_mtime = os.path.getmtime(SIGNAL_LOG_FILE)
+        except OSError:
+            self._log_cache_mtime = 0.0
 
     def _read_accuracy(self) -> Dict:
         with open(SIGNAL_ACCURACY_FILE, "r") as f:
@@ -125,9 +159,11 @@ class SignalTracker:
 
             log.append(asdict(record))
 
-            # Keep last 5000 records to avoid file bloat
-            if len(log) > 5000:
-                log = log[-5000:]
+            # Keep last 500 records — enough for statistical significance
+            # while keeping the JSON under ~25MB on disk and the parsed
+            # representation under ~50MB in memory on Render free tier.
+            if len(log) > 500:
+                log = log[-500:]
 
             self._write_log(log)
 

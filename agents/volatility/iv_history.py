@@ -31,11 +31,22 @@ MAX_SAMPLES = 500
 
 
 class IVHistoryStore:
-    """Append-only daily IV snapshot store keyed by symbol."""
+    """Append-only daily IV snapshot store keyed by symbol.
+
+    An in-memory cache avoids re-parsing the JSON file on every method call.
+    During a 130-symbol scan the store is called 5-6 times per symbol; without
+    the cache each call re-reads the full file from disk (~18KB, but with
+    parse + dict overhead on every call).  The cache is invalidated on writes
+    and after ``_CACHE_TTL`` seconds.
+    """
+
+    _CACHE_TTL = 10.0  # seconds
 
     def __init__(self, path: str = None):
         self.path = path or DEFAULT_PATH
         self._ensure_file()
+        self._cache: Optional[Dict[str, List[Dict[str, Any]]]] = None
+        self._cache_ts: float = 0.0
 
     def _ensure_file(self):
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
@@ -44,16 +55,26 @@ class IVHistoryStore:
                 json.dump({}, handle)
 
     def _read(self) -> Dict[str, List[Dict[str, Any]]]:
+        import time
+        now = time.monotonic()
+        if self._cache is not None and (now - self._cache_ts) < self._CACHE_TTL:
+            return self._cache
         try:
             with open(self.path, "r", encoding="utf-8") as handle:
                 data = json.load(handle)
-            return data if isinstance(data, dict) else {}
+            result = data if isinstance(data, dict) else {}
         except (OSError, ValueError):
-            return {}
+            result = {}
+        self._cache = result
+        self._cache_ts = now
+        return result
 
     def _write(self, data: Dict[str, List[Dict[str, Any]]]):
         with open(self.path, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2)
+        self._cache = data
+        import time
+        self._cache_ts = time.monotonic()
 
     def record(self, symbol: str, atm_iv: Optional[float], hv_20: Optional[float]):
         """Append today's snapshot once per symbol per day (idempotent)."""

@@ -845,6 +845,14 @@ class BackgroundBrainScanner:
 
         analyzed = await asyncio.gather(*(_analyze_bounded(symbol) for symbol in symbols))
 
+        # The gather above holds transient DataFrames (1y price history),
+        # option-chain payloads, and IV/PCR history stores for every symbol
+        # simultaneously.  Explicitly reclaim them before the sequential
+        # results-processing loop and JSON writes, which otherwise keep the
+        # peak working set inflated on Render's 512 MB tier.
+        import gc
+        gc.collect()
+
         for symbol, data, skip_reason in analyzed:
             if data is None:
                 reason = skip_reason or "unknown"

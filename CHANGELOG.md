@@ -1,5 +1,36 @@
 # ThetaForge Changelog
 
+## v1.17.2 - 2026-08-18
+
+**Fix repeated Render OOM restarts (512 MB free tier).**  The background
+scanner's 130-symbol scan pass was the primary driver: each symbol triggered
+5-6 full JSON file re-reads for IV history and PCR history, the SignalTracker
+re-parsed a growing signal-history file on every Brain analysis, and the
+CBOE data provider allocated a new `httpx.AsyncClient` (with its own TCP
+connection pool) for every single API call — roughly 520 client
+instantiations per scan.  On Render's 512 MB tier these transient
+allocations compounded with the base numpy/scipy/yfinance import footprint
+and pushed the process past its memory ceiling.
+
+- **`signal_tracker.py`**: capped signal history from 5000 to 500 records
+  (still >6 months of data at scan frequency), added an in-memory cache
+  with file-mtime invalidation so the JSON file is re-read at most once
+  per 10 seconds across all `SignalTracker` instances.
+- **`iv_history.py`**: `IVHistoryStore._read()` now caches the parsed dict
+  in-memory with the same mtime-based TTL.  Previously every method call
+  (`iv_rank`, `iv_percentile`, `vrp_zscore`, `iv_change_5d`) re-read the
+  full file from disk — ~650 reads per 130-symbol scan.
+- **`pcr_history.py`**: same in-memory cache added to `PCRHistoryStore`.
+- **`cboe_data.py`**: `CBOEDataProvider` now reuses a single persistent
+  `httpx.AsyncClient` for its lifetime instead of creating a new one per
+  `_get_json()` call (~520 per scan pass).  The previous per-request
+  pattern leaked a TCP connection pool on every five-minute scan — the same
+  bug that was already fixed for the Bridge calls in `background_scanner.py`
+  but was never applied here.
+- **`background_scanner.py`**: added `gc.collect()` after the concurrent
+  scan gather to reclaim transient DataFrames, option-chain payloads, and
+  history-store objects before the sequential results-processing loop.
+
 ## v1.17.1 - 2026-08-18
 
 **Critical fix: the Brain's extreme-VIX veto was dead code, producing zero

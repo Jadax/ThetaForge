@@ -33,11 +33,19 @@ MAX_SAMPLES = 120
 
 
 class PCRHistoryStore:
-    """Append-only daily PCR snapshot store keyed by symbol."""
+    """Append-only daily PCR snapshot store keyed by symbol.
+
+    An in-memory cache avoids re-parsing the JSON file on every method call
+    during a scan pass (same pattern as IVHistoryStore).
+    """
+
+    _CACHE_TTL = 10.0  # seconds
 
     def __init__(self, path: str = None):
         self.path = path or DEFAULT_PATH
         self._ensure_file()
+        self._cache: Optional[Dict[str, List[Dict[str, object]]]] = None
+        self._cache_ts: float = 0.0
 
     def _ensure_file(self):
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
@@ -46,16 +54,26 @@ class PCRHistoryStore:
                 json.dump({}, handle)
 
     def _read(self) -> Dict[str, List[Dict[str, object]]]:
+        import time
+        now = time.monotonic()
+        if self._cache is not None and (now - self._cache_ts) < self._CACHE_TTL:
+            return self._cache
         try:
             with open(self.path, "r", encoding="utf-8") as handle:
                 data = json.load(handle)
-            return data if isinstance(data, dict) else {}
+            result = data if isinstance(data, dict) else {}
         except (OSError, ValueError):
-            return {}
+            result = {}
+        self._cache = result
+        self._cache_ts = now
+        return result
 
     def _write(self, data: Dict[str, List[Dict[str, object]]]):
         with open(self.path, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2)
+        self._cache = data
+        import time
+        self._cache_ts = time.monotonic()
 
     def record(self, symbol: str, pcr: Optional[float]):
         """Append today's snapshot once per symbol per day (idempotent)."""
