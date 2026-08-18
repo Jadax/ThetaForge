@@ -974,6 +974,17 @@ class AIBrain:
                 "reasoning": f"Signal agreement is only {confidence:.0f}% — insufficient confirmation",
             }
 
+        # Extreme VIX fires before any strategy branch (docstring contract).
+        # A VIX spike does not itself authorize selling puts; premium selling
+        # is only safe in a defined moderate-VIX window.  This veto must sit
+        # BEFORE the directional branches so it cannot be skipped.
+        if vix > 30:
+            return {
+                "strategy": "no_trade",
+                "reason_code": "high_vix",
+                "reasoning": f"VIX {vix:.0f} is extreme; wait for a directional and volatility confirmation",
+            }
+
         # High IV + Sideways = sell premium. Iron condors are deliberately
         # limited to their documented moderate-volatility range (OptionsPilot
         # finds the 18-28 VIX zone where ICs win most).
@@ -1054,16 +1065,6 @@ class AIBrain:
                     "reason_code": "put_debit_spread",
                     "reasoning": f"IVR {ivr:.0f} + bearish → debit spread captures downside",
                 }
-
-        # A VIX spike does not itself authorize selling puts. Cash-secured
-        # puts require an explicit assignment-approved underlying list, which
-        # is outside this generic Brain input.
-        if vix > 30:
-            return {
-                "strategy": "no_trade",
-                "reason_code": "high_vix",
-                "reasoning": f"VIX {vix:.0f} is extreme; wait for a directional and volatility confirmation",
-            }
 
         # Absence of edge is a valid decision. A default wheel recommendation
         # can imply permission to sell puts on an underlying the user may not

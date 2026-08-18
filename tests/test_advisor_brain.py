@@ -302,6 +302,30 @@ def test_brain_refuses_directional_premium_on_a_clear_market_laggard():
     assert result["reason_code"] == "laggard"
 
 
+def test_brain_extreme_vix_vetoes_directional_premium_before_strategy_branch():
+    """VIX > 30 must veto bull_put_credit even when IVR, trend, and signal
+    would otherwise authorize it.  This is a regression test for the
+    gate-ordering bug where the VIX veto sat after the strategy branches
+    and was dead code on the bullish path — the recommender then rejected
+    every notification, producing zero trades for weeks."""
+    result = AIBrain()._select_best_strategy(
+        days_to_earnings=None, vix=35, trend="bullish",
+        **_credit_spread_base()
+    )
+    assert result["strategy"] == "no_trade"
+    assert result["reason_code"] == "high_vix"
+
+
+def test_brain_extreme_vix_vetoes_bearish_premium_before_strategy_branch():
+    """Same gate-ordering regression on the bear call path."""
+    result = AIBrain()._select_best_strategy(
+        days_to_earnings=None, vix=35, trend="bearish",
+        **_credit_spread_base(signal=SignalStrength.SELL)
+    )
+    assert result["strategy"] == "no_trade"
+    assert result["reason_code"] == "high_vix"
+
+
 def test_brain_allows_bull_credit_spread_for_a_market_leader():
     result = AIBrain()._select_best_strategy(
         days_to_earnings=None, vix=20, trend="bullish",

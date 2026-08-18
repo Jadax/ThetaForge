@@ -1,5 +1,30 @@
 # ThetaForge Changelog
 
+## v1.17.1 - 2026-08-18
+
+**Critical fix: the Brain's extreme-VIX veto was dead code, producing zero
+trades for ~3 weeks.**  The `vix > 30` check sat after the directional
+strategy branches (`bull_put_credit`, `bear_call_credit`, debit spreads) in
+`_select_best_strategy`, so it was unreachable whenever IVR ≥ 40, the trend
+was directional, and the signal was not sideways — the exact conditions that
+produce real tradeable signals.  Those signals passed the scanner's
+`NOTIFICATION_SCORE_FLOOR` (score 77-87) and landed in the notification
+queue, but the Recommender's `_passes_volatility_gate` correctly blocks all
+premium selling when VIX > 30 (`MAX_VIX_SELL`).  The auto-executor
+acknowledged every notification (consuming it) regardless of whether a trade
+was placed, so the notifications were silently eaten without ever reaching
+the Bridge.
+
+- `ai_brain.py`: moved the `vix > 30` veto from the dead-code tail of
+  `_select_best_strategy` to immediately before the strategy branches,
+  matching the docstring contract ("extreme VIX fires before any strategy
+  branch").  The `no_trade` + `high_vix` result now correctly prevents the
+  scanner from minting notifications for signals the Recommender will reject.
+- Added regression tests in `test_advisor_brain.py`: two new tests that
+  exercise the exact code path that was broken (directional signal + not
+  sideways + IVR ≥ 40 + VIX > 30) and assert `no_trade` / `high_vix` on
+  both the bullish and bearish branches.
+
 ## v1.17.0 - 2026-08-16
 
 The terminal now opens with a one-call command center, and the one-call
