@@ -44,7 +44,7 @@ NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
 # a residential IP hit zero 429s, so this is specific to Render's IP, not a
 # universal CBOE limit -- re-verify against Render's actual logs after
 # changing this, a local measurement will not reproduce the failure.
-SCAN_CONCURRENCY = 5
+SCAN_CONCURRENCY = 3
 
 _EASTERN = ZoneInfo("America/New_York")
 _NYSE_CALENDAR = mcal.get_calendar("NYSE")
@@ -567,7 +567,9 @@ class BackgroundBrainScanner:
             return None, "option_chain_unavailable"
 
         try:
-            vix = await self._provider.get_vix()
+            vix = getattr(self, "_scan_vix", None)
+            if vix is None:
+                vix = await self._provider.get_vix()
             if vix is None:
                 return None, "vix_unavailable"
         except Exception:
@@ -639,7 +641,9 @@ class BackgroundBrainScanner:
             iv_percentile = None
 
         try:
-            vix_term_structure = await self._provider.get_vix_term_structure()
+            vix_term_structure = getattr(self, "_scan_vix_term", None)
+            if vix_term_structure is None:
+                vix_term_structure = await self._provider.get_vix_term_structure()
         except Exception:
             vix_term_structure = None
 
@@ -825,6 +829,19 @@ class BackgroundBrainScanner:
         ]
         if len(clean) != len(old_notifs):
             self._write_json(SCAN_NOTIFICATIONS_FILE, clean)
+
+        # VIX and its term structure are market-wide — fetch once per scan
+        # pass instead of per-symbol (130× fewer network calls).
+        try:
+            _scan_vix = await self._provider.get_vix()
+        except Exception:
+            _scan_vix = None
+        try:
+            _scan_vix_term = await self._provider.get_vix_term_structure()
+        except Exception:
+            _scan_vix_term = None
+        self._scan_vix = _scan_vix
+        self._scan_vix_term = _scan_vix_term
 
         # Every symbol's analysis is I/O-bound (price, chain, VIX, history,
         # desk analytics — each its own network round trip), so a sequential

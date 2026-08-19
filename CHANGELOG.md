@@ -24,6 +24,9 @@ stall for 30+ minutes — or indefinitely when yfinance itself was slow.
   wall time from ~4×serial to ~1×longest.
 - `get_sector_performance` similarly concurrent-fetches all 11 sector
   ETFs instead of sequentially.
+- VIX and VIX term structure are now fetched once per scan pass in
+  `background_scanner.scan_once()` and reused across all ~130 symbols,
+  eliminating 130× redundant network calls per scan.
 
 ## v1.17.2 - 2026-08-18
 
