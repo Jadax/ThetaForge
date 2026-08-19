@@ -118,7 +118,7 @@ class FreeDataProvider:
                 ticker = yf.Ticker(symbol)
                 return float(ticker.fast_info.last_price)
 
-            return await asyncio.to_thread(fetch_price)
+            return await asyncio.wait_for(asyncio.to_thread(fetch_price), timeout=15)
         except Exception as e:
             logger.warning(f"yfinance price fetch failed for {symbol}: {e}")
         return None
@@ -154,7 +154,7 @@ class FreeDataProvider:
                         chain_data.append(self._parse_yf_option(row, exp, "PUT"))
                 return chain_data
 
-            return await asyncio.to_thread(fetch_chain)
+            return await asyncio.wait_for(asyncio.to_thread(fetch_chain), timeout=15)
         except Exception as e:
             logger.error(f"Option chain fetch failed for {symbol}: {e}")
         return []
@@ -162,16 +162,19 @@ class FreeDataProvider:
     async def get_historical_iv(self, symbol: str, period: str = "1y") -> List[float]:
         """Get historical implied volatility using yfinance options data."""
         try:
-            ticker = yf.Ticker(symbol)
-            expirations = ticker.options
-            if not expirations:
+            def _fetch():
+                ticker = yf.Ticker(symbol)
+                expirations = ticker.options
+                if not expirations:
+                    return []
+                chain = ticker.option_chain(expirations[0])
+                atm_calls = chain.calls[
+                    (chain.calls['strike'] - chain.calls['strike'].median()).abs().argsort()[:1]
+                ]
+                if not atm_calls.empty:
+                    return [float(atm_calls['impliedVolatility'].iloc[0])]
                 return []
-            chain = ticker.option_chain(expirations[0])
-            atm_calls = chain.calls[
-                (chain.calls['strike'] - chain.calls['strike'].median()).abs().argsort()[:1]
-            ]
-            if not atm_calls.empty:
-                return [float(atm_calls['impliedVolatility'].iloc[0])]
+            return await asyncio.wait_for(asyncio.to_thread(_fetch), timeout=15)
         except Exception:
             pass
         return []
@@ -196,8 +199,10 @@ class FreeDataProvider:
                 except Exception as error:
                     logger.debug("IBKR proxy history reshape failed for %s: %s", symbol, error)
         try:
-            return await asyncio.to_thread(
-                lambda: yf.Ticker(symbol).history(period=period, interval=interval)
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    lambda: yf.Ticker(symbol).history(period=period, interval=interval)
+                ), timeout=15
             )
         except Exception as e:
             logger.error(f"Historical data failed for {symbol}: {e}")
@@ -206,8 +211,9 @@ class FreeDataProvider:
     async def get_vix(self) -> Optional[float]:
         """Get current VIX level."""
         try:
-            vix = yf.Ticker("^VIX")
-            return float(vix.fast_info.last_price)
+            def _fetch_vix() -> float:
+                return float(yf.Ticker("^VIX").fast_info.last_price)
+            return await asyncio.wait_for(asyncio.to_thread(_fetch_vix), timeout=15)
         except Exception:
             return None
 
@@ -215,23 +221,42 @@ class FreeDataProvider:
         """Latest closes of VIX9D / VIX3M / VIX6M / VIX1Y.
 
         Primary source is Yahoo's VIX index tickers; the CBOE daily-history
-        feed is the fallback. A missing index stays None rather than being
+        feed is the fallback.  A missing index stays None rather than being
         replaced with a placeholder.
         """
         structure: Dict[str, Optional[float]] = {
             index: None for index in ("VIX9D", "VIX3M", "VIX6M", "VIX1Y")
         }
         yahoo_map = {"VIX9D": "^VIX9D", "VIX3M": "^VIX3M", "VIX6M": "^VIX6M", "VIX1Y": "^VIX1Y"}
-        for index, ticker_symbol in yahoo_map.items():
+
+        def _fetch_yf_vix(ticker_symbol: str) -> Optional[float]:
             try:
-                ticker = yf.Ticker(ticker_symbol)
-                price = float(ticker.fast_info.last_price)
-                if price > 0:
-                    structure[index] = round(price, 2)
+                price = float(yf.Ticker(ticker_symbol).fast_info.last_price)
+                return price if price > 0 else None
             except Exception:
-                continue
+                return None
+
+        # Fetch all four VIX indices concurrently instead of sequentially.
+        vix_tasks = {
+            index: asyncio.wait_for(asyncio.to_thread(_fetch_yf_vix, sym), timeout=15)
+            for index, sym in yahoo_map.items()
+        }
+        results = await asyncio.gather(*vix_tasks.values(), return_exceptions=True)
+        for index, result in zip(vix_tasks.keys(), results):
+            if isinstance(result, (int, float)):
+                structure[index] = round(result, 2)
+
         if all(value is not None for value in structure.values()):
             return structure
+        # Fill any gaps from the CBOE daily-history feed (no key required).
+        try:
+            cboe_structure = await self.cboe.get_vix_term_structure()
+            for index, value in cboe_structure.items():
+                if structure.get(index) is None:
+                    structure[index] = value
+        except Exception as error:
+            logger.debug("CBOE VIX term structure unavailable: %s", error)
+        return structure
         # Fill any gaps from the CBOE daily-history feed (no key required).
         try:
             cboe_structure = await self.cboe.get_vix_term_structure()
@@ -279,7 +304,7 @@ class FreeDataProvider:
                     if candidate >= today:
                         return candidate.date()
                 return None
-            return await asyncio.to_thread(fetch_next)
+            return await asyncio.wait_for(asyncio.to_thread(fetch_next), timeout=15)
         except Exception as error:
             logger.debug("Earnings date unavailable for %s: %s", symbol, error)
             return None
@@ -314,7 +339,7 @@ class FreeDataProvider:
                         int(float(shares_short)) if shares_short is not None else None
                     ),
                 }
-            return await asyncio.to_thread(fetch_short)
+            return await asyncio.wait_for(asyncio.to_thread(fetch_short), timeout=15)
         except Exception as error:
             logger.debug("Short interest unavailable for %s: %s", symbol, error)
             return None
@@ -336,7 +361,7 @@ class FreeDataProvider:
                         candidate = index.tz_convert(None)
                     dates.append(pd.Timestamp(candidate).normalize().date())
                 return sorted(dates)
-            return await asyncio.to_thread(fetch_dates)
+            return await asyncio.wait_for(asyncio.to_thread(fetch_dates), timeout=15)
         except Exception as error:
             logger.debug("Earnings dates unavailable for %s: %s", symbol, error)
             return []
@@ -344,7 +369,9 @@ class FreeDataProvider:
     async def get_vix_history(self, period: str = "1y") -> pd.DataFrame:
         """Get historical VIX data."""
         try:
-            return yf.Ticker("^VIX").history(period=period)
+            def _fetch():
+                return yf.Ticker("^VIX").history(period=period)
+            return await asyncio.wait_for(asyncio.to_thread(_fetch), timeout=15)
         except Exception:
             return pd.DataFrame()
 
@@ -384,7 +411,10 @@ class FreeDataProvider:
                 logger.warning("Yahoo screener failed for %s: %s", name, error)
                 return []
 
-        groups = await asyncio.gather(*(asyncio.to_thread(fetch_screener, name) for name in screeners))
+        groups = await asyncio.gather(*(
+            asyncio.wait_for(asyncio.to_thread(fetch_screener, name), timeout=30)
+            for name in screeners
+        ), return_exceptions=True)
         symbols: List[str] = []
         for group in groups:
             for symbol in group:
@@ -403,15 +433,24 @@ class FreeDataProvider:
             "XLB": "Materials", "XLRE": "Real Estate", "XLC": "Communication",
         }
         perf = {}
-        for etf, name in sectors.items():
+
+        def _fetch_one(etf: str) -> Optional[float]:
             try:
-                ticker = yf.Ticker(etf)
-                hist = ticker.history(period="5d")
+                hist = yf.Ticker(etf).history(period="5d")
                 if len(hist) >= 2:
-                    ret = (hist["Close"].iloc[-1] / hist["Close"].iloc[0] - 1) * 100
-                    perf[name] = round(ret, 2)
+                    return round((hist["Close"].iloc[-1] / hist["Close"].iloc[0] - 1) * 100, 2)
             except Exception:
                 pass
+            return None
+
+        tasks = {
+            name: asyncio.wait_for(asyncio.to_thread(_fetch_one, etf), timeout=15)
+            for etf, name in sectors.items()
+        }
+        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        for name, result in zip(tasks.keys(), results):
+            if isinstance(result, (int, float)):
+                perf[sectors[name]] = result
         return perf
 
     def _parse_yf_option(self, row, expiry: str, opt_type: str) -> Dict[str, Any]:

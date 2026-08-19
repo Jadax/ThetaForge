@@ -1,5 +1,30 @@
 # ThetaForge Changelog
 
+## v1.17.3 - 2026-08-19
+
+**Fix scan hang on Render free tier (0.1 vCPU).**  The background scanner
+called several yfinance methods (`get_vix`, `get_vix_term_structure`,
+`get_vix_history`, `get_historical_prices`, `get_historical_iv`,
+`get_sector_performance`, `get_active_stock_universe` screeners) directly
+inside `async` functions without wrapping them in `asyncio.to_thread` or
+`asyncio.wait_for`.  Because yfinance's HTTP calls are synchronous, each
+one blocked the event loop for the entire process, serializing the 5
+concurrent scan tasks into a single-threaded crawl.  On 0.1 vCPU with
+~130 symbols each needing multiple yfinance calls, a full scan pass could
+stall for 30+ minutes — or indefinitely when yfinance itself was slow.
+
+- Every yfinance call in `free_data.py` now runs inside
+  `asyncio.wait_for(asyncio.to_thread(...), timeout=15)`, which (a) moves
+  the blocking I/O off the event loop so the 5 scan tasks truly run
+  concurrently, and (b) kills any single yfinance call that hangs for
+  more than 15 seconds, preventing one slow ticker from freezing the
+  entire scan.
+- `get_vix_term_structure` now fetches all four VIX indices concurrently
+  via `asyncio.gather` instead of sequentially in a for-loop, cutting its
+  wall time from ~4×serial to ~1×longest.
+- `get_sector_performance` similarly concurrent-fetches all 11 sector
+  ETFs instead of sequentially.
+
 ## v1.17.2 - 2026-08-18
 
 **Fix repeated Render OOM restarts (512 MB free tier).**  The background
