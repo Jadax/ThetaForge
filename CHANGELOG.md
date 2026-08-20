@@ -1,5 +1,13 @@
 # ThetaForge Changelog
 
+## v1.17.5 - 2026-08-20
+
+- Fixed the IBKR market-data history adapter to return the same capitalized
+  `Open/High/Low/Close/Volume` contract as yfinance. Proxy-backed scans now
+  retain their history instead of silently falling through and being marked
+  `history_unavailable`.
+- Added a regression test covering the IBKR history normalization.
+
 ## v1.17.4 - 2026-08-20
 
 **Fix Render OOM: per-symbol IVHistoryStore/PCRHistoryStore duplication.**

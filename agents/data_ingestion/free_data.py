@@ -193,7 +193,11 @@ class FreeDataProvider:
                     if {"close", "high", "low", "volume"}.issubset(frame.columns):
                         frame["Date"] = pd.to_datetime(frame["date"], errors="coerce")
                         frame = frame.set_index("Date")[["open", "high", "low", "close", "volume"]]
-                        frame = frame.dropna(subset=["close"])
+                        # Keep the provider contract identical to yfinance's
+                        # OHLCV frame. The scanner and technical engines use
+                        # canonical capitalized names regardless of source.
+                        frame.columns = ["Open", "High", "Low", "Close", "Volume"]
+                        frame = frame.dropna(subset=["Close"])
                         if not frame.empty:
                             return frame
                 except Exception as error:
