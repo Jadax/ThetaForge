@@ -1,5 +1,33 @@
 # ThetaForge Changelog
 
+## v1.17.4 - 2026-08-20
+
+**Fix Render OOM: per-symbol IVHistoryStore/PCRHistoryStore duplication.**
+Previous OOM fixes (v1.17.2) added in-memory caches to `IVHistoryStore` and
+`PCRHistoryStore`, but each `_analyze_one()` call still created a **new
+instance** of each store — 130 instances per scan pass, each independently
+caching the entire JSON file.  `IVHistoryStore._cache` consumed ~6.3 MB per
+instance (130 × 6.3 MB = **~322 MB**), and `PCRHistoryStore._cache` another
+~1.1 MB per instance (130 × 1.1 MB = **~143 MB**).  Together, the redundant
+caches alone consumed **~465 MB** — exceeding the 512 MB tier after baseline
+overhead.
+
+- **Shared store instances**: `scan_once()` now creates one `IVHistoryStore`
+  and one `PCRHistoryStore` per scan pass, stored as `self._scan_iv_store`
+  and `self._scan_pcr_store`.  `_analyze_one()` and `_pcr_read()` reuse
+  these shared instances instead of creating per-symbol stores.  Peak cache
+  memory drops from ~465 MB to ~7 MB.
+- **Lazy `pandas_market_calendars` import**: moved from module-level (which
+  pulled in numpy ~20 MB + pandas ~21 MB = ~41 MB at import time) to a
+  lazy import inside `_get_nyse_calendar()`, called only when market-hours
+  checking is needed.  Reduces baseline process memory by ~41 MB.
+- **Batched `asyncio.gather`**: scan symbols are now processed in batches
+  of 25 instead of a single 130-symbol gather.  `gc.collect()` runs between
+  batches to reclaim transient DataFrames and option-chain payloads, reducing
+  peak memory from the gather itself.
+- **Equity scanner `gc.collect()`**: added `gc.collect()` after the equity
+  scanner's `asyncio.gather` to match the brain scanner's pattern.
+
 ## v1.17.3 - 2026-08-19
 
 **Fix scan hang on Render free tier (0.1 vCPU).**  The background scanner

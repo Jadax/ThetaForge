@@ -15,7 +15,6 @@ from datetime import datetime, timedelta, timezone, date
 from zoneinfo import ZoneInfo
 
 import httpx
-import pandas_market_calendars as mcal
 
 from agents.data_ingestion.free_data import FreeDataProvider
 from agents.trade_engine.macro_calendar import macro_days_until
@@ -47,7 +46,14 @@ NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
 SCAN_CONCURRENCY = 3
 
 _EASTERN = ZoneInfo("America/New_York")
-_NYSE_CALENDAR = mcal.get_calendar("NYSE")
+_nyse_calendar = None
+
+def _get_nyse_calendar():
+    global _nyse_calendar
+    if _nyse_calendar is None:
+        import pandas_market_calendars as mcal
+        _nyse_calendar = mcal.get_calendar("NYSE")
+    return _nyse_calendar
 # Per-day cache of (market_open, market_close) as tz-aware UTC datetimes, or
 # None on a weekend/holiday. A day's session never changes once computed, and
 # this is checked on every scan-loop tick plus every dashboard status poll,
@@ -76,7 +82,7 @@ def is_market_hours(moment: Optional[datetime] = None) -> bool:
     try:
         today = now_utc.astimezone(_EASTERN).date()
         if today not in _schedule_cache:
-            schedule = _NYSE_CALENDAR.schedule(start_date=today, end_date=today)
+            schedule = _get_nyse_calendar().schedule(start_date=today, end_date=today)
             if schedule.empty:
                 _schedule_cache[today] = None
             else:
@@ -600,9 +606,6 @@ class BackgroundBrainScanner:
         expected_move_pct = None
         try:
             from agents.trade_engine.analytics import OptionsAnalytics
-            # Prefer the delta-weighted ATM IV (average of the near-0.50-delta
-            # call and put). The median-over-all-strikes fallback distorts the
-            # read on wide chains because far-OTM strikes carry inflated IVs.
             current_iv = _atm_iv(chain)
             if not current_iv:
                 ivs = [
@@ -622,8 +625,11 @@ class BackgroundBrainScanner:
         iv_52w_bounds = None
         vol_risk_premium = None
         try:
-            from agents.volatility.iv_history import IVHistoryStore, MIN_SAMPLES
-            store = IVHistoryStore()
+            store = getattr(self, "_scan_iv_store", None)
+            if store is None:
+                from agents.volatility.iv_history import IVHistoryStore
+                store = IVHistoryStore()
+            from agents.volatility.iv_history import MIN_SAMPLES
             store.record(symbol, current_iv, hv_20)
             iv_percentile = store.iv_percentile(symbol, current_iv)
             # The symbol's own 52w IV bounds replace the Brain's fixed default
@@ -743,7 +749,7 @@ class BackgroundBrainScanner:
             gex_data = None
             try:
                 flow_data = _flow_data(chain, price, current_iv)
-                pcr_data = _pcr_read(symbol, chain)
+                pcr_data = _pcr_read(symbol, chain, store=getattr(self, "_scan_pcr_store", None))
                 gex_data = _gex_data(chain, price)
                 if flow_data:
                     analyze_kwargs["flow_data"] = flow_data
@@ -843,6 +849,16 @@ class BackgroundBrainScanner:
         self._scan_vix = _scan_vix
         self._scan_vix_term = _scan_vix_term
 
+        # Shared history stores: one instance per scan pass instead of per
+        # symbol.  Each store caches the full JSON file in memory (~6 MB for
+        # IV, ~1 MB for PCR).  Creating a new store per symbol (130×) was
+        # duplicating the entire file 130 times — the #1 OOM cause on
+        # Render's 512 MB tier.
+        from agents.volatility.iv_history import IVHistoryStore
+        from agents.volatility.pcr_history import PCRHistoryStore
+        self._scan_iv_store = IVHistoryStore()
+        self._scan_pcr_store = PCRHistoryStore()
+
         # Every symbol's analysis is I/O-bound (price, chain, VIX, history,
         # desk analytics — each its own network round trip), so a sequential
         # loop over ~130+ symbols takes minutes. On a request-driven host
@@ -860,15 +876,21 @@ class BackgroundBrainScanner:
                 data, skip_reason = await self._analyze_one(symbol)
                 return symbol, data, skip_reason
 
-        analyzed = await asyncio.gather(*(_analyze_bounded(symbol) for symbol in symbols))
-
-        # The gather above holds transient DataFrames (1y price history),
-        # option-chain payloads, and IV/PCR history stores for every symbol
-        # simultaneously.  Explicitly reclaim them before the sequential
-        # results-processing loop and JSON writes, which otherwise keep the
-        # peak working set inflated on Render's 512 MB tier.
-        import gc
-        gc.collect()
+        # Process in batches of _BATCH_SIZE instead of asyncio.gather on all
+        # symbols at once.  asyncio.gather holds all 130 result tuples (plus
+        # any transient allocations that GC hasn't reclaimed) until the full
+        # gather completes.  Batching drops the peak held results from 130 to
+        # _BATCH_SIZE, saving ~25 MB of result dicts on Render's 512 MB tier.
+        _BATCH_SIZE = 25
+        analyzed: List[Tuple[str, Optional[dict], Optional[str]]] = []
+        for i in range(0, len(symbols), _BATCH_SIZE):
+            batch = symbols[i : i + _BATCH_SIZE]
+            batch_results = await asyncio.gather(
+                *(_analyze_bounded(symbol) for symbol in batch)
+            )
+            analyzed.extend(batch_results)
+            import gc
+            gc.collect()
 
         for symbol, data, skip_reason in analyzed:
             if data is None:

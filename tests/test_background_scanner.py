@@ -191,7 +191,8 @@ def test_is_market_hours_falls_back_when_calendar_lookup_errors(monkeypatch):
     def broken_schedule(*_args, **_kwargs):
         raise RuntimeError("calendar library unavailable")
 
-    monkeypatch.setattr(scanner_module._NYSE_CALENDAR, "schedule", broken_schedule)
+    nyse = scanner_module._get_nyse_calendar()
+    monkeypatch.setattr(nyse, "schedule", broken_schedule)
     scanner_module._schedule_cache.clear()
 
     wednesday_10am_et = datetime(2026, 8, 12, 14, 0, tzinfo=timezone.utc)
@@ -370,7 +371,7 @@ async def test_analyze_one_feeds_flow_pcr_gex_to_the_brain(scanner, monkeypatch)
     monkeypatch.setattr(scanner_module, "_flow_data",
                         lambda chain, price, iv: {"bias": "bullish", "total_signals": 2})
     monkeypatch.setattr(scanner_module, "_pcr_read",
-                        lambda symbol, chain: {"current": 1.5, "historical": [], "put_volume": 300, "call_volume": 200})
+                        lambda symbol, chain, store=None: {"current": 1.5, "historical": [], "put_volume": 300, "call_volume": 200})
     monkeypatch.setattr(scanner_module, "_gex_data",
                         lambda chain, price: {"gex_regime": "NEUTRAL", "net_gex": 0.0})
     scanner._brain = FakeBrain()

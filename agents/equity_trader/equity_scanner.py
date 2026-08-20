@@ -234,6 +234,9 @@ class EquityBackgroundScanner:
 
         await asyncio.gather(*(_one(symbol) for symbol in symbols))
 
+        import gc
+        gc.collect()
+
         for symbol, data in results.items():
             signature = f"{data.get('signal')}|{round(float(data.get('score') or 0), 1)}|{data.get('strategy')}"
             if data.get("signal") == "buy" and float(data.get("score") or 0) >= EQUITY_NOTIFICATION_SCORE_FLOOR:
