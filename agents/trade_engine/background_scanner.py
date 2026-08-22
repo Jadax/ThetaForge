@@ -330,6 +330,135 @@ def _gex_data(chain: List[Dict], stock_price: float) -> Optional[Dict]:
         logger.debug("GEX computation failed; dealer-positioning signal disabled", exc_info=True)
         return None
 
+
+def _enrich_and_analyze(
+    brain,
+    chain, price, closes, high_prices, low_prices, vix,
+    current_iv, hv_20, iv_store, pcr_store,
+    days_to_earnings, days_to_macro, vix_term_structure,
+    expected_move_pct, iv_percentile, iv_skew,
+    short_interest, earnings_move, vol_risk_premium,
+    relative_strength, symbol,
+):
+    """CPU-bound enrichment + Brain analysis, run in a thread via to_thread.
+
+    Keeps the event loop free so health checks and other requests are not
+    blocked by the ~0.1-1s of signal computation per symbol.
+    """
+    hv_20_val = hv_20
+    try:
+        from agents.volatility.iv_metrics import realized_volatility
+        hv_20_val = realized_volatility(closes)
+    except Exception:
+        pass
+
+    cur_iv = current_iv
+    exp_move = expected_move_pct
+    try:
+        from agents.trade_engine.analytics import OptionsAnalytics
+        cur_iv = _atm_iv(chain)
+        if not cur_iv:
+            ivs = [
+                float(opt.get("implied_volatility") or 0)
+                for opt in chain
+                if opt.get("implied_volatility")
+            ]
+            if ivs:
+                cur_iv = sorted(ivs)[len(ivs) // 2]
+        if cur_iv and cur_iv > 0 and price > 0:
+            move = OptionsAnalytics().expected_move(price, cur_iv, 30)
+            exp_move = move.get("expected_move_pct")
+    except Exception:
+        cur_iv = None
+
+    iv_pct = iv_percentile
+    iv_bounds = None
+    vrp = vol_risk_premium
+    try:
+        store = iv_store
+        if store is not None:
+            from agents.volatility.iv_history import MIN_SAMPLES
+            store.record(symbol, cur_iv, hv_20_val)
+            iv_pct = store.iv_percentile(symbol, cur_iv)
+            if store.sample_count(symbol) >= MIN_SAMPLES:
+                iv_bounds = store.iv_52w_range(symbol, cur_iv)
+            vrp_z = store.vrp_zscore(symbol, cur_iv, hv_20_val)
+            vrp = {
+                "vrp": round(cur_iv - hv_20_val, 4) if cur_iv and hv_20_val else None,
+                "vrp_z": vrp_z,
+                "iv_change_5d": store.iv_change_5d(symbol),
+            }
+    except Exception:
+        pass
+
+    try:
+        days_to_macro = macro_days_until()
+    except Exception:
+        days_to_macro = None
+
+    try:
+        iv_skew_val = calculate_iv_skew(chain) if iv_skew is None else iv_skew
+    except Exception:
+        iv_skew_val = None
+
+    earnings_move_val = earnings_move
+    try:
+        from agents.volatility.desk_analytics import (
+            implied_earnings_move,
+        )
+        if cur_iv and price > 0:
+            implied = implied_earnings_move(chain, price)
+            if implied:
+                earnings_move_val = earnings_move  # already computed async
+    except Exception:
+        pass
+
+    flow_data = None
+    pcr_data = None
+    gex_data = None
+    try:
+        flow_data = _flow_data(chain, price, cur_iv)
+        pcr_data = _pcr_read(symbol, chain, store=pcr_store)
+        gex_data = _gex_data(chain, price)
+    except Exception:
+        pass
+
+    analyze_kwargs = dict(
+        symbol=symbol,
+        stock_price=price,
+        option_chain=chain,
+        historical_prices=closes,
+        high_prices=high_prices,
+        low_prices=low_prices,
+        vix=vix,
+        current_iv=cur_iv if cur_iv else 0.20,
+        hv_20=hv_20_val if hv_20_val else 0.18,
+        days_to_earnings=days_to_earnings,
+        days_to_macro=days_to_macro,
+        vix_term_structure=vix_term_structure,
+        expected_move_pct=exp_move,
+        iv_percentile=iv_pct,
+        iv_skew=iv_skew_val,
+        short_interest=short_interest,
+        earnings_move=earnings_move_val,
+        vol_risk_premium=vrp,
+        relative_strength=relative_strength,
+    )
+    if flow_data:
+        analyze_kwargs["flow_data"] = flow_data
+    if pcr_data:
+        analyze_kwargs["pcr_data"] = pcr_data
+    if gex_data:
+        analyze_kwargs["gex_data"] = gex_data
+    if iv_bounds:
+        analyze_kwargs["iv_52w_high"] = iv_bounds["iv_52w_high"]
+        analyze_kwargs["iv_52w_low"] = iv_bounds["iv_52w_low"]
+
+    result = brain.analyze(**analyze_kwargs, record_feedback=True)
+
+    return result, flow_data, pcr_data, gex_data, cur_iv, hv_20_val
+
+
 # Liquid options underlyings — most actively traded US ETFs and large-caps.
 # These are the first-pass scan targets; the screener discovers additional names.
 LIQUID_OPTIONS_UNIVERSE = [
@@ -596,55 +725,18 @@ class BackgroundBrainScanner:
         # percentile. Every enrichment degrades to None on failure — the Brain
         # already treats missing data as neutral — so a single broken source
         # can never make a non-signal tradeable (or vice-versa).
-        try:
-            from agents.volatility.iv_metrics import realized_volatility
-            hv_20 = realized_volatility(closes)
-        except Exception:
-            hv_20 = None
-
         current_iv = None
+        hv_20 = None
         expected_move_pct = None
-        try:
-            from agents.trade_engine.analytics import OptionsAnalytics
-            current_iv = _atm_iv(chain)
-            if not current_iv:
-                ivs = [
-                    float(opt.get("implied_volatility") or 0)
-                    for opt in chain
-                    if opt.get("implied_volatility")
-                ]
-                if ivs:
-                    current_iv = sorted(ivs)[len(ivs) // 2]
-            if current_iv and current_iv > 0 and price > 0:
-                move = OptionsAnalytics().expected_move(price, current_iv, 30)
-                expected_move_pct = move.get("expected_move_pct")
-        except Exception:
-            current_iv = None
-
         iv_percentile = None
-        iv_52w_bounds = None
         vol_risk_premium = None
-        try:
-            store = getattr(self, "_scan_iv_store", None)
-            if store is None:
-                from agents.volatility.iv_history import IVHistoryStore
-                store = IVHistoryStore()
-            from agents.volatility.iv_history import MIN_SAMPLES
-            store.record(symbol, current_iv, hv_20)
-            iv_percentile = store.iv_percentile(symbol, current_iv)
-            # The symbol's own 52w IV bounds replace the Brain's fixed default
-            # band once enough history exists; otherwise the default band is
-            # left in place (the store's docstring: too thin to trust).
-            if store.sample_count(symbol) >= MIN_SAMPLES:
-                iv_52w_bounds = store.iv_52w_range(symbol, current_iv)
-            vrp_z = store.vrp_zscore(symbol, current_iv, hv_20)
-            vol_risk_premium = {
-                "vrp": round(current_iv - hv_20, 4) if current_iv and hv_20 else None,
-                "vrp_z": vrp_z,
-                "iv_change_5d": store.iv_change_5d(symbol),
-            }
-        except Exception:
-            iv_percentile = None
+        iv_skew = None
+        days_to_macro = None
+        relative_strength = None
+        vix_term_structure = None
+        days_to_earnings = None
+        earnings_move = None
+        short_interest = None
 
         try:
             vix_term_structure = getattr(self, "_scan_vix_term", None)
@@ -659,18 +751,6 @@ class BackgroundBrainScanner:
         except Exception:
             days_to_earnings = None
 
-        # Days until the next scheduled FOMC/CPI/NFP print — market-wide, so
-        # the same value feeds every symbol. None (no known future event) fails
-        # open: the Brain treats it as neutral, never as a veto.
-        try:
-            days_to_macro = macro_days_until()
-        except Exception:
-            days_to_macro = None
-
-        # Relative strength vs the market (IBD "L" rule): the symbol's 6-month
-        # (126-trading-day) return minus SPY's. Fed to the Brain as a hard veto
-        # on directional short premium against clear laggards. Missing data is
-        # soft — it disables the RS veto, never fabricates one.
         try:
             spy_ret = await self._spy_126_return()
             window = closes[-126:] if len(closes) >= 126 else closes
@@ -682,22 +762,11 @@ class BackgroundBrainScanner:
         except Exception:
             relative_strength = None
 
-        # Desk analytics (all fail-closed to None): IV skew from the chain's
-        # per-strike deltas, short interest via yfinance, and the earnings
-        # implied-vs-realized move read. None of these can fabricate an edge
-        # when the source data is missing.
-        try:
-            from agents.volatility.desk_analytics import calculate_iv_skew
-            iv_skew = calculate_iv_skew(chain)
-        except Exception:
-            iv_skew = None
-
         try:
             short_interest = await self._provider.get_short_interest(symbol)
         except Exception:
             short_interest = None
 
-        earnings_move = None
         try:
             from agents.volatility.desk_analytics import (
                 implied_earnings_move,
@@ -717,54 +786,20 @@ class BackgroundBrainScanner:
 
         try:
             brain = await self._lazy_brain()
-            analyze_kwargs = dict(
-                symbol=symbol,
-                stock_price=price,
-                option_chain=chain,
-                historical_prices=closes,
-                high_prices=high_prices,
-                low_prices=low_prices,
-                vix=vix,
-                current_iv=current_iv if current_iv else 0.20,
-                hv_20=hv_20 if hv_20 else 0.18,
-                days_to_earnings=days_to_earnings,
-                days_to_macro=days_to_macro,
-                vix_term_structure=vix_term_structure,
-                expected_move_pct=expected_move_pct,
-                iv_percentile=iv_percentile,
-                iv_skew=iv_skew,
-                short_interest=short_interest,
-                earnings_move=earnings_move,
-                vol_risk_premium=vol_risk_premium,
-                relative_strength=relative_strength,
+
+            result, flow_data, pcr_data, gex_data, current_iv, hv_20 = (
+                await asyncio.to_thread(
+                    _enrich_and_analyze,
+                    brain, chain, price, closes, high_prices, low_prices, vix,
+                    None, None,
+                    getattr(self, "_scan_iv_store", None),
+                    getattr(self, "_scan_pcr_store", None),
+                    days_to_earnings, days_to_macro, vix_term_structure,
+                    expected_move_pct, iv_percentile, iv_skew,
+                    short_interest, earnings_move, vol_risk_premium,
+                    relative_strength, symbol,
+                )
             )
-            # Flow, put/call sentiment, and dealer GEX are real signal buckets
-            # in the Brain's regime weights but were previously only fed by the
-            # manual /brain/analyze path -- the background scan ran with those
-            # weights inert. Each read fails closed to None and the Brain
-            # treats a missing read as neutral, so a broken source can never
-            # fabricate a signal. The PCR store write is idempotent per day.
-            flow_data = None
-            pcr_data = None
-            gex_data = None
-            try:
-                flow_data = _flow_data(chain, price, current_iv)
-                pcr_data = _pcr_read(symbol, chain, store=getattr(self, "_scan_pcr_store", None))
-                gex_data = _gex_data(chain, price)
-                if flow_data:
-                    analyze_kwargs["flow_data"] = flow_data
-                if pcr_data:
-                    analyze_kwargs["pcr_data"] = pcr_data
-                if gex_data:
-                    analyze_kwargs["gex_data"] = gex_data
-            except Exception:
-                logger.exception("Flow/PCR/GEX enrichment failed for %s", symbol)
-            # Per-symbol 52w IV bounds from the symbol's own history replace
-            # the Brain's fixed default band once enough samples exist.
-            if iv_52w_bounds:
-                analyze_kwargs["iv_52w_high"] = iv_52w_bounds["iv_52w_high"]
-                analyze_kwargs["iv_52w_low"] = iv_52w_bounds["iv_52w_low"]
-            result = brain.analyze(**analyze_kwargs, record_feedback=True)
             return {
                 "score": result.overall_score,
                 "signal": result.overall_signal.value,

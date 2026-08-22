@@ -155,7 +155,8 @@ class EquityBackgroundScanner:
             days_to_macro = None
 
         try:
-            result = self._brain.analyze(
+            result = await asyncio.to_thread(
+                self._brain.analyze,
                 symbol=symbol.upper(),
                 closes=closes,
                 highs=highs,

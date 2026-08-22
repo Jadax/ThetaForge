@@ -1,5 +1,25 @@
 # ThetaForge Changelog
 
+## v1.17.6 - 2026-08-20
+
+**Fix health-check timeout + OOM: move ALL CPU-bound work off the event loop.**
+
+The background scanner's `_analyze_one()` ran every symbol's IV enrichment,
+flow/PCR/GEX analysis, and `brain.analyze()` synchronously on the event loop.
+With `SCAN_CONCURRENCY=3`, three symbols ran simultaneously, but each blocked
+the event loop for 100-500ms of CPU work.  Render's 5-second health-check
+timeout expired during the scan window, causing repeated process restarts
+and a scan that could never complete (`last_run: null` forever).
+
+- **`_enrich_and_analyze()` helper**: all CPU-bound work (realized vol,
+  ATM IV, IV history, IVR, VRP, macro calendar, desk analytics, flow,
+  PCR, GEX, `brain.analyze()`) is now consolidated into a single sync
+  helper function.  `_analyze_one()` runs this helper via
+  `asyncio.to_thread()`, keeping the event loop free for health checks
+  and concurrent requests.
+- **Equity scanner**: `brain.analyze()` also wrapped in
+  `asyncio.to_thread()` for the same reason.
+
 ## v1.17.5 - 2026-08-20
 
 - Fixed the IBKR market-data history adapter to return the same capitalized
