@@ -1,5 +1,25 @@
 # ThetaForge Changelog
 
+## v1.17.12 - 2026-08-25
+
+**Fix the residual exit 137: the v1.17.10 scrape pool doubled interpreter
+footprint.**
+
+The dedicated scrape pool used spawn-context children — each a full
+pandas+yfinance interpreter (~140 MB) — so parent + two forked analysis
+workers + two spawned scrape workers peaked past the 512 MB container.
+
+- **Scrape pool disabled by default** (`TF_SCRAPE_POOL=1` re-enables for
+  debugging): scrapes now run inline — inside the recycled forked analysis
+  workers on Linux/Render (memory returned at recycle), plain threads
+  elsewhere.
+- **Daily memo persisted to disk** (`data/provider_daily_memo.json`,
+  atomic replace, date-keyed): forked workers inherit an empty in-memory
+  memo each generation; without persistence every generation re-scraped its
+  symbols, defeating the memo under process mode. Fresh forks now load
+  today's entries before deciding whether to scrape.
+- Fork worker recycle tightened to 2 tasks (bounds per-child divergence).
+
 ## v1.17.11 - 2026-08-25
 
 **Fix the options funnel's core defect: half the strategy space could never

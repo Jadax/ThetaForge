@@ -6,6 +6,7 @@ proxy when configured), CBOE delayed quotes (no key), and yfinance
 at all.
 """
 import asyncio
+import json
 import logging
 import math
 import os
@@ -99,14 +100,28 @@ _scrape_pool = None
 
 
 def _get_scrape_pool() -> Optional[ProcessPoolExecutor]:
-    """Lazily create the recycling scrape-worker pool (None if unavailable)."""
+    """Optional dedicated scrape pool -- OFF by default.
+
+    A second process pool sounds safer than scraping in-process, but measured
+    on Render it was the opposite: spawn-context children each carry a full
+    pandas+yfinance interpreter (~140 MB), so pool(2) + the forked analysis
+    workers + the parent blew straight through the 512 MB container (exit
+    137). With the daily memo below, scrape volume is ~one pass per symbol
+    per day; on Linux/Render those scrapes run inside the recycled FORKED
+    analysis workers (memory returned at recycle), and elsewhere they run on
+    plain threads. Set TF_SCRAPE_POOL=1 only when explicitly debugging
+    scrape isolation on a roomy host.
+    """
     global _scrape_pool
     if _scrape_pool is not None:
-        return _scrape_pool
+        return _scrape_pool or None
+    if os.getenv("TF_SCRAPE_POOL", "") != "1":
+        _scrape_pool = False
+        return None
     try:
         ctx = multiprocessing.get_context("spawn")
         _scrape_pool = ProcessPoolExecutor(
-            max_workers=2, max_tasks_per_child=6, mp_context=ctx,
+            max_workers=1, max_tasks_per_child=6, mp_context=ctx,
         )
         return _scrape_pool
     except Exception as error:  # pragma: no cover - platform-dependent
@@ -133,14 +148,59 @@ class FreeDataProvider:
     def __init__(self):
         self.cboe = CBOEDataProvider()
         self._daily_memo: Dict[str, Tuple[date, Any]] = {}
+        self._memo_loaded = False
+
+    # Disk-backed memo: scan analysis runs inside recycled fork workers whose
+    # memory (including this dict) dies with each child; persisting it lets a
+    # fresh fork inherit today's scrapes instead of re-fetching the whole
+    # universe every generation. One small JSON file, atomic replace.
+    MEMO_FILE = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "data", "provider_daily_memo.json",
+    )
+
+    def _load_memo(self) -> None:
+        if self._memo_loaded:
+            return
+        self._memo_loaded = True
+        try:
+            with open(self.MEMO_FILE, "r", encoding="utf-8") as handle:
+                raw = json.load(handle)
+            if isinstance(raw, dict):
+                for key, entry in raw.items():
+                    try:
+                        day, value = entry
+                        self._daily_memo[key] = (
+                            date.fromisoformat(day), value,
+                        )
+                    except (TypeError, ValueError):
+                        continue
+        except (OSError, ValueError):
+            pass
+
+    def _persist_memo(self) -> None:
+        try:
+            os.makedirs(os.path.dirname(self.MEMO_FILE), exist_ok=True)
+            payload = {
+                key: [day.isoformat(), value]
+                for key, (day, value) in self._daily_memo.items()
+            }
+            tmp = f"{self.MEMO_FILE}.{os.getpid()}.tmp"
+            with open(tmp, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, separators=(",", ":"))
+            os.replace(tmp, self.MEMO_FILE)
+        except OSError:
+            pass
 
     def _daily_cached(self, key: str) -> Any:
+        self._load_memo()
         hit = self._daily_memo.get(key)
         if hit and hit[0] == date.today():
             return hit[1]
         return None
 
     def _daily_store(self, key: str, value: Any) -> None:
+        self._load_memo()
         today = date.today()
         if len(self._daily_memo) >= self.DAILY_MEMO_MAX:
             for stale in [k for k, (d, _) in self._daily_memo.items() if d != today]:
@@ -149,6 +209,7 @@ class FreeDataProvider:
                 for old in list(self._daily_memo)[: len(self._daily_memo) // 2]:
                     del self._daily_memo[old]
         self._daily_memo[key] = (today, value)
+        self._persist_memo()
 
     async def _get_ibkr_proxy_chain(self, symbol: str) -> Optional[List[Dict[str, Any]]]:
         """Pull a chain from the VM's read-only IBKR proxy. Returns None (never
