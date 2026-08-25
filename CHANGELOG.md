@@ -1,5 +1,28 @@
 # ThetaForge Changelog
 
+## v1.17.11 - 2026-08-25
+
+**Fix the options funnel's core defect: half the strategy space could never
+produce a candidate.**
+
+- **Bull put credit and put debit spreads were structurally unbuildable**:
+  free chains arrive strike-ascending per expiry, and both pairing loops
+  took each strike's `[i+1:]` successors as its "lower" leg — so every pair
+  violated `short_strike <= long_strike` / `long <= short` and returned None
+  before any scoring. Every Brain notification recommending `bull_put_credit`
+  (the most common actionable strategy in scans) died silently at the
+  recommend step. Legs are now explicitly sorted ascending by strike and the
+  two loops pair shorts against lower strikes correctly.
+- `MIN_CREDIT_SPREAD_LEG_OI` 250 → 100 (aligned with `MIN_LIQUIDITY_OI`):
+  measured live, Visa's 2-week 380P carries healthy OI ≈ 121 yet failed the
+  old floor, excluding nearly every underlying except mega-cap option
+  circuses. Spreads are defined-risk; the short leg is hedged.
+- Scan worker pool tuned for the 512 MB container: 2 recycled fork workers
+  (every 3 tasks) instead of 3×6 — parent + diverging children peaked past
+  the limit mid-pass (the remaining exit 137). Health checks stayed sub-
+  1.5 s through an entire 70-minute live pass after the v1.17.10 changes;
+  first qualifying options notifications ever recorded (V 82.3, RLAY 78.1).
+
 ## v1.17.10 - 2026-08-25
 
 **Fix exit 137 (OOM SIGKILL) during live scans — pymalloc arena fragmentation.**

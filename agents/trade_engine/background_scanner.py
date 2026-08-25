@@ -398,14 +398,18 @@ def _get_process_executor() -> Optional[ProcessPoolExecutor]:
     if _process_executor is None:
         try:
             ctx = multiprocessing.get_context("fork")
+            # Two recycled workers, not three: each forked child accumulates
+            # ~40-80 MB of private (copy-on-write-diverged) pages before its
+            # recycle, and parent + 3 children peaked past the 512 MB
+            # container mid-pass (exit 137). Two workers keep peak well under
+            # the limit at a modest pass-time cost.
             _process_executor = ProcessPoolExecutor(
-                max_workers=SCAN_CONCURRENCY,
-                max_tasks_per_child=6,
+                max_workers=2,
+                max_tasks_per_child=3,
                 mp_context=ctx,
             )
             logger.info(
-                "Scan workers: forked process pool (max_workers=%d, recycle every 6 tasks)",
-                SCAN_CONCURRENCY,
+                "Scan workers: forked process pool (max_workers=2, recycle every 3 tasks)"
             )
         except Exception as error:
             logger.warning("Process pool unavailable (%s); using threads", error)

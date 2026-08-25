@@ -89,7 +89,13 @@ MIN_LIQUIDITY_OI = 100
 # the generic liquidity fallback because opening and later closing a premium
 # selling structure both depend on dependable open interest.
 MIN_SINGLE_LEG_OI = 500
-MIN_CREDIT_SPREAD_LEG_OI = 250
+# Both spread legs need real open interest so the position stays closable,
+# but 250-on-every-leg quietly excluded nearly every underlying except the
+# mega-caps: measured live, Visa's 380P two weeks out carries OI ~121 --
+# healthy liquidity -- yet failed this floor, and zero candidates survived
+# for whole universes at a time. Aligned with MIN_LIQUIDITY_OI: spreads are
+# defined-risk and the short leg is hedged by the long leg.
+MIN_CREDIT_SPREAD_LEG_OI = 100
 # TastyTrade / ORATS professional volatility gates. These mirror the
 # market-maker playbook: only sell premium when it is expensive (elevated IV
 # Rank, IV above realized volatility) and the market is not in a crash regime
@@ -341,8 +347,20 @@ class TradeRecommender:
             # never a placeholder.
             if dte < 14 or dte > 60:
                 continue
-            calls = [o for o in opts if o.get("option_type", "").upper() == "CALL"]
-            puts = [o for o in opts if o.get("option_type", "").upper() == "PUT"]
+            # Sort by strike: free chains arrive grouped per expiry but their
+            # within-expiry row order is not contractual. The pairing loops
+            # below depend on ascending order -- and before this sort, the
+            # bull-put and put-debit loops paired each strike with HIGHER
+            # strikes as their "lower" leg, so those two strategies could
+            # never produce a candidate at all.
+            calls = sorted(
+                [o for o in opts if o.get("option_type", "").upper() == "CALL"],
+                key=lambda o: float(o.get("strike", 0) or 0),
+            )
+            puts = sorted(
+                [o for o in opts if o.get("option_type", "").upper() == "PUT"],
+                key=lambda o: float(o.get("strike", 0) or 0),
+            )
 
             # Find ATM strike
             atm_call = min(calls, key=lambda x: abs(x.get("strike", 0) - stock_price), default=None)
@@ -367,11 +385,12 @@ class TradeRecommender:
                     if cand:
                         candidates.append(cand)
 
-            # Strategy 3: Bull Put Credit Spreads
-            for i, put in enumerate(puts):
-                for lower_put in puts[i+1:]:
+            # Strategy 3: Bull Put Credit Spreads — short at a HIGHER strike,
+            # long below it (ascending list: longs are the entries before i).
+            for i, short_put in enumerate(puts):
+                for long_put in puts[:i]:
                     cand = self._score_bull_put(
-                        symbol, stock_price, put, lower_put, dte, regime,
+                        symbol, stock_price, short_put, long_put, dte, regime,
                         technical_data, flow_data, nvrp, risk_per_trade, max_capital
                     )
                     if cand:
@@ -406,11 +425,12 @@ class TradeRecommender:
                     if cand:
                         candidates.append(cand)
 
-            # Strategy 7: Put Debit Spreads
-            for i, put in enumerate(puts):
-                for lower_put in puts[i+1:]:
+            # Strategy 7: Put Debit Spreads — long at a HIGHER strike, short
+            # below it (ascending list: shorts are the entries before i).
+            for i, long_put in enumerate(puts):
+                for short_put in puts[:i]:
                     cand = self._score_put_debit(
-                        symbol, stock_price, put, lower_put, dte, regime,
+                        symbol, stock_price, long_put, short_put, dte, regime,
                         technical_data, flow_data, nvrp, risk_per_trade, max_capital
                     )
                     if cand:
