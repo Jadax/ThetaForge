@@ -1,5 +1,35 @@
 # ThetaForge Changelog
 
+## v1.17.8 - 2026-08-25
+
+**Make the signal→order funnel observable and fix two funnel poisons.**
+
+A month of zero paper trades traced to three independent layers, all fixed:
+
+- **Degenerate pre-open chain IVs poisoned every scan** (`iv_degenerate`):
+  pre-market/weekend CBOE snapshots carry near-zero IVs (~0.4% annualized)
+  on every contract. The scanner averaged them into ATM IV → IV rank clamped
+  to 0, VRP ≈ −0.47, expected move ≈ 0.1%, "very_cheap" vol everywhere —
+  coherent-looking but garbage signals biased hard toward debit strategies.
+  Chains whose IVs exist but are all implausible now skip the symbol with a
+  recorded `iv_degenerate` reason (`MIN/MAX_PLAUSIBLE_IV` bounds); `_atm_iv`
+  ignores implausible values like missing ones.
+- **`/recommend` dropped the snapshot's flow data** (`flow_data={}`
+  hardcoded): the scorer's flow-confirmation term (±10 of edge score) was
+  muted for every executor-requested symbol, systematically under-scoring
+  them vs the scan that produced the notification. Real per-symbol flow is
+  now passed through.
+- **Silent rejections made diagnosis impossible**: the executor
+  acknowledged notifications without persisting why no order followed. New
+  decision trail — `orchestrator/decision_log.py` (capped at 400 records,
+  thread-offloaded I/O) with authenticated `POST/GET
+  /api/advisor/executor/decisions`; the executor now records placed /
+  skipped+gate+reason / bridge-rejected+message per notification and posts
+  each cycle (best-effort, never gates trading).
+
+Also: first completed full brain scan under the v1.17.7 event-loop fixes
+(123 symbols analyzed, diagnostics intact).
+
 ## v1.17.7 - 2026-08-25
 
 **Fix the remaining health-check starvation; full review pass.**

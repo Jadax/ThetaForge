@@ -16,6 +16,8 @@ from orchestrator.security import (
     require_advisor_token,
     scan_rate_limit,
 )
+from orchestrator.decision_log import append as log_executor_decisions
+from orchestrator.decision_log import recent as recent_executor_decisions
 
 from agents.trade_engine.recommender import TradeRecommender
 from agents.trade_engine.ai_brain import AIBrain, TimeHorizon
@@ -1215,6 +1217,7 @@ async def get_recommendations(request: AdvisoryRequest):
     market_data = {}
     option_chains = {}
     technical_data = {}
+    flow_data: Dict[str, Dict[str, Any]] = {}
     volatility_data: Dict[str, Dict[str, float]] = {}
 
     for symbol in request.watchlist:
@@ -1223,6 +1226,13 @@ async def get_recommendations(request: AdvisoryRequest):
             market_data[f"{symbol}_price"] = snapshot["stock_price"]
             option_chains[symbol] = snapshot["option_chain"]
             technical_data[symbol] = snapshot.get("technical_data", {})
+            # The snapshot already computed directional flow for this symbol;
+            # dropping it here (an earlier version hardcoded {}) muted the
+            # scorer's flow-confirmation term (±10 of edge) and systematically
+            # under-scored every executor-requested symbol vs the scan that
+            # produced its notification.
+            if snapshot.get("flow_data"):
+                flow_data[symbol] = snapshot["flow_data"]
             volatility_data[symbol] = {
                 "iv": snapshot["current_iv"],
                 "hv_20": snapshot["hv_20"],
@@ -1245,7 +1255,7 @@ async def get_recommendations(request: AdvisoryRequest):
         market_data=market_data,
         option_chains=option_chains,
         technical_data=technical_data,
-        flow_data={},
+        flow_data=flow_data,
         volatility_data=volatility_data,
         diversify_underlyings=request.diversify_underlyings,
     )
@@ -1538,6 +1548,27 @@ async def equity_scanner_status():
     """Get the equity background scanner's status."""
     scanner = await get_background_equity_scanner()
     return await scanner.get_status()
+
+
+class ExecutorDecisionBatch(BaseModel):
+    """One poll-cycle's worth of executor decision records (observability)."""
+    decisions: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+@router.post("/executor/decisions")
+async def post_executor_decisions(batch: ExecutorDecisionBatch):
+    """Append the executor's per-notification decisions (placed / skipped /
+    bridge-rejected, with reasons) to the persisted decision trail. Pure
+    observability: nothing here gates or places orders."""
+    stored = await log_executor_decisions(batch.decisions)
+    return {"stored": stored}
+
+
+@router.get("/executor/decisions")
+async def get_executor_decisions(limit: int = 50):
+    """Newest-first view of the executor's decision trail — answers *why*
+    notifications did not become paper orders without VM log access."""
+    return {"decisions": await recent_executor_decisions(limit)}
 
 
 @router.post("/equity/positions/management", dependencies=[Depends(scan_rate_limit)])

@@ -25,10 +25,13 @@ functions exactly:
      Bridge's POST /orders/submit-combo. Bridge itself re-verifies live
      IBKR quotes, defined-risk, and the weekly capital-limit ledger before
      accepting anything -- this script does not pre-filter on any of that.
-  4. Acknowledge the notification either way, so a rejected or
-     capital-exhausted signal is not retried every cycle.
-  5. If any order was actually placed this cycle, sync and push the public
-     journal (see journal_sync_push.sh).
+   4. Acknowledge the notification either way, so a rejected or
+      capital-exhausted signal is not retried every cycle, and record what
+      happened (placed / skipped+reason / bridge-rejected+message) to the
+      Advisor's persisted decision trail (POST /api/advisor/executor/
+      decisions) — observability only, never a gate.
+   5. If any order was actually placed this cycle, sync and push the public
+      journal (see journal_sync_push.sh).
 
 Only runs while the market is open (checked here as a fast-path, and by the
 systemd timer that starts/stops this whole stack -- see
@@ -76,7 +79,14 @@ def fetch_actionable_notifications(client: httpx.Client) -> list[dict[str, Any]]
     return response.json().get("notifications", [])
 
 
-def fetch_recommendation(client: httpx.Client, symbol: str) -> dict[str, Any] | None:
+def fetch_recommendation(client: httpx.Client, symbol: str) -> tuple[dict[str, Any] | None, str]:
+    """Fetch a fully-specified recommendation for one symbol.
+
+    Returns (trade, detail): detail is empty on success and otherwise a short
+    reason string (regime/VIX/warnings from the Advisor) that explains why no
+    structure qualified — recorded in the decision trail so a silent
+    zero-trade stretch is diagnosable without VM log access.
+    """
     response = client.post(
         f"{ADVISOR_URL}/api/advisor/recommend",
         headers=ADVISOR_HEADERS,
@@ -92,8 +102,18 @@ def fetch_recommendation(client: httpx.Client, symbol: str) -> dict[str, Any] | 
         timeout=60,
     )
     response.raise_for_status()
-    recommendations = response.json().get("recommendations", [])
-    return recommendations[0] if recommendations else None
+    body = response.json()
+    recommendations = body.get("recommendations", [])
+    if recommendations:
+        return recommendations[0], ""
+    context = body.get("market_context") or {}
+    regime = context.get("regime")
+    vix = context.get("vix")
+    warnings = "; ".join(str(w) for w in (body.get("warnings") or [])[:3])
+    return None, (
+        f"no_qualified_recommendation regime={regime} "
+        f"vix={vix} warnings=[{warnings}]"
+    )
 
 
 def submit_to_bridge(client: httpx.Client, trade: dict[str, Any]) -> tuple[bool, str]:
@@ -174,7 +194,15 @@ def fetch_equity_notifications(client: httpx.Client) -> list[dict[str, Any]]:
     return response.json().get("notifications", [])
 
 
-def fetch_equity_recommendation(client: httpx.Client, symbol: str, open_symbols: list[str]) -> dict[str, Any] | None:
+def fetch_equity_recommendation(
+    client: httpx.Client, symbol: str, open_symbols: list[str]
+) -> tuple[dict[str, Any] | None, str]:
+    """Fetch a gated, sized equity recommendation.
+
+    Returns (trade, detail): detail carries the Advisor's own gate code and
+    reason when the fresh re-analysis does not qualify, so the decision trail
+    shows why a scan-time buy did not become an order.
+    """
     response = client.post(
         f"{ADVISOR_URL}/api/advisor/equity/recommend",
         headers=ADVISOR_HEADERS,
@@ -186,10 +214,14 @@ def fetch_equity_recommendation(client: httpx.Client, symbol: str, open_symbols:
         timeout=60,
     )
     response.raise_for_status()
-    recommendation = response.json().get("recommendation")
+    body = response.json()
+    recommendation = body.get("recommendation")
+    reason = str(body.get("reason") or "")
     if recommendation and recommendation.get("gate") is None and int(recommendation.get("shares", 0) or 0) > 0:
-        return recommendation
-    return None
+        return recommendation, ""
+    gate = (recommendation or {}).get("gate") or reason or "unknown"
+    detail = (recommendation or {}).get("reasoning") or reason
+    return None, f"gate={gate} reason={detail}"
 
 
 def submit_stock_to_bridge(client: httpx.Client, trade: dict[str, Any]) -> tuple[bool, str]:
@@ -227,6 +259,26 @@ def acknowledge_equity(client: httpx.Client, notification_id: str) -> None:
         logger.exception("Could not acknowledge equity notification %s", notification_id)
 
 
+def post_decisions(client: httpx.Client, decisions: list[dict[str, Any]]) -> None:
+    """Persist this cycle's decisions to the Advisor's decision trail.
+
+    Best-effort observability: a failed POST is logged and never affects
+    trading. The trail answers *why* notifications did not become orders
+    without requiring VM log access.
+    """
+    if not decisions:
+        return
+    try:
+        client.post(
+            f"{ADVISOR_URL}/api/advisor/executor/decisions",
+            headers=ADVISOR_HEADERS,
+            json={"decisions": decisions},
+            timeout=15,
+        )
+    except Exception:
+        logger.exception("Could not post %d executor decision(s)", len(decisions))
+
+
 def run_equity_once(client: httpx.Client) -> int:
     """Process pending equity notifications: recommend, submit via the Bridge,
     acknowledge either way. Returns the number of orders placed."""
@@ -236,24 +288,38 @@ def run_equity_once(client: httpx.Client) -> int:
 
     open_symbols = fetch_open_equity_symbols(client)
     placed = 0
+    decisions: list[dict[str, Any]] = []
     for notification in notifications:
         symbol = notification["symbol"]
+        detail = ""
+        action = "skipped"
         try:
-            trade = fetch_equity_recommendation(client, symbol, open_symbols)
-        except Exception:
+            trade, detail = fetch_equity_recommendation(client, symbol, open_symbols)
+        except Exception as error:
             logger.exception("Failed to fetch an equity recommendation for %s", symbol)
             trade = None
+            detail = f"fetch_error: {error}"
 
         if trade is None:
-            logger.info("%s: no qualifying equity structure at fetch time (signal likely stale)", symbol)
+            logger.info("%s: no qualifying equity structure at fetch time (%s)", symbol, detail)
         else:
             ok, message = submit_stock_to_bridge(client, trade)
             logger.info("%s: %s", symbol, message)
+            action = "placed" if ok else "bridge_rejected"
+            detail = message
             if ok:
                 placed += 1
                 open_symbols.append(symbol)
 
+        decisions.append({
+            "engine": "equity",
+            "symbol": symbol,
+            "notification_id": notification.get("id"),
+            "action": action,
+            "detail": detail,
+        })
         acknowledge_equity(client, notification["id"])
+    post_decisions(client, decisions)
     return placed
 
 
@@ -267,26 +333,40 @@ def run_once(client: httpx.Client) -> int:
         return 0
 
     placed = 0
+    decisions: list[dict[str, Any]] = []
 
     notifications = fetch_actionable_notifications(client)
     if notifications:
         for notification in notifications:
             symbol = notification["symbol"]
+            detail = ""
+            action = "skipped"
             try:
-                trade = fetch_recommendation(client, symbol)
-            except Exception:
+                trade, detail = fetch_recommendation(client, symbol)
+            except Exception as error:
                 logger.exception("Failed to fetch a recommendation for %s", symbol)
                 trade = None
+                detail = f"fetch_error: {error}"
 
             if trade is None:
-                logger.info("%s: no qualifying structure at fetch time (signal likely stale)", symbol)
+                logger.info("%s: no qualifying structure at fetch time (%s)", symbol, detail)
             else:
                 ok, message = submit_to_bridge(client, trade)
                 logger.info("%s: %s", symbol, message)
+                action = "placed" if ok else "bridge_rejected"
+                detail = message
                 if ok:
                     placed += 1
 
+            decisions.append({
+                "engine": "options",
+                "symbol": symbol,
+                "notification_id": notification.get("id"),
+                "action": action,
+                "detail": detail,
+            })
             acknowledge(client, notification["id"])
+        post_decisions(client, decisions)
     else:
         logger.info("No new actionable notifications")
 

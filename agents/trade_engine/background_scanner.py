@@ -54,6 +54,26 @@ STARTUP_GRACE_SECONDS = 90
 _EASTERN = ZoneInfo("America/New_York")
 _nyse_calendar = None
 
+# Plausibility bounds for annualized IV off the free chains. Pre-market/
+# weekend CBOE snapshots routinely carry near-zero IVs on every contract;
+# averaging those produced iv_rank clamped to 0, "very_cheap" vol bands, and
+# garbage scores across the whole universe (fail-open poisoning). Anything
+# outside these bounds is treated as chain data being unavailable.
+MIN_PLAUSIBLE_IV = 0.01
+MAX_PLAUSIBLE_IV = 5.0
+
+
+class DegenerateChainError(Exception):
+    """Chain IVs exist but are outside plausible bounds (e.g. pre-open zeros)."""
+
+
+def _plausible_iv(value) -> bool:
+    try:
+        iv = float(value)
+    except (TypeError, ValueError):
+        return False
+    return MIN_PLAUSIBLE_IV <= iv <= MAX_PLAUSIBLE_IV
+
 def _get_nyse_calendar():
     global _nyse_calendar
     if _nyse_calendar is None:
@@ -134,7 +154,7 @@ def _atm_iv(chain: List[Dict]) -> Optional[float]:
     delta_pairs = []
     for opt in front:
         iv = opt.get("implied_volatility")
-        if not iv or float(iv) <= 0:
+        if not _plausible_iv(iv):
             continue
         delta = opt.get("delta")
         if delta is not None:
@@ -152,7 +172,7 @@ def _atm_iv(chain: List[Dict]) -> Optional[float]:
     for opt in front:
         iv = opt.get("implied_volatility")
         strike = opt.get("strike")
-        if not iv or float(iv) <= 0 or strike is None:
+        if not _plausible_iv(iv) or strike is None:
             continue
         bucket = by_strike.setdefault(float(strike), {})
         bucket[opt.get("option_type", "").lower()] = float(iv)
@@ -167,7 +187,7 @@ def _atm_iv(chain: List[Dict]) -> Optional[float]:
     front_ivs = sorted(
         float(opt["implied_volatility"])
         for opt in front
-        if opt.get("implied_volatility")
+        if _plausible_iv(opt.get("implied_volatility"))
     )
     if not front_ivs:
         return None
@@ -368,16 +388,34 @@ def _enrich_and_analyze(
         from agents.trade_engine.analytics import OptionsAnalytics
         cur_iv = _atm_iv(chain)
         if not cur_iv:
-            ivs = [
-                float(opt.get("implied_volatility") or 0)
-                for opt in chain
-                if opt.get("implied_volatility")
+            present_ivs = [
+                opt.get("implied_volatility") for opt in chain
+                if opt.get("implied_volatility") is not None
             ]
+            ivs = [float(v) for v in present_ivs if _plausible_iv(v)]
+            # IVs exist but every one is implausible: degenerate pre-open
+            # snapshot -- stop here rather than fabricate a neutral default.
+            if present_ivs and not ivs:
+                sample = float(present_ivs[0])
+                raise DegenerateChainError(
+                    f"all {len(present_ivs)} chain IVs outside plausible "
+                    f"bounds (sample {sample:.4f})"
+                )
             if ivs:
                 cur_iv = sorted(ivs)[len(ivs) // 2]
+        # A chain whose IVs exist but are implausible (pre-open zero-IV
+        # snapshots are the recurring case) must stop the analysis here --
+        # every downstream read (IV rank, VRP, expected move, rv band)
+        # inherits the poison and fabricates a coherent-looking signal.
+        if cur_iv is not None and not _plausible_iv(cur_iv):
+            raise DegenerateChainError(
+                f"ATM IV {cur_iv:.4f} outside plausible bounds"
+            )
         if cur_iv and cur_iv > 0 and price > 0:
             move = OptionsAnalytics().expected_move(price, cur_iv, 30)
             exp_move = move.get("expected_move_pct")
+    except DegenerateChainError:
+        raise
     except Exception:
         cur_iv = None
 
@@ -861,6 +899,9 @@ class BackgroundBrainScanner:
                 "relative_strength": result.relative_strength,
                 "top_signal": "",
             }, None
+        except DegenerateChainError as error:
+            logger.info("%s skipped: %s", symbol, error)
+            return None, "iv_degenerate"
         except Exception:
             logger.exception("Brain analysis failed for %s", symbol)
             return None, "brain_error"

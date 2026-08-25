@@ -139,6 +139,66 @@ def test_atm_iv_returns_none_for_empty_chain():
     assert _atm_iv([]) is None
 
 
+def test_atm_iv_ignores_degenerate_preopen_ivs():
+    # Pre-market/weekend CBOE snapshots carry near-zero IVs on every contract.
+    # Averaging them produced iv_rank=0 and "very cheap vol" across the whole
+    # universe; they must be ignored like missing values instead.
+    chain = [
+        _opt(100, 0.004, dte=7, delta=0.5),
+        _opt(105, 0.003, dte=7, delta=0.45),
+        _opt(110, 0.002, dte=7, delta=0.3),
+    ]
+    assert _atm_iv(chain) is None
+
+
+def test_plausible_iv_bounds():
+    assert scanner_module._plausible_iv(0.25)
+    assert scanner_module._plausible_iv("0.35")
+    assert not scanner_module._plausible_iv(0.0)
+    assert not scanner_module._plausible_iv(0.004)
+    assert not scanner_module._plausible_iv(None)
+    assert not scanner_module._plausible_iv(9.9)
+
+
+@pytest.mark.asyncio
+async def test_degenerate_chain_skips_with_reason(scanner, monkeypatch):
+    class FakeBrain:
+        def analyze(self, **kwargs):  # must never be reached
+            raise AssertionError("brain.analyze ran on a degenerate chain")
+
+        def record_outcome(self, symbol, price):
+            pass
+
+    closes = [100.0 + i * 0.1 for i in range(60)]
+
+    async def fake_price(_symbol):
+        return 100.0
+
+    async def fake_chain(_symbol):
+        return [_opt(95, 0.003, dte=30), _opt(105, 0.002, dte=30)]
+
+    async def fake_vix():
+        return 20.0
+
+    async def fake_hist(_symbol, period="1y"):
+        return _hist_60(closes)
+
+    async def fake_none(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(scanner._provider, "get_stock_price", fake_price)
+    monkeypatch.setattr(scanner._provider, "get_option_chain", fake_chain)
+    monkeypatch.setattr(scanner._provider, "get_vix", fake_vix)
+    monkeypatch.setattr(scanner._provider, "get_historical_prices", fake_hist)
+    monkeypatch.setattr(scanner._provider, "get_next_earnings_date", fake_none)
+    scanner._brain = FakeBrain()
+
+    data, skip = await scanner._analyze_one("SPY")
+
+    assert data is None
+    assert skip == "iv_degenerate"
+
+
 # ── Market-hours gating ──────────────────────────────────────────────────
 
 
