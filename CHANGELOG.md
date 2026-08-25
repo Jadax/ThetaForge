@@ -1,5 +1,10 @@
 # ThetaForge Changelog
 
+## v1.17.9 - 2026-08-25
+
+
+- Expose scan_diagnostics (per-reason skip counts) in /api/advisor/scanner/status`n  so an all-skip pass is diagnosable from outside the VM.
+
 ## v1.17.8 - 2026-08-25
 
 **Make the signal→order funnel observable and fix two funnel poisons.**

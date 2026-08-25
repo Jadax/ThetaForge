@@ -1257,6 +1257,10 @@ class BackgroundBrainScanner:
             "interval_seconds": self.interval,
             "symbols_scanned_last_run": state.get("symbols_scanned", 0),
             "symbols_with_trades": state.get("symbols_with_trades", 0),
+            # Why symbols were skipped last pass (rate limits, degenerate
+            # chains, missing history): without this, an all-skip pass is
+            # indistinguishable from a healthy empty one from the outside.
+            "scan_diagnostics": state.get("scan_diagnostics", {}),
             "pending_notifications": len(unacked),
             "total_notifications": len(notifs),
             "last_results": last_results,
