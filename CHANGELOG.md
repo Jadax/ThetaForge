@@ -1,5 +1,36 @@
 # ThetaForge Changelog
 
+## v1.17.10 - 2026-08-25
+
+**Fix exit 137 (OOM SIGKILL) during live scans — pymalloc arena fragmentation.**
+
+Diagnosed locally with tracemalloc against live data: after gc, only ~35 MB
+of Python objects were live while RSS sat at ~282 MB and grew ~13 MB per
+scanned symbol without ever shrinking. The churn (yfinance/curl_cffi/bs4
+allocation traffic) fragments pymalloc arenas; fragmented arenas are never
+returned to the OS within a process, so no amount of in-process collecting
+helps. 123 symbols × 13 MB on a 512 MB container = the mid-pass kill.
+
+- **Forked worker processes for per-symbol analysis** (Linux/Render):
+  `ProcessPoolExecutor(max_workers=SCAN_CONCURRENCY, max_tasks_per_child=6,
+  mp_context=fork)` — each recycled child returns ALL its memory (including
+  fragmentation) to the OS at exit; fork keeps child startup near-free.
+  Windows and pytest keep the identical analysis inline on threads.
+- **Daily memo for scrape-heavy fundamentals** (earnings dates ×2, short
+  interest): scans run every 5 min but these change quarterly — cuts Yahoo
+  HTML re-scraping ~99% per day.
+- Scrape calls additionally isolated in their own recycled process pool with
+  inline-thread fallback.
+- **Atomic store writes** (`tmp` + `os.replace`) for `iv_history.json`,
+  `pcr_history.json`, `signal_history.json`: parent and forked workers now
+  share these files safely (a reader can never see a half-write).
+- Worker processes lazily create their own file-backed IV/PCR stores so
+  history accumulation continues under process mode.
+- Per-batch peak-RSS logging in both scanners — future memory incidents are
+  visible in Render's logs instead of manifesting as silent 137s.
+- Batch size 25 → 6 in both scanners (bounded held-results + bounded
+  between-gc churn).
+
 ## v1.17.9 - 2026-08-25
 
 

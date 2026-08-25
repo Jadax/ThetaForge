@@ -127,8 +127,12 @@ class SignalTracker:
 
     def _write_log(self, data: List[Dict]):
         global _WRITE_GENERATION
-        with open(SIGNAL_LOG_FILE, "w") as f:
+        # Atomic replace: scan analysis runs in forked worker processes that
+        # record outcomes concurrently; a reader must never see a partial file.
+        tmp_path = f"{SIGNAL_LOG_FILE}.{os.getpid()}.tmp"
+        with open(tmp_path, "w") as f:
             json.dump(data, f, indent=2)
+        os.replace(tmp_path, SIGNAL_LOG_FILE)
         import time
         _WRITE_GENERATION += 1
         self._log_cache = data

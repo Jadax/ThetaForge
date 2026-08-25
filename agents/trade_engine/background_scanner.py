@@ -4,12 +4,22 @@ Runs the AI Brain on the full tradeable universe periodically in a background
 asyncio task. Detects new actionable trade opportunities and generates
 persistent notifications that the dashboard can surface.
 
+Per-symbol analysis runs in FORKED WORKER PROCESSES recycled every few tasks
+(Linux/Render) rather than threads: yfinance/curl_cffi/bs4 allocation churn
+fragments pymalloc arenas -- measured 35 MB of live objects vs 282 MB RSS
+after gc -- and fragmented arenas are never returned to the OS inside one
+process, which is what produced the exit-137 OOM kills mid-pass. A recycled
+child hands ALL of its memory back at exit. Windows (no fork) and pytest run
+the identical analysis inline on threads instead.
 Data flows: IBKR bridge (live) -> FreeDataProvider (yfinance fallback).
 """
 import json
 import logging
+import math
 import os
 import asyncio
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
 from typing import Dict, Optional, List, Tuple
 from datetime import datetime, timedelta, timezone, date
 from zoneinfo import ZoneInfo
@@ -355,6 +365,78 @@ def _gex_data(chain: List[Dict], stock_price: float) -> Optional[Dict]:
     except Exception:
         logger.debug("GEX computation failed; dealer-positioning signal disabled", exc_info=True)
         return None
+
+
+def _rss_mb() -> Optional[float]:
+    """Resident set size in MB (Linux: ru_maxrss KB; best-effort, optional)."""
+    try:
+        import resource
+        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+    except Exception:
+        return None
+
+
+# ── per-symbol worker process plumbing ─────────────────────────────────────
+
+_process_executor: Optional[ProcessPoolExecutor] = None
+_worker_scanner_instance: Optional["BackgroundBrainScanner"] = None
+
+
+def _use_process_workers() -> bool:
+    """Fork-based workers only where fork exists and tests aren't running."""
+    if os.name == "nt":
+        return False
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return False
+    return True
+
+
+def _get_process_executor() -> Optional[ProcessPoolExecutor]:
+    global _process_executor
+    if not _use_process_workers():
+        return None
+    if _process_executor is None:
+        try:
+            ctx = multiprocessing.get_context("fork")
+            _process_executor = ProcessPoolExecutor(
+                max_workers=SCAN_CONCURRENCY,
+                max_tasks_per_child=6,
+                mp_context=ctx,
+            )
+            logger.info(
+                "Scan workers: forked process pool (max_workers=%d, recycle every 6 tasks)",
+                SCAN_CONCURRENCY,
+            )
+        except Exception as error:
+            logger.warning("Process pool unavailable (%s); using threads", error)
+            _process_executor = False
+    return _process_executor or None
+
+
+def _worker_scanner() -> "BackgroundBrainScanner":
+    """Per-process singleton for forked children (cheap after fork: the
+    child inherits the parent's already-imported modules copy-on-write)."""
+    global _worker_scanner_instance
+    if _worker_scanner_instance is None:
+        _worker_scanner_instance = BackgroundBrainScanner(interval_seconds=9999)
+    return _worker_scanner_instance
+
+
+def process_analyze_symbol(payload: Tuple[str, Optional[float], Optional[dict]]):
+    """Forked-worker entry: analyze one symbol, return JSON-safe results.
+
+    Runs its own event loop inside the child. Shared market-wide inputs ride
+    in the payload; history stores are file-backed so children read the same
+    state the parent maintains.
+    """
+    symbol, vix, term = payload
+    scanner = _worker_scanner()
+    if vix is not None:
+        scanner._scan_vix = vix
+    if term is not None:
+        scanner._scan_vix_term = term
+    data, skip = asyncio.run(scanner._analyze_one(symbol))
+    return symbol, data, skip
 
 
 def _enrich_and_analyze(
@@ -941,14 +1023,17 @@ class BackgroundBrainScanner:
         self._scan_vix_term = _scan_vix_term
 
         # Shared history stores: one instance per scan pass instead of per
-        # symbol.  Each store caches the full JSON file in memory (~6 MB for
-        # IV, ~1 MB for PCR).  Creating a new store per symbol (130×) was
-        # duplicating the entire file 130 times — the #1 OOM cause on
-        # Render's 512 MB tier.
-        from agents.volatility.iv_history import IVHistoryStore
-        from agents.volatility.pcr_history import PCRHistoryStore
-        self._scan_iv_store = IVHistoryStore()
-        self._scan_pcr_store = PCRHistoryStore()
+        # symbol (each caches the full JSON file -- per-symbol instances were
+        # the v1.17.4 OOM). Forked analysis workers don't inherit these
+        # per-pass attributes, so they lazily create their own file-backed
+        # instances here; writes are atomic replaces, so parent and workers
+        # can share the files safely.
+        if getattr(self, "_scan_iv_store", None) is None:
+            from agents.volatility.iv_history import IVHistoryStore
+            self._scan_iv_store = IVHistoryStore()
+        if getattr(self, "_scan_pcr_store", None) is None:
+            from agents.volatility.pcr_history import PCRHistoryStore
+            self._scan_pcr_store = PCRHistoryStore()
 
         # Every symbol's analysis is I/O-bound (price, chain, VIX, history,
         # desk analytics — each its own network round trip), so a sequential
@@ -968,24 +1053,51 @@ class BackgroundBrainScanner:
                 return symbol, data, skip_reason
 
         # Process in batches of _BATCH_SIZE instead of asyncio.gather on all
-        # symbols at once.  asyncio.gather holds all 130 result tuples (plus
-        # any transient allocations that GC hasn't reclaimed) until the full
-        # gather completes.  Batching drops the peak held results from 130 to
-        # _BATCH_SIZE, saving ~25 MB of result dicts on Render's 512 MB tier.
-        # gc runs in a thread (it can pause the loop for hundreds of ms with
-        # this many live pandas objects) and each batch yields to the loop so
-        # health checks are serviced even while worker threads saturate the
-        # single free-tier CPU.
-        _BATCH_SIZE = 25
+        # symbols at once: each analyzed symbol leaves ~10-13 MB of transient
+        # allocation churn, so holding more than a handful of results at a
+        # time only raises peak memory. With process workers the pool itself
+        # caps concurrency; with threads the semaphore does. gc runs in a
+        # thread (it can pause the loop for hundreds of ms with this many
+        # live pandas objects) and each batch yields to the loop so health
+        # checks are serviced even while workers saturate the single CPU.
+        executor = _get_process_executor()
+        _BATCH_SIZE = 6
         analyzed: List[Tuple[str, Optional[dict], Optional[str]]] = []
         for i in range(0, len(symbols), _BATCH_SIZE):
             batch = symbols[i : i + _BATCH_SIZE]
-            batch_results = await asyncio.gather(
-                *(_analyze_bounded(symbol) for symbol in batch)
-            )
+            if executor is not None:
+                loop = asyncio.get_running_loop()
+                payloads = [
+                    (
+                        symbol,
+                        self._scan_vix if isinstance(getattr(self, "_scan_vix", None), (int, float)) else None,
+                        self._scan_vix_term if isinstance(getattr(self, "_scan_vix_term", None), dict) else None,
+                    )
+                    for symbol in batch
+                ]
+                batch_results = await asyncio.gather(*(
+                    loop.run_in_executor(executor, process_analyze_symbol, payload)
+                    for payload in payloads
+                ))
+            else:
+                batch_results = await asyncio.gather(
+                    *(_analyze_bounded(symbol) for symbol in batch)
+                )
             analyzed.extend(batch_results)
             import gc
             await asyncio.to_thread(gc.collect)
+            # Peak-RSS breadcrumbs: exit 137 (OOM kill) during a pass was
+            # invisible from logs until this. ru_maxrss is the high-water mark,
+            # which is exactly the number racing the container limit.
+            rss = _rss_mb()
+            if rss:
+                logger.info(
+                    "scan batch %d/%d done (%d symbols), peak RSS %.0f MB",
+                    i // _BATCH_SIZE + 1,
+                    (len(symbols) + _BATCH_SIZE - 1) // _BATCH_SIZE,
+                    len(analyzed),
+                    rss,
+                )
             await asyncio.sleep(0)
 
         new_notifications: List[dict] = []

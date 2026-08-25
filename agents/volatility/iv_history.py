@@ -70,8 +70,12 @@ class IVHistoryStore:
         return result
 
     def _write(self, data: Dict[str, List[Dict[str, Any]]]):
-        with open(self.path, "w", encoding="utf-8") as handle:
-            json.dump(data, handle, indent=2)
+        # Atomic replace: scan analysis runs in forked worker processes that
+        # share this file, so a reader must never see a half-written write.
+        tmp_path = f"{self.path}.{os.getpid()}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, separators=(",", ":"))
+        os.replace(tmp_path, self.path)
         self._cache = data
         import time
         self._cache_ts = time.monotonic()

@@ -9,12 +9,14 @@ import asyncio
 import logging
 import math
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta, date
 
 import httpx
 import yfinance as yf
 import pandas as pd
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
 
 from agents.data_ingestion.cboe_data import CBOEDataProvider
 
@@ -30,14 +32,123 @@ IBKR_MARKET_DATA_TOKEN = os.getenv("IBKR_MARKET_DATA_TOKEN", "")
 IBKR_MARKET_DATA_TIMEOUT = float(os.getenv("IBKR_MARKET_DATA_TIMEOUT", "12"))
 
 
+# ── Process-isolated HTML scraping ─────────────────────────────────────────
+# yfinance's quote-profile and earnings scrapes run curl_cffi + BeautifulSoup
+# and leave ~10-13 MB of cyclic DOM garbage behind per symbol. That memory is
+# not leaked (gc reclaims every object) but FRAGMENTED into pymalloc arenas:
+# measured live-objects vs RSS after gc = 35 MB vs 282 MB. No amount of
+# in-process collecting returns it to the OS, so the three scrape-heavy,
+# slow-moving calls below run in short-lived worker PROCESSES that are
+# recycled after a few tasks -- the OS reclaims everything at exit. Pure-API
+# calls (prices, chains, history) stay in-process; only HTML scraping pays
+# the process tax.
+def _scrape_next_earnings(symbol: str) -> Optional[date]:
+    ticker = yf.Ticker(symbol)
+    frame = ticker.get_earnings_dates(limit=4)
+    if frame is None or frame.empty:
+        return None
+    today = pd.Timestamp.today().normalize()
+    for index in frame.index:
+        candidate = index
+        if hasattr(index, "tzinfo") and getattr(index, "tzinfo", None) is not None:
+            candidate = index.tz_convert(None)
+        candidate = pd.Timestamp(candidate).normalize()
+        if candidate >= today:
+            return candidate.date()
+    return None
+
+
+def _scrape_earnings_dates(symbol: str, limit: int) -> List[date]:
+    ticker = yf.Ticker(symbol)
+    frame = ticker.get_earnings_dates(limit=limit)
+    if frame is None or frame.empty:
+        return []
+    dates: List[date] = []
+    for index in frame.index:
+        candidate = index
+        if hasattr(index, "tzinfo") and getattr(index, "tzinfo", None) is not None:
+            candidate = index.tz_convert(None)
+        dates.append(pd.Timestamp(candidate).normalize().date())
+    return sorted(dates)
+
+
+def _scrape_short_interest(symbol: str) -> Optional[Dict[str, Any]]:
+    ticker = yf.Ticker(symbol)
+    info = ticker.info
+    if not isinstance(info, dict):
+        return None
+    short_percent = info.get("shortPercentOfFloat")
+    days_to_cover = info.get("shortRatio")
+    shares_short = info.get("sharesShort")
+    if short_percent is None and days_to_cover is None and shares_short is None:
+        return None
+    return {
+        "short_percent_of_float": (
+            round(float(short_percent) * 100, 2) if short_percent is not None else None
+        ),
+        "days_to_cover": (
+            round(float(days_to_cover), 2) if days_to_cover is not None else None
+        ),
+        "shares_short": (
+            int(float(shares_short)) if shares_short is not None else None
+        ),
+    }
+
+
+_scrape_pool = None
+
+
+def _get_scrape_pool() -> Optional[ProcessPoolExecutor]:
+    """Lazily create the recycling scrape-worker pool (None if unavailable)."""
+    global _scrape_pool
+    if _scrape_pool is not None:
+        return _scrape_pool
+    try:
+        ctx = multiprocessing.get_context("spawn")
+        _scrape_pool = ProcessPoolExecutor(
+            max_workers=2, max_tasks_per_child=6, mp_context=ctx,
+        )
+        return _scrape_pool
+    except Exception as error:  # pragma: no cover - platform-dependent
+        logger.warning("Scrape worker pool unavailable (%s); scraping inline", error)
+        _scrape_pool = False
+        return None
+
+
 class FreeDataProvider:
     """
     Multi-source data provider using only free APIs.
     Priority: IBKR (via the VM proxy, when configured) > CBOE (options) > yfinance
     """
 
+    # Slow-moving fundamentals (earnings calendar, short interest) are memoized
+    # for the rest of the UTC day. Scans run every 5 minutes; without this,
+    # each pass re-scraped Yahoo's HTML profile pages for every symbol — the
+    # curl_cffi/BeautifulSoup garbage from that is ~10-13 MB per symbol of
+    # cyclic trash, and 25-symbol batches × two scanners peaked past Render's
+    # 512 MB limit (SIGKILL/exit 137). Daily freshness is plenty for inputs
+    # that change at most once per quarter.
+    DAILY_MEMO_MAX = 600
+
     def __init__(self):
         self.cboe = CBOEDataProvider()
+        self._daily_memo: Dict[str, Tuple[date, Any]] = {}
+
+    def _daily_cached(self, key: str) -> Any:
+        hit = self._daily_memo.get(key)
+        if hit and hit[0] == date.today():
+            return hit[1]
+        return None
+
+    def _daily_store(self, key: str, value: Any) -> None:
+        today = date.today()
+        if len(self._daily_memo) >= self.DAILY_MEMO_MAX:
+            for stale in [k for k, (d, _) in self._daily_memo.items() if d != today]:
+                del self._daily_memo[stale]
+            if len(self._daily_memo) >= self.DAILY_MEMO_MAX:
+                for old in list(self._daily_memo)[: len(self._daily_memo) // 2]:
+                    del self._daily_memo[old]
+        self._daily_memo[key] = (today, value)
 
     async def _get_ibkr_proxy_chain(self, symbol: str) -> Optional[List[Dict[str, Any]]]:
         """Pull a chain from the VM's read-only IBKR proxy. Returns None (never
@@ -291,27 +402,35 @@ class FreeDataProvider:
             return False
         return True
 
+    async def _scrape(self, fn, *args):
+        """Run a scrape worker in the recycling process pool; fall back to an
+        inline thread if the pool is unavailable for any reason."""
+        pool = _get_scrape_pool()
+        if pool is not None:
+            try:
+                # run_in_executor bridges the concurrent.futures.Future from
+                # the process pool into asyncio without blocking the loop.
+                return await asyncio.wait_for(
+                    asyncio.get_running_loop().run_in_executor(pool, fn, *args),
+                    timeout=60,
+                )
+            except Exception as error:
+                logger.debug("Scrape pool call failed (%s); inline retry", error)
+        return await asyncio.wait_for(asyncio.to_thread(fn, *args), timeout=30)
+
     async def get_next_earnings_date(self, symbol: str) -> Optional[date]:
         """Next scheduled earnings date via yfinance (ETFs return None)."""
+        memo_key = f"next_earnings:{symbol.upper()}"
+        cached = self._daily_cached(memo_key)
+        if cached is not None or self._daily_memo.get(memo_key):
+            return cached
         try:
-            def fetch_next() -> Optional[date]:
-                ticker = yf.Ticker(symbol)
-                frame = ticker.get_earnings_dates(limit=4)
-                if frame is None or frame.empty:
-                    return None
-                today = pd.Timestamp.today().normalize()
-                for index in frame.index:
-                    candidate = index
-                    if hasattr(index, "tzinfo") and getattr(index, "tzinfo", None) is not None:
-                        candidate = index.tz_convert(None)
-                    candidate = pd.Timestamp(candidate).normalize()
-                    if candidate >= today:
-                        return candidate.date()
-                return None
-            return await asyncio.wait_for(asyncio.to_thread(fetch_next), timeout=15)
+            result = await self._scrape(_scrape_next_earnings, symbol)
         except Exception as error:
             logger.debug("Earnings date unavailable for %s: %s", symbol, error)
             return None
+        self._daily_store(memo_key, result)
+        return result
 
     async def get_short_interest(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Short-interest profile via yfinance fundamentals (free).
@@ -321,54 +440,33 @@ class FreeDataProvider:
         the move and retail option buyers get hurt selling into it. Returns
         None fail-closed when the ticker lacks the fields.
         """
+        memo_key = f"short_interest:{symbol.upper()}"
+        cached = self._daily_cached(memo_key)
+        if cached is not None or self._daily_memo.get(memo_key):
+            return cached
         try:
-            def fetch_short() -> Optional[Dict[str, Any]]:
-                ticker = yf.Ticker(symbol)
-                info = ticker.info
-                if not isinstance(info, dict):
-                    return None
-                short_percent = info.get("shortPercentOfFloat")
-                days_to_cover = info.get("shortRatio")
-                shares_short = info.get("sharesShort")
-                if short_percent is None and days_to_cover is None and shares_short is None:
-                    return None
-                return {
-                    "short_percent_of_float": (
-                        round(float(short_percent) * 100, 2) if short_percent is not None else None
-                    ),
-                    "days_to_cover": (
-                        round(float(days_to_cover), 2) if days_to_cover is not None else None
-                    ),
-                    "shares_short": (
-                        int(float(shares_short)) if shares_short is not None else None
-                    ),
-                }
-            return await asyncio.wait_for(asyncio.to_thread(fetch_short), timeout=15)
+            result = await self._scrape(_scrape_short_interest, symbol)
         except Exception as error:
             logger.debug("Short interest unavailable for %s: %s", symbol, error)
             return None
+        self._daily_store(memo_key, result)
+        return result
 
     async def get_earnings_dates(
         self, symbol: str, limit: int = 12
     ) -> List[date]:
         """Past AND upcoming earnings dates via yfinance, oldest first."""
+        memo_key = f"earnings_dates:{symbol.upper()}:{limit}"
+        cached = self._daily_cached(memo_key)
+        if cached is not None or self._daily_memo.get(memo_key):
+            return cached or []
         try:
-            def fetch_dates() -> List[date]:
-                ticker = yf.Ticker(symbol)
-                frame = ticker.get_earnings_dates(limit=limit)
-                if frame is None or frame.empty:
-                    return []
-                dates: List[date] = []
-                for index in frame.index:
-                    candidate = index
-                    if hasattr(index, "tzinfo") and getattr(index, "tzinfo", None) is not None:
-                        candidate = index.tz_convert(None)
-                    dates.append(pd.Timestamp(candidate).normalize().date())
-                return sorted(dates)
-            return await asyncio.wait_for(asyncio.to_thread(fetch_dates), timeout=15)
+            result = await self._scrape(_scrape_earnings_dates, symbol, limit)
         except Exception as error:
             logger.debug("Earnings dates unavailable for %s: %s", symbol, error)
             return []
+        self._daily_store(memo_key, result)
+        return result
 
     async def get_vix_history(self, period: str = "1y") -> pd.DataFrame:
         """Get historical VIX data."""

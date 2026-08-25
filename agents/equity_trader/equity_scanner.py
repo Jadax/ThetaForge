@@ -261,12 +261,23 @@ class EquityBackgroundScanner:
         # a gc pass in a thread between batches, and an explicit yield so the
         # event loop keeps servicing health checks while worker threads chew
         # through indicator math on the single free-tier CPU.
-        _BATCH_SIZE = 25
+        # Small batches for the same reason as the options scanner: bounded
+        # cyclic scrape-garbage between gc passes (see background_scanner).
+        _BATCH_SIZE = 6
         for i in range(0, len(symbols), _BATCH_SIZE):
             batch = symbols[i : i + _BATCH_SIZE]
             await asyncio.gather(*(_one(symbol) for symbol in batch))
             import gc
             await asyncio.to_thread(gc.collect)
+            from agents.trade_engine.background_scanner import _rss_mb
+            rss = _rss_mb()
+            if rss:
+                logger.info(
+                    "equity batch %d/%d done, peak RSS %.0f MB",
+                    i // _BATCH_SIZE + 1,
+                    (len(symbols) + _BATCH_SIZE - 1) // _BATCH_SIZE,
+                    rss,
+                )
             await asyncio.sleep(0)
 
         for symbol, data in results.items():
