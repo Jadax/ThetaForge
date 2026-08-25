@@ -39,7 +39,14 @@ EQUITY_NOTIFICATION_SCORE_FLOOR = 70.0
 NON_ACTIONABLE = {"no_trade"}
 # Same bounded fan-out rationale as the options scanner: keep per-scan concurrency
 # low enough that the free data sources (and Render) are not overwhelmed.
-SCAN_CONCURRENCY = 5
+# Matched to the options scanner's 3: both scanners share one free-tier CPU,
+# and their combined worker threads must not starve the event loop.
+SCAN_CONCURRENCY = 3
+
+# Post-boot delay before this scanner's first tick. The options scanner waits
+# STARTUP_GRACE_SECONDS; the extra stagger keeps both scanners' heavy passes
+# from starting (and re-aligning) at the same instant on a single free CPU.
+EQUITY_START_GRACE_SECONDS = 135
 
 # Liquid ETFs are rotation candidates; individual stocks are momentum names.
 ETF_SET = {
@@ -58,8 +65,8 @@ class EquityBackgroundScanner:
         self._last_results: Dict[str, str] = {}
         self._provider = FreeDataProvider()
         self._brain = EquityBrain()
-        self._risk_tilt_cache: Optional[Tuple[float, Optional[str]]] = None
         self._spy_6m_return_cache: Optional[float] = None
+        self._persist_lock = asyncio.Lock()
         self._ensure_files()
 
     # ── persistence ────────────────────────────────────────────────────
@@ -86,8 +93,16 @@ class EquityBackgroundScanner:
             return None
 
     def _write_json(self, path: str, data) -> None:
+        # Compact separators: machine-read state files; indent=2 doubled
+        # serialization time on the free-tier CPU.
         with open(path, "w", encoding="utf-8") as handle:
-            json.dump(data, handle, indent=2)
+            json.dump(data, handle, separators=(",", ":"))
+
+    async def _read_json_async(self, path: str):
+        return await asyncio.to_thread(self._read_json, path)
+
+    async def _write_json_async(self, path: str, data) -> None:
+        await asyncio.to_thread(self._write_json, path, data)
 
     # ── shared per-scan inputs (computed once, like the options scanner) ──
 
@@ -139,7 +154,13 @@ class EquityBackgroundScanner:
         except Exception:
             return None, "history_unavailable"
 
-        risk_tilt = await self._market_risk_tilt()
+        # Market breadth read: computed ONCE per scan pass in scan_once() and
+        # shared by the fan-out (see _scan_risk_tilt there). An earlier
+        # version called _market_risk_tilt() here -- per symbol -- which
+        # multiplied MarketOverview's ~18 full-year history fetches into
+        # thousands of yfinance calls per pass, despite this module's
+        # docstring already claiming per-pass sharing.
+        risk_tilt = getattr(self, "_scan_risk_tilt", None)
         benchmark_return_6m = await self._spy_6m_return()
 
         days_to_earnings = None
@@ -212,15 +233,18 @@ class EquityBackgroundScanner:
         skipped: Dict[str, int] = {}
         no_trade_reasons: Dict[str, int] = {}
 
-        notifs = self._read_json(EQUITY_NOTIFICATIONS_FILE) or []
+        notifs = await self._read_json_async(EQUITY_NOTIFICATIONS_FILE) or []
         notifs = [
             n for n in notifs
             if n.get("signal") not in NON_ACTIONABLE
             and (float(n.get("score") or 0)) >= EQUITY_NOTIFICATION_SCORE_FLOOR
         ]
 
+        # Market-wide breadth read, once per pass and shared by every symbol's
+        # analysis (MarketOverview pulls ~18 full-year histories per call).
+        self._scan_risk_tilt = await self._market_risk_tilt()
+
         semaphore = asyncio.Semaphore(SCAN_CONCURRENCY)
-        write_lock = asyncio.Lock()
 
         async def _one(symbol: str) -> None:
             async with semaphore:
@@ -233,10 +257,17 @@ class EquityBackgroundScanner:
                 reason = data["no_trade_reason"]
                 no_trade_reasons[reason] = no_trade_reasons.get(reason, 0) + 1
 
-        await asyncio.gather(*(_one(symbol) for symbol in symbols))
-
-        import gc
-        gc.collect()
+        # Batched fan-out (mirrors the options scanner): bounded concurrency,
+        # a gc pass in a thread between batches, and an explicit yield so the
+        # event loop keeps servicing health checks while worker threads chew
+        # through indicator math on the single free-tier CPU.
+        _BATCH_SIZE = 25
+        for i in range(0, len(symbols), _BATCH_SIZE):
+            batch = symbols[i : i + _BATCH_SIZE]
+            await asyncio.gather(*(_one(symbol) for symbol in batch))
+            import gc
+            await asyncio.to_thread(gc.collect)
+            await asyncio.sleep(0)
 
         for symbol, data in results.items():
             signature = f"{data.get('signal')}|{round(float(data.get('score') or 0), 1)}|{data.get('strategy')}"
@@ -261,7 +292,10 @@ class EquityBackgroundScanner:
 
         # Keep only recent notifications; the file must not grow unbounded.
         notifs = notifs[-200:]
-        async with write_lock:
+        # One thread round-trip for all three state files instead of three
+        # sync serializations of multi-hundred-KB result payloads on the loop.
+        # The lock keeps a manual trigger and a loop tick from interleaving.
+        def _persist() -> None:
             self._write_json(EQUITY_RESULTS_FILE, {"as_of": date.today().isoformat(), "symbols": results})
             self._write_json(EQUITY_NOTIFICATIONS_FILE, notifs)
             self._write_json(EQUITY_STATE_FILE, {
@@ -273,11 +307,23 @@ class EquityBackgroundScanner:
                 "scan_diagnostics": {"skipped": skipped, "no_trade_reasons": no_trade_reasons},
                 "errors": [],
             })
+        async with self._persist_lock:
+            await asyncio.to_thread(_persist)
         return new_count
 
     # ── lifecycle ──────────────────────────────────────────────────────
 
     async def _loop(self) -> None:
+        # Post-boot grace + stagger: let the platform health probe settle
+        # before heavy work starts, and offset this scanner's first tick from
+        # the options scanner's so both never hit the free CPU simultaneously.
+        try:
+            await asyncio.wait_for(
+                self._stop_event.wait(), timeout=EQUITY_START_GRACE_SECONDS
+            )
+            return
+        except asyncio.TimeoutError:
+            pass
         while not self._stop_event.is_set():
             try:
                 if is_market_hours():
@@ -300,31 +346,35 @@ class EquityBackgroundScanner:
     async def stop(self) -> None:
         self._stop_event.set()
         if self._task is not None:
-            await self._task
+            try:
+                await asyncio.wait_for(asyncio.shield(self._task), timeout=10)
+            except asyncio.TimeoutError:
+                self._task.cancel()
             self._task = None
 
     # ── read APIs for the advisor ──────────────────────────────────────
 
     async def get_notifications(self, unacknowledged_only: bool = False, limit: int = 50) -> List[dict]:
-        notifs = self._read_json(EQUITY_NOTIFICATIONS_FILE) or []
+        notifs = await self._read_json_async(EQUITY_NOTIFICATIONS_FILE) or []
         if unacknowledged_only:
             notifs = [n for n in notifs if not n.get("acknowledged")]
         return sorted(notifs, key=lambda n: n.get("created_at", ""), reverse=True)[:limit]
 
     async def acknowledge_notification(self, notification_id: str) -> bool:
-        notifs = self._read_json(EQUITY_NOTIFICATIONS_FILE) or []
+        notifs = await self._read_json_async(EQUITY_NOTIFICATIONS_FILE) or []
         found = False
         for n in notifs:
             if n.get("id") == notification_id:
                 n["acknowledged"] = True
                 found = True
         if found:
-            self._write_json(EQUITY_NOTIFICATIONS_FILE, notifs)
+            await self._write_json_async(EQUITY_NOTIFICATIONS_FILE, notifs)
         return found
 
     async def get_status(self) -> Dict[str, Any]:
-        state = self._read_json(EQUITY_STATE_FILE) or {}
-        unacked = len(await self.get_notifications(unacknowledged_only=True, limit=1000))
+        state = await self._read_json_async(EQUITY_STATE_FILE) or {}
+        notifs = await self._read_json_async(EQUITY_NOTIFICATIONS_FILE) or []
+        unacked = sum(1 for n in notifs if not n.get("acknowledged"))
         return {
             "engine": "equity",
             "market_open": is_market_hours(),
@@ -334,7 +384,7 @@ class EquityBackgroundScanner:
             "symbols_scanned": state.get("symbols_scanned", 0),
             "symbols_with_trades": state.get("symbols_with_trades", 0),
             "pending_notifications": unacked,
-            "total_notifications": len(self._read_json(EQUITY_NOTIFICATIONS_FILE) or []),
+            "total_notifications": len(notifs),
             "diagnostics": state.get("scan_diagnostics", {}),
         }
 

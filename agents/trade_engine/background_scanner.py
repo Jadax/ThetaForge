@@ -45,6 +45,12 @@ NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
 # changing this, a local measurement will not reproduce the failure.
 SCAN_CONCURRENCY = 3
 
+# Hold the first scan tick after boot briefly so a fresh deploy can pass its
+# platform health checks before any heavy work starts -- Render probes /health/
+# right after boot, and a scan starting instantly on a 0.1-vCPU instance was
+# failing those probes and flapping the service during market-hours deploys.
+STARTUP_GRACE_SECONDS = 90
+
 _EASTERN = ZoneInfo("America/New_York")
 _nyse_calendar = None
 
@@ -337,13 +343,17 @@ def _enrich_and_analyze(
     current_iv, hv_20, iv_store, pcr_store,
     days_to_earnings, days_to_macro, vix_term_structure,
     expected_move_pct, iv_percentile, iv_skew,
-    short_interest, earnings_move, vol_risk_premium,
+    short_interest, vol_risk_premium,
     relative_strength, symbol,
+    hist_frame=None, past_earnings_dates=None,
 ):
     """CPU-bound enrichment + Brain analysis, run in a thread via to_thread.
 
     Keeps the event loop free so health checks and other requests are not
-    blocked by the ~0.1-1s of signal computation per symbol.
+    blocked by the ~0.1-1s of signal computation per symbol. Everything that
+    touches the chain or history frames happens here -- including the
+    desk-analytics earnings-move edge and the flow/rv-band summaries that an
+    earlier version recomputed on the loop after the thread returned.
     """
     hv_20_val = hv_20
     try:
@@ -401,17 +411,23 @@ def _enrich_and_analyze(
     except Exception:
         iv_skew_val = None
 
-    earnings_move_val = earnings_move
+    # Earnings implied-vs-realized move edge: implied move needs ATM IV (only
+    # known above), realized moves need the past earnings calendar fetched
+    # async-side. Missing pieces degrade to None, never a fabricated edge.
+    earnings_move_val = None
     try:
         from agents.volatility.desk_analytics import (
             implied_earnings_move,
+            historical_earnings_moves,
+            earnings_move_edge,
         )
-        if cur_iv and price > 0:
+        if cur_iv and price > 0 and hist_frame is not None and past_earnings_dates:
             implied = implied_earnings_move(chain, price)
             if implied:
-                earnings_move_val = earnings_move  # already computed async
+                moves = historical_earnings_moves(hist_frame, past_earnings_dates)
+                earnings_move_val = earnings_move_edge(implied, moves)
     except Exception:
-        pass
+        earnings_move_val = None
 
     flow_data = None
     pcr_data = None
@@ -422,6 +438,9 @@ def _enrich_and_analyze(
         gex_data = _gex_data(chain, price)
     except Exception:
         pass
+
+    rv_band_val = _rv_band(cur_iv, hv_20_val)
+    flow_signals_val = _flow_signals(chain)
 
     analyze_kwargs = dict(
         symbol=symbol,
@@ -456,7 +475,10 @@ def _enrich_and_analyze(
 
     result = brain.analyze(**analyze_kwargs, record_feedback=True)
 
-    return result, flow_data, pcr_data, gex_data, cur_iv, hv_20_val
+    return (
+        result, flow_data, pcr_data, gex_data,
+        cur_iv, hv_20_val, rv_band_val, flow_signals_val, earnings_move_val,
+    )
 
 
 # Liquid options underlyings — most actively traded US ETFs and large-caps.
@@ -631,8 +653,16 @@ class BackgroundBrainScanner:
             return json.load(f)
 
     def _write_json(self, path: str, data):
+        # Compact separators: these are machine-read state files; indent=2
+        # roughly doubled multi-MB scan-result serialization time on the host.
         with open(path, "w") as f:
-            json.dump(data, f, indent=2)
+            json.dump(data, f, separators=(",", ":"))
+
+    async def _read_json_async(self, path: str):
+        return await asyncio.to_thread(self._read_json, path)
+
+    async def _write_json_async(self, path: str, data) -> None:
+        await asyncio.to_thread(self._write_json, path, data)
 
     def _result_signature(self, score: float, signal: str, strategy: str, regime: str) -> str:
         return f"{signal}|{round(score, 1)}|{strategy}|{regime}"
@@ -689,8 +719,11 @@ class BackgroundBrainScanner:
         # Self-learning feedback: score any due recorded predictions for this
         # symbol against the price we already fetched (no extra network call).
         # Advisory-only and fail-closed -- a tracker hiccup never breaks a scan.
+        # Offloaded to a thread: the tracker reads/writes its JSON store, and
+        # per-symbol sync file I/O on the loop was part of the health-check
+        # starvation.
         try:
-            self._brain.record_outcome(symbol, price)
+            await asyncio.to_thread(self._brain.record_outcome, symbol, price)
         except Exception:
             pass
 
@@ -735,7 +768,6 @@ class BackgroundBrainScanner:
         relative_strength = None
         vix_term_structure = None
         days_to_earnings = None
-        earnings_move = None
         short_interest = None
 
         try:
@@ -767,27 +799,22 @@ class BackgroundBrainScanner:
         except Exception:
             short_interest = None
 
-        try:
-            from agents.volatility.desk_analytics import (
-                implied_earnings_move,
-                historical_earnings_moves,
-                earnings_move_edge,
-            )
-            if current_iv and price > 0:
-                implied = implied_earnings_move(chain, price)
-                if implied:
-                    earnings_dates = await self._provider.get_earnings_dates(symbol, limit=12)
-                    past_dates = [event for event in earnings_dates if event < date.today()]
-                    if past_dates:
-                        moves = historical_earnings_moves(hist, past_dates)
-                        earnings_move = earnings_move_edge(implied, moves)
-        except Exception:
-            earnings_move = None
+        # Past earnings dates for the implied-vs-realized move edge. The edge
+        # itself is computed inside the worker thread once ATM IV is known --
+        # an earlier version gated this block on `current_iv`, which is only
+        # set inside the thread, so the feature silently never ran.
+        past_earnings_dates = []
+        if days_to_earnings is not None:
+            try:
+                earnings_dates = await self._provider.get_earnings_dates(symbol, limit=12)
+                past_earnings_dates = [e for e in earnings_dates if e < date.today()]
+            except Exception:
+                past_earnings_dates = []
 
         try:
             brain = await self._lazy_brain()
 
-            result, flow_data, pcr_data, gex_data, current_iv, hv_20 = (
+            result, flow_data, pcr_data, gex_data, current_iv, hv_20, rv_band, flow_signals, earnings_move = (
                 await asyncio.to_thread(
                     _enrich_and_analyze,
                     brain, chain, price, closes, high_prices, low_prices, vix,
@@ -796,8 +823,10 @@ class BackgroundBrainScanner:
                     getattr(self, "_scan_pcr_store", None),
                     days_to_earnings, days_to_macro, vix_term_structure,
                     expected_move_pct, iv_percentile, iv_skew,
-                    short_interest, earnings_move, vol_risk_premium,
+                    short_interest, vol_risk_premium,
                     relative_strength, symbol,
+                    hist_frame=hist,
+                    past_earnings_dates=past_earnings_dates,
                 )
             )
             return {
@@ -817,8 +846,8 @@ class BackgroundBrainScanner:
                 "eff_iv_rank": (result.iv_signal or {}).get("eff_iv_rank"),
                 "iv_hv_ratio": (result.iv_signal or {}).get("ratio"),
                 "iv_hv_signal": (result.iv_signal or {}).get("signal"),
-                "rv_band": _rv_band(current_iv, hv_20),
-                "flow_signals": _flow_signals(chain),
+                "rv_band": rv_band,
+                "flow_signals": flow_signals,
                 "flow_bias": (flow_data or {}).get("bias"),
                 "pcr_signal": result.sentiment_signal or {},
                 "pcr": (pcr_data or {}).get("current"),
@@ -827,7 +856,7 @@ class BackgroundBrainScanner:
                 "term_structure": (result.iv_signal or {}).get("term_structure"),
                 "iv_skew": (result.iv_signal or {}).get("iv_skew"),
                 "short_interest": (result.iv_signal or {}).get("short_interest"),
-                "earnings_move": (result.iv_signal or {}).get("earnings_move"),
+                "earnings_move": earnings_move,
                 "vol_risk_premium": (result.iv_signal or {}).get("vol_risk_premium"),
                 "relative_strength": result.relative_strength,
                 "top_signal": "",
@@ -835,18 +864,6 @@ class BackgroundBrainScanner:
         except Exception:
             logger.exception("Brain analysis failed for %s", symbol)
             return None, "brain_error"
-
-    def _check_alerts(self, symbol: str, data: dict) -> None:
-        """Run user-defined threshold rules against one scan result.
-
-        Fail-closed: a rule-store or evaluation hiccup never breaks the scan.
-        This is advisory only -- alerts never gate or delay a scan.
-        """
-        try:
-            from agents.trade_engine.alerts import AlertEngine
-            AlertEngine().check_one(symbol, data)
-        except Exception:
-            logger.exception("Alert evaluation failed for %s", symbol)
 
     async def scan_once(self, symbols: Optional[List[str]] = None) -> int:
         """Run one full scan pass over *symbols* (or the auto-built universe).
@@ -862,14 +879,12 @@ class BackgroundBrainScanner:
         no_trade_reasons: Dict[str, int] = {}
 
         # Clean old no_trade notifications so stale entries don't linger
-        old_notifs = self._read_json(SCAN_NOTIFICATIONS_FILE)
-        clean = [
+        old_notifs = await self._read_json_async(SCAN_NOTIFICATIONS_FILE)
+        notifs = [
             notification for notification in old_notifs
             if notification.get("best_strategy") not in NON_ACTIONABLE_STRATEGIES
             and abs(float(notification.get("score", 0) or 0)) >= NOTIFICATION_SCORE_FLOOR
         ]
-        if len(clean) != len(old_notifs):
-            self._write_json(SCAN_NOTIFICATIONS_FILE, clean)
 
         # VIX and its term structure are market-wide — fetch once per scan
         # pass instead of per-symbol (130× fewer network calls).
@@ -916,6 +931,10 @@ class BackgroundBrainScanner:
         # any transient allocations that GC hasn't reclaimed) until the full
         # gather completes.  Batching drops the peak held results from 130 to
         # _BATCH_SIZE, saving ~25 MB of result dicts on Render's 512 MB tier.
+        # gc runs in a thread (it can pause the loop for hundreds of ms with
+        # this many live pandas objects) and each batch yields to the loop so
+        # health checks are serviced even while worker threads saturate the
+        # single free-tier CPU.
         _BATCH_SIZE = 25
         analyzed: List[Tuple[str, Optional[dict], Optional[str]]] = []
         for i in range(0, len(symbols), _BATCH_SIZE):
@@ -925,17 +944,18 @@ class BackgroundBrainScanner:
             )
             analyzed.extend(batch_results)
             import gc
-            gc.collect()
+            await asyncio.to_thread(gc.collect)
+            await asyncio.sleep(0)
 
+        new_notifications: List[dict] = []
+        alert_rows: Dict[str, dict] = {}
         for symbol, data, skip_reason in analyzed:
             if data is None:
                 reason = skip_reason or "unknown"
                 skipped[reason] = skipped.get(reason, 0) + 1
                 continue
 
-            # Threshold alerts run on every analyzed symbol -- tradeable or
-            # not -- so rules like "VIX above" fire regardless of signal.
-            self._check_alerts(symbol, data)
+            alert_rows[symbol] = data
 
             # Only alert on tradeable signals — skip no_trade. The no-trade
             # rows keep their full analysis payload (reasoning, confidence,
@@ -993,12 +1013,8 @@ class BackgroundBrainScanner:
                 self._last_results[symbol] = self._result_signature(
                     data["score"], data["signal"], data["strategy"], data["regime"]
                 )
-
-                notifs = self._read_json(SCAN_NOTIFICATIONS_FILE)
+                new_notifications.append(notif)
                 notifs.append(notif)
-                if len(notifs) > 500:
-                    notifs = notifs[-500:]
-                self._write_json(SCAN_NOTIFICATIONS_FILE, notifs)
                 new_count += 1
 
             results[symbol] = {
@@ -1020,12 +1036,27 @@ class BackgroundBrainScanner:
                 "vol_risk_premium": data.get("vol_risk_premium"),
             }
 
-        self._write_json(SCAN_RESULTS_FILE, {
+        # Threshold alerts run once per pass over every analyzed symbol --
+        # tradeable or not -- so rules like "VIX above" fire regardless of
+        # signal. One engine call instead of one file-read per symbol: the
+        # per-symbol version was 130 sync reads (+ fsync writes on triggers)
+        # on the event loop each pass. Off-thread and advisory-only.
+        if alert_rows:
+            try:
+                await asyncio.to_thread(self._run_alert_checks, alert_rows)
+            except Exception:
+                logger.exception("Alert evaluation failed for the scan pass")
+
+        # Single write per pass for results, notifications, and state -- an
+        # earlier version re-read + re-wrote the notifications file for every
+        # new notification (O(N^2) serialization on the loop).
+        await self._write_json_async(SCAN_NOTIFICATIONS_FILE, notifs[-500:])
+        await self._write_json_async(SCAN_RESULTS_FILE, {
             "symbols": results,
             "last_full_run": datetime.now(timezone.utc).isoformat(),
         })
 
-        state = self._read_json(SCAN_STATE_FILE)
+        state = await self._read_json_async(SCAN_STATE_FILE)
         now = datetime.now(timezone.utc)
         state["last_run"] = now.isoformat()
         state["next_run"] = (now + timedelta(seconds=self.interval)).isoformat()
@@ -1045,11 +1076,27 @@ class BackgroundBrainScanner:
             f"{count} symbols skipped: {reason.replace('_', ' ')}"
             for reason, count in sorted(skipped.items())
         ]
-        self._write_json(SCAN_STATE_FILE, state)
+        await self._write_json_async(SCAN_STATE_FILE, state)
 
         return new_count
 
+    @staticmethod
+    def _run_alert_checks(alert_rows: Dict[str, dict]) -> None:
+        """One AlertEngine pass over all analyzed symbols (runs in a thread)."""
+        from agents.trade_engine.alerts import AlertEngine
+        AlertEngine().check(alert_rows)
+
     async def _run_loop(self):
+        # Post-deploy grace: hold the first heavy tick briefly so the platform
+        # health probe passes before any scan work competes for the CPU (see
+        # STARTUP_GRACE_SECONDS). A stop request during the grace exits clean.
+        try:
+            await asyncio.wait_for(
+                self._stop_event.wait(), timeout=STARTUP_GRACE_SECONDS
+            )
+            return
+        except asyncio.TimeoutError:
+            pass
         while not self._stop_event.is_set():
             try:
                 if is_market_hours():
@@ -1063,7 +1110,7 @@ class BackgroundBrainScanner:
                     # did nothing, so /scanner/status reads as "closed", not
                     # as "broken". A manual POST /scanner/trigger always
                     # runs regardless of market hours.
-                    self._mark_skipped_for_closed_market()
+                    await self._mark_skipped_for_closed_market()
             except Exception:
                 # A failed pass must not kill the loop, but it must be visible:
                 # silent failures here previously hid broken discovery for
@@ -1075,7 +1122,7 @@ class BackgroundBrainScanner:
             except asyncio.TimeoutError:
                 continue
 
-    def _mark_skipped_for_closed_market(self) -> None:
+    async def _mark_skipped_for_closed_market(self) -> None:
         """Record that the loop is alive and checked, purely diagnostic.
 
         Deliberately does not touch last_run/next_run/scan_diagnostics --
@@ -1083,30 +1130,42 @@ class BackgroundBrainScanner:
         and should not look reset just because the market is closed right
         now. get_status() computes the live market_open flag itself rather
         than trusting a persisted value here, so there is nothing to keep in
-        sync as time passes.
+        sync as time passes. The file write runs in a thread: it lands on
+        every closed-market tick (weekends included).
         """
-        state = self._read_json(SCAN_STATE_FILE)
-        state["last_closed_market_check"] = datetime.now(timezone.utc).isoformat()
-        self._write_json(SCAN_STATE_FILE, state)
+        def _update() -> None:
+            state = self._read_json(SCAN_STATE_FILE)
+            state["last_closed_market_check"] = datetime.now(timezone.utc).isoformat()
+            self._write_json(SCAN_STATE_FILE, state)
+
+        try:
+            await asyncio.to_thread(_update)
+        except Exception:
+            logger.exception("Closed-market check marker write failed")
 
     async def start(self):
         if self._task is not None:
             return
         self._stop_event.clear()
         self._task = asyncio.create_task(self._run_loop())
-        state = self._read_json(SCAN_STATE_FILE)
+        state = await self._read_json_async(SCAN_STATE_FILE)
         state["is_running"] = True
-        self._write_json(SCAN_STATE_FILE, state)
+        await self._write_json_async(SCAN_STATE_FILE, state)
 
     async def stop(self):
         if self._task is None:
             return
         self._stop_event.set()
-        await asyncio.wait_for(self._task, timeout=10)
+        try:
+            await asyncio.wait_for(asyncio.shield(self._task), timeout=10)
+        except asyncio.TimeoutError:
+            # A mid-scan stop cannot finish in 10s; cancel rather than hang
+            # process shutdown (the platform kills us shortly anyway).
+            self._task.cancel()
         self._task = None
-        state = self._read_json(SCAN_STATE_FILE)
+        state = await self._read_json_async(SCAN_STATE_FILE)
         state["is_running"] = False
-        self._write_json(SCAN_STATE_FILE, state)
+        await self._write_json_async(SCAN_STATE_FILE, state)
 
     @property
     def is_running(self) -> bool:
@@ -1114,7 +1173,7 @@ class BackgroundBrainScanner:
 
     async def get_notifications(self, unacknowledged_only: bool = False,
                                 limit: int = 50) -> List[Dict]:
-        notifs = self._read_json(SCAN_NOTIFICATIONS_FILE)
+        notifs = await self._read_json_async(SCAN_NOTIFICATIONS_FILE)
         # Defensive read-time filter hides invalid records already persisted by
         # older deployments without waiting for the next five-minute scan.
         notifs = [
@@ -1127,25 +1186,27 @@ class BackgroundBrainScanner:
         return notifs[-limit:]
 
     async def acknowledge_notification(self, notification_id: str) -> bool:
-        notifs = self._read_json(SCAN_NOTIFICATIONS_FILE)
+        notifs = await self._read_json_async(SCAN_NOTIFICATIONS_FILE)
         for n in notifs:
             if n.get("id") == notification_id:
                 n["acknowledged"] = True
-                self._write_json(SCAN_NOTIFICATIONS_FILE, notifs)
+                await self._write_json_async(SCAN_NOTIFICATIONS_FILE, notifs)
                 return True
         return False
 
     async def acknowledge_all(self):
-        notifs = self._read_json(SCAN_NOTIFICATIONS_FILE)
+        notifs = await self._read_json_async(SCAN_NOTIFICATIONS_FILE)
         for n in notifs:
             n["acknowledged"] = True
-        self._write_json(SCAN_NOTIFICATIONS_FILE, notifs)
+        await self._write_json_async(SCAN_NOTIFICATIONS_FILE, notifs)
 
     async def get_status(self) -> Dict:
-        state = self._read_json(SCAN_STATE_FILE)
-        notifs = self._read_json(SCAN_NOTIFICATIONS_FILE)
+        state, notifs, last_results = await asyncio.gather(
+            self._read_json_async(SCAN_STATE_FILE),
+            self._read_json_async(SCAN_NOTIFICATIONS_FILE),
+            self._read_json_async(SCAN_RESULTS_FILE),
+        )
         unacked = [n for n in notifs if not n.get("acknowledged")]
-        last_results = self._read_json(SCAN_RESULTS_FILE)
         return {
             "is_running": self.is_running,
             "market_open": is_market_hours(),

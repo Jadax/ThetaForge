@@ -29,6 +29,13 @@ SIGNAL_ACCURACY_FILE = os.path.join(DATA_DIR, "signal_accuracy.json")
 # on the JSON history is serialized so one cycle can never lose another's rows.
 _LOCK = threading.Lock()
 
+# Bumped on every in-process write to the signal log. Filesystem mtimes cannot
+# invalidate caches between rapid successive writes -- measured on Windows,
+# ~70% of write pairs within a few ms land on the SAME st_mtime_ns tick -- so
+# same-process staleness is tracked here instead; the mtime stamp below only
+# covers writes from other processes.
+_WRITE_GENERATION = 0
+
 # A directional read below this strength is treated as no-read (never credited
 # or faulted) -- mirrors the Brain's INFORMATIVE_STRENGTH_EPS.
 NEUTRAL_STRENGTH_EPS = 0.05
@@ -72,11 +79,25 @@ class SignalTracker:
     # analysis during the same scan pass.
     _CACHE_TTL = 10.0
 
+    @staticmethod
+    def _file_stamp(path: str) -> int:
+        """Modification stamp for cross-process staleness checks only.
+
+        Windows LastWriteTime has millisecond-scale effective granularity
+        (rapid successive writes routinely collide on the same value), so this
+        must never be the sole invalidation signal — see _WRITE_GENERATION.
+        """
+        try:
+            return os.stat(path).st_mtime_ns
+        except OSError:
+            return 0
+
     def __init__(self):
         self._ensure_files()
         self._log_cache: Optional[List[Dict]] = None
         self._log_cache_ts: float = 0.0
-        self._log_cache_mtime: float = 0.0
+        self._log_cache_stamp: int = 0
+        self._log_cache_gen: int = -1
 
     def _ensure_files(self):
         os.makedirs(DATA_DIR, exist_ok=True)
@@ -86,39 +107,34 @@ class SignalTracker:
                     json.dump([], fh)
 
     def _read_log(self) -> List[Dict]:
-        import time, os
+        import time
         now = time.monotonic()
-        try:
-            mtime = os.path.getmtime(SIGNAL_LOG_FILE)
-        except OSError:
-            mtime = 0.0
-        # Serve from cache if: cache exists, TTL not expired, AND the file on
-        # disk was not modified after the cache was populated (mtime check
-        # catches cross-instance writes from the test suite and concurrent
-        # processes).  mtime is compared against _log_cache_mtime (set from
-        # the same os.path.getmtime clock) rather than _log_cache_ts (which
-        # comes from time.monotonic).
+        # Serve from cache if: cache exists, TTL not expired, no in-process
+        # write happened since it was cached, AND the file on disk was not
+        # modified by another process after the cache was populated.
         if (self._log_cache is not None
                 and (now - self._log_cache_ts) < self._CACHE_TTL
-                and mtime <= self._log_cache_mtime):
+                and self._log_cache_gen == _WRITE_GENERATION
+                and self._file_stamp(SIGNAL_LOG_FILE) <= self._log_cache_stamp):
             return self._log_cache
         with open(SIGNAL_LOG_FILE, "r") as f:
             data = json.load(f)
         self._log_cache = data
         self._log_cache_ts = now
-        self._log_cache_mtime = mtime
+        self._log_cache_stamp = self._file_stamp(SIGNAL_LOG_FILE)
+        self._log_cache_gen = _WRITE_GENERATION
         return data
 
     def _write_log(self, data: List[Dict]):
+        global _WRITE_GENERATION
         with open(SIGNAL_LOG_FILE, "w") as f:
             json.dump(data, f, indent=2)
-        import time, os
+        import time
+        _WRITE_GENERATION += 1
         self._log_cache = data
         self._log_cache_ts = time.monotonic()
-        try:
-            self._log_cache_mtime = os.path.getmtime(SIGNAL_LOG_FILE)
-        except OSError:
-            self._log_cache_mtime = 0.0
+        self._log_cache_stamp = self._file_stamp(SIGNAL_LOG_FILE)
+        self._log_cache_gen = _WRITE_GENERATION
 
     def _read_accuracy(self) -> Dict:
         with open(SIGNAL_ACCURACY_FILE, "r") as f:

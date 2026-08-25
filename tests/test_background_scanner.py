@@ -219,7 +219,7 @@ async def test_skipping_a_closed_market_does_not_clobber_the_last_real_scan(scan
     await scanner.scan_once(symbols=["AAA"])
     status_after_scan = await scanner.get_status()
 
-    scanner._mark_skipped_for_closed_market()
+    await scanner._mark_skipped_for_closed_market()
     status_after_skip = await scanner.get_status()
 
     assert status_after_skip["last_run"] == status_after_scan["last_run"]

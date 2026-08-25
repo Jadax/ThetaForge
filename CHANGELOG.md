@@ -1,5 +1,58 @@
 # ThetaForge Changelog
 
+## v1.17.7 - 2026-08-25
+
+**Fix the remaining health-check starvation; full review pass.**
+
+v1.17.6 moved `brain.analyze()` off the loop, but Render still reported
+"HTTP health check failed (timed out after 5 seconds)". On a 0.1-vCPU
+instance, several other loop blockers and one CPU-starvation amplifier
+remained:
+
+- **Boot-time scan storm**: both scanners started heavy scans immediately on
+  boot. A deploy during market hours failed Render's post-deploy probes and
+  flapped the service. Both scanners now wait out a post-boot grace period
+  (options: `STARTUP_GRACE_SECONDS=90`; equity: staggered +45s) before the
+  first tick.
+- **Equity scanner fetched market breadth per symbol**: `_analyze_one`
+  called the uncached `MarketOverview.overview()` (~18 full-year history
+  fetches) for every symbol — ~2,100 duplicate yfinance calls per pass,
+  despite the module docstring already claiming per-pass sharing. The risk
+  tilt is now computed once per pass (`_scan_risk_tilt`) and shared, matching
+  the options scanner's VIX/term-structure pattern.
+- **Alert evaluation was 130 sync file reads (+ fsync writes) per pass on
+  the loop** (`AlertEngine.check_one` per symbol). Alerts now evaluate once
+  per pass over all analyzed rows (`AlertEngine.check(alert_rows)`), in a
+  worker thread.
+- **Earnings-move edge silently never ran** (logic bug): `_analyze_one`
+  gated the desk-analytics block on `current_iv`, which is only set later
+  inside the worker thread — so it was always `None`; the copy inside the
+  thread assigned instead of computing (dead). Consolidated into the thread
+  helper: implied move needs ATM IV, realized moves need past earnings dates
+  (fetched async-side only when an earnings schedule is known).
+- **Sync JSON I/O of multi-MB state files on the loop**: notification file
+  was re-read + re-written for every new notification (O(N²)); results/state
+  written with `indent=2`. Now: compact separators, single write per pass,
+  every read/write routed through `asyncio.to_thread` helpers (including
+  `get_status`, which the dashboard and VM executor poll).
+- **`gc.collect()` ran on the event loop** between batches in both scanners;
+  with this many live pandas objects it pauses the loop for hundreds of ms.
+  Now `await asyncio.to_thread(gc.collect)` plus an explicit yield per batch.
+- **GIL fairness**: `sys.setswitchinterval(0.001)` in the orchestrator so
+  numpy/pandas-heavy worker threads cannot monopolize the interpreter long
+  enough to miss the 5s health-check window.
+- **Equity `SCAN_CONCURRENCY` 5 → 3** (matches options; combined worker
+  threads share one free-tier CPU). Shutdown hardened: a mid-scan stop
+  cancels after a 10s grace instead of hanging or raising.
+- **Flaky feedback-loop test fixed at the root**: `SignalTracker`'s cache
+  invalidation relied on filesystem mtimes, but measured on Windows ~70% of
+  rapid successive writes land on the same `st_mtime_ns` tick — so a
+  just-written prediction could be invisible to the next read. Same-process
+  staleness is now tracked with an in-process write-generation counter;
+  mtime remains only as the cross-process backstop.
+- Docs: AGENTS.md gains the Event-Loop Rule; HANDOVER.md de-duplicated
+  against AGENTS.md (single source of truth) and corrected stale facts.
+
 ## v1.17.6 - 2026-08-20
 
 **Fix health-check timeout + OOM: move ALL CPU-bound work off the event loop.**

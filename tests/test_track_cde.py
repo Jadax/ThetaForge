@@ -176,7 +176,10 @@ def test_scanner_emits_price_and_pcr_fields():
     source = inspect.getsource(bs.BackgroundBrainScanner._analyze_one)
     assert '"price": price' in source
     assert '"pcr": (pcr_data or {}).get("current")' in source
-    assert "self._check_alerts(symbol, data)" in inspect.getsource(bs.BackgroundBrainScanner.scan_once)
+    # Alerts evaluate once per pass over every analyzed symbol (in a worker
+    # thread) instead of one file-read per symbol on the event loop.
+    assert "asyncio.to_thread(self._run_alert_checks, alert_rows)" in inspect.getsource(bs.BackgroundBrainScanner.scan_once)
+    assert "alert_rows[symbol] = data" in inspect.getsource(bs.BackgroundBrainScanner.scan_once)
 
 
 # ── Track E: historical backtest ───────────────────────────────────────────

@@ -5,6 +5,7 @@ Adapted from general microservices architectures and FastAPI best practices.
 """
 import logging
 import os
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -16,6 +17,13 @@ from agents.equity_trader.equity_scanner import get_background_equity_scanner
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Scan workers run brain analysis in threads (asyncio.to_thread) on hosts with
+# as little as 0.1 vCPU. The default 5ms GIL switch interval lets a single
+# numpy/pandas-heavy worker hog the interpreter long enough that the event
+# loop misses Render's 5s health-check window; a shorter interval trades a
+# little throughput for guaranteed loop latency.
+sys.setswitchinterval(0.001)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,7 +65,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="ThetaForge Orchestrator",
     description="Multi-agent AI-augmented options and equity trading intelligence system.",
-    version="1.17.6",
+    version="1.17.7",
     lifespan=lifespan
 )
 

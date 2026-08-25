@@ -47,7 +47,7 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | `agents/equity_trader/equity_signals.py` | Equity indicator helpers reusing `SignalEngine` (RSI/ADX/MACD): trend, 6m momentum, relative strength vs SPY |
 | `agents/equity_trader/equity_brain.py` | Fail-closed equity gates: risk_off regime, macro ≤2d, earnings ≤3d, SMA200/SMA50 trend, momentum, ADX ≥20, RSI ≤80, relative strength ≥ −5% vs SPY; `BUY_SCORE_FLOOR=62` |
 | `agents/equity_trader/equity_universe.py` | Free-data active-stock/ETF universe discovery for the equity scanner |
-| `agents/equity_trader/equity_scanner.py` | Background stock/ETF scan (`SCAN_CONCURRENCY=5`, market-hours only); writes `data/equity_scan_results.json` + `equity_notifications.json`; singleton `get_background_equity_scanner()` |
+| `agents/equity_trader/equity_scanner.py` | Background stock/ETF scan (`SCAN_CONCURRENCY=3`, market-hours only, boot-grace + stagger vs the options scanner); writes `data/equity_scan_results.json` + `equity_notifications.json`; singleton `get_background_equity_scanner()` |
 | `agents/equity_trader/equity_recommender.py` | Equity candidate scoring: 1% risk, 2× ATR stop, 2R target, 30% notional cap, sector cap (`MAX_CORRELATED_EQUITY_POSITIONS` + `SYMBOL_SECTOR`) |
 | `agents/equity_trader/equity_manager.py` | Open equity position rules (2× ATR stop, 2R profit, chandelier trail after +1R, pre-earnings, pre-macro, 60d time) + trailing-stop anchor ratchet |
 | `agents/backtest/advanced_backtest.py` | Retained `SignalEngine` (macd/rsi/adx/bollinger) imported by `ai_brain.py`, `tv_indicators.py`, and the equity brain — NOT dead code |
@@ -89,6 +89,23 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 - Fail-closed: missing price/chain/VIX/history → recorded skip reason, never a
   placeholder signal.
 
+## Event-Loop Rule (Render free tier: 0.1 vCPU, 5s health-check timeout)
+
+Inside any `async def` in `orchestrator/` or the scanners:
+
+- No sync file I/O (`open`/`json.load`/`json.dump`) — route it through
+  `asyncio.to_thread` (the scanners' `_read_json_async`/`_write_json_async`
+  pattern).
+- No CPU-bound pandas/numpy/BS work — run it via `asyncio.to_thread`
+  (see `background_scanner._enrich_and_analyze`).
+- No `gc.collect()` on the loop — `await asyncio.to_thread(gc.collect)`.
+- Market-wide inputs (VIX, VIX term structure, SPY benchmark, market
+  breadth/risk tilt, IV/PCR history stores) are fetched once per scan pass and
+  shared — never per symbol.
+- Scanners wait out a post-boot grace period before their first tick; do not
+  remove it (deploy-time health probes fail otherwise). v1.17.2–v1.17.7 were
+  all consumed by unwinding violations of this rule.
+
 ## Do Not
 
 - Do not delete "dead-looking" modules without grepping for importers across
@@ -97,9 +114,9 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 - Do not add paid data dependencies; every feed is free (see SIGNAL_POLICY).
 - Do not add a second scoring or order path.
 - Do not reintroduce removed fake/backtest/live-toggle routes or Celery.
-- Do not raise `SCAN_CONCURRENCY` (`background_scanner.py`) back toward 20
-  without re-verifying against Render's actual logs first. It was lowered to
-  5 after confirming live (not just locally) that 20-way fan-out got
+- Do not raise `SCAN_CONCURRENCY` (3 in both scanners) back toward 20
+  without re-verifying against Render's actual logs first. It was lowered
+  after confirming live (not just locally) that 20-way fan-out got
   CBOE-429'd on nearly every request from Render's outbound IP and appeared
   to starve other concurrent `/api/advisor/*` requests into 502s for the
   scan's duration. A local measurement will not reproduce this -- CBOE did
