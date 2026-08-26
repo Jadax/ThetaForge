@@ -404,12 +404,12 @@ def _get_process_executor() -> Optional[ProcessPoolExecutor]:
             # container mid-pass (exit 137). Two workers keep peak well under
             # the limit at a modest pass-time cost.
             _process_executor = ProcessPoolExecutor(
-                max_workers=2,
-                max_tasks_per_child=2,
+                max_workers=1,
+                max_tasks_per_child=3,
                 mp_context=ctx,
             )
             logger.info(
-                "Scan workers: forked process pool (max_workers=2, recycle every 2 tasks)"
+                "Scan workers: forked process pool (max_workers=1, recycle every 3 tasks)"
             )
         except Exception as error:
             logger.warning("Process pool unavailable (%s); using threads", error)
