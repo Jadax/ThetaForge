@@ -58,6 +58,7 @@ BRIDGE_URL = os.getenv("BRIDGE_URL", "http://127.0.0.1:8002").rstrip("/")
 BRIDGE_ACCESS_TOKEN = os.environ["BRIDGE_ACCESS_TOKEN"]
 CAPITAL_LIMIT = float(os.getenv("CAPITAL_LIMIT", "5000"))
 POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
+RECOMMEND_DELAY_SECONDS = float(os.getenv("RECOMMEND_DELAY_SECONDS", "3"))
 JOURNAL_SYNC_SCRIPT = os.getenv("JOURNAL_SYNC_SCRIPT", "/opt/thetaforge-bridge/journal_sync_push.sh")
 
 ADVISOR_HEADERS = {"X-ThetaForge-Advisor-Token": ADVISOR_API_TOKEN}
@@ -319,6 +320,8 @@ def run_equity_once(client: httpx.Client) -> int:
             "detail": detail,
         })
         acknowledge_equity(client, notification["id"])
+        if RECOMMEND_DELAY_SECONDS > 0 and notification != notifications[-1]:
+            time.sleep(RECOMMEND_DELAY_SECONDS)
     post_decisions(client, decisions)
     return placed
 
@@ -366,6 +369,8 @@ def run_once(client: httpx.Client) -> int:
                 "detail": detail,
             })
             acknowledge(client, notification["id"])
+            if RECOMMEND_DELAY_SECONDS > 0 and notification != notifications[-1]:
+                time.sleep(RECOMMEND_DELAY_SECONDS)
         post_decisions(client, decisions)
     else:
         logger.info("No new actionable notifications")

@@ -83,6 +83,7 @@ SYMBOL_SECTOR = {
 MIN_COMPOSITE_SCORE = 75.0
 MIN_EDGE_SCORE = 60.0
 MIN_PROBABILITY_OF_PROFIT = 55.0
+MIN_PROBABILITY_OF_PROFIT_DEBIT = 45.0
 MIN_LIQUIDITY_VOLUME = 10
 MIN_LIQUIDITY_OI = 100
 # OpScanBot-compatible execution floors. These are deliberately stricter than
@@ -103,7 +104,7 @@ MIN_CREDIT_SPREAD_LEG_OI = 100
 # selection uses stricter per-strategy IVR bands; these gates apply uniformly
 # to every scored candidate so no structure slips through on rank alone.
 MIN_IV_RANK_SELL = 30
-MIN_IV_RANK_BUY = 25
+MIN_IV_RANK_BUY = 45
 # VIX ceiling for selling premium. Aligned with the Brain's extreme-VIX veto
 # (ai_brain._select_best_strategy returns no_trade above 30), so the Brain and
 # the recommender agree on the same crash-regime line.
@@ -498,10 +499,15 @@ class TradeRecommender:
         nvrp: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Reject mediocre candidates even when they rank highest in a scan."""
+        min_pop = (
+            MIN_PROBABILITY_OF_PROFIT_DEBIT
+            if strategy in ("call_debit", "put_debit")
+            else MIN_PROBABILITY_OF_PROFIT
+        )
         if not (
             score.get("composite_score", 0) >= MIN_COMPOSITE_SCORE
             and score.get("edge_score", 0) >= MIN_EDGE_SCORE
-            and roi.get("probability_of_profit", 0) >= MIN_PROBABILITY_OF_PROFIT
+            and roi.get("probability_of_profit", 0) >= min_pop
         ):
             return False
         return cls._passes_volatility_gate(strategy, nvrp or {})

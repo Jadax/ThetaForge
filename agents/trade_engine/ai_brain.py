@@ -171,10 +171,9 @@ class AIBrain:
         TimeHorizon.MONTHLY_1M: [
             "iron_condor", "bull_put_credit", "bear_call_credit",
             "cash_secured_put", "covered_call",
-        ],
-        TimeHorizon.QUARTERLY_3M: [
             "call_debit_spread", "put_debit_spread",
         ],
+        TimeHorizon.QUARTERLY_3M: [],
         TimeHorizon.LEAPS_6M: [],
     }
 
@@ -1039,26 +1038,51 @@ class AIBrain:
                     "reasoning": f"IVR {ivr:.0f} + bearish trend → bear call credit spread captures premium + direction",
                 }
 
-        # Low IV + Bullish = buy options
-        if ivr < 30:
-            if signal in [SignalStrength.BUY, SignalStrength.STRONG_BUY]:
+        # Moderate-to-low IV + directional conviction = buy options (debit
+        # spread).  A top trader adapts to calm markets: when IVR is below 45
+        # and signals agree on direction, a defined-risk debit spread
+        # captures the move at lower cost than a naked long option.  The IVR
+        # window (15-45) sits between the premium-selling zone (≥40) and the
+        # ultra-low regime (<15) where even debit spreads lack edge.
+        if ivr < 45:
+            if signal in [
+                SignalStrength.BUY, SignalStrength.STRONG_BUY,
+                SignalStrength.WEAK_BUY,
+            ]:
                 if trend == "bearish":
                     return {
                         "strategy": "no_trade",
                         "reason_code": "trend_mismatch",
                         "reasoning": f"Bullish signal but {symbol} is in a confirmed downtrend — no call debit",
                     }
+                rs_ok, rs_reason = hw_relative_strength_ok("call_debit", relative_strength)
+                if not rs_ok:
+                    return {
+                        "strategy": "no_trade",
+                        "reason_code": "laggard",
+                        "reasoning": f"{symbol}: {rs_reason}",
+                    }
                 return {
                     "strategy": "call_debit_spread",
                     "reason_code": "call_debit_spread",
                     "reasoning": f"IVR {ivr:.0f} + bullish → debit spread limits cost in low-IV environment",
                 }
-            elif signal in [SignalStrength.SELL, SignalStrength.STRONG_SELL]:
+            elif signal in [
+                SignalStrength.SELL, SignalStrength.STRONG_SELL,
+                SignalStrength.WEAK_SELL,
+            ]:
                 if trend == "bullish":
                     return {
                         "strategy": "no_trade",
                         "reason_code": "trend_mismatch",
                         "reasoning": f"Bearish signal but {symbol} is in a confirmed uptrend — no put debit",
+                    }
+                rs_ok, rs_reason = hw_relative_strength_ok("put_debit", relative_strength)
+                if not rs_ok:
+                    return {
+                        "strategy": "no_trade",
+                        "reason_code": "laggard",
+                        "reasoning": f"{symbol}: {rs_reason}",
                     }
                 return {
                     "strategy": "put_debit_spread",

@@ -1,5 +1,35 @@
 # ThetaForge Changelog
 
+## v1.17.13 - 2026-08-26
+
+**Trade in any market condition: expand options strategy selection for calm
+markets.**
+
+The options engine previously only selected debit spreads when IVR was
+below 30 — a narrow window that excluded most calm-market environments.
+Top traders adapt: when signals agree on direction, defined-risk debit
+spreads capture the move regardless of IV level.
+
+- **Brain strategy selection**: debit spread branch expanded from
+  IVR < 30 to IVR < 45, with relative-strength guard and WEAK signal
+  support (previously only caught BUY/STRONG_BUY, missing WEAK_BUY).
+- **Volatility gate**: MIN_IV_RANK_BUY raised from 25 → 45 (debit
+  spreads now authorized in moderate-IV environments).
+- **Quality gate**: debit-specific POP floor (45% vs 55% for credit
+  spreads) — directional bets inherently have lower probability of
+  profit; the floor reflects this without sacrificing edge/liquidity
+  standards.
+- **Horizon mapping**: debit spreads moved from QUARTERLY_3M to
+  MONTHLY_1M (21-45 DTE sweet spot for active directional trades).
+- VM executor: 3-second delay between recommend requests (prevents
+  Render self-throttling when processing batches of equity notifications).
+
+Strategy selection now covers the full IVR spectrum:
+  IVR ≥ 50 + sideways → iron condor
+  IVR ≥ 40 + trending → credit spread
+  IVR < 45 + directional → debit spread (NEW zone)
+  IVR < 15 → no edge (correctly silent)
+
 ## v1.17.12 - 2026-08-25
 
 **Fix the residual exit 137: the v1.17.10 scrape pool doubled interpreter
