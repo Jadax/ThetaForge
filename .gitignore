@@ -42,3 +42,4 @@ data/*.json
 
 # Playwright MCP tooling output
 .playwright-mcp/
+data/*.tmp

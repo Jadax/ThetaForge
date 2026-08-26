@@ -1,0 +1,18 @@
+[Unit]
+Description=ThetaForge Advisor (FastAPI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=thetaforge
+Group=thetaforge
+WorkingDirectory=/opt/thetaforge
+ExecStart=/usr/bin/docker compose up --abort-on-container-exit
+ExecStop=/usr/bin/docker compose down
+Restart=always
+RestartSec=10
+Environment=COMPOSE_PROJECT_NAME=thetaforge
+
+[Install]
+WantedBy=multi-user.target
