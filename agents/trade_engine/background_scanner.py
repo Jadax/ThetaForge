@@ -53,7 +53,15 @@ NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
 # a residential IP hit zero 429s, so this is specific to Render's IP, not a
 # universal CBOE limit -- re-verify against Render's actual logs after
 # changing this, a local measurement will not reproduce the failure.
-SCAN_CONCURRENCY = 3
+#
+# 1 (fully sequential), not 3: on Render's single 0.1-vCPU core, concurrent
+# symbol analyses contend for the one CPU and the GIL (sys.setswitchinterval
+# is already forced tiny), which starved /health into a 5s timeout (Render
+# flapped the service) even though memory stayed bounded. Sequential analysis
+# is slower per pass (~40-60 min for ~120 symbols) but keeps the loop
+# responsive and — as a bonus — the serialized CBOE requests sidestep the
+# 429-fan-out that caused the 502s in the first place.
+SCAN_CONCURRENCY = 1
 
 # Hold the first scan tick after boot briefly so a fresh deploy can pass its
 # platform health checks before any heavy work starts -- Render probes /health/
@@ -1082,12 +1090,14 @@ class BackgroundBrainScanner:
         # yields to the loop so health checks are serviced even while workers
         # saturate the single CPU.
         executor = _get_process_executor()
-        # Batch the gather at SCAN_CONCURRENCY (3): the semaphore in
-        # _analyze_bounded caps how many symbols' transient work is live at
-        # once, so streaming batches keep peak RSS bounded (~150-200 MB) while
-        # still getting 3-way threaded fan-out on the single process. Results
-        # are consumed and released before the next batch.
-        _BATCH_SIZE = 3
+        # Streaming batches of SCAN_CONCURRENCY (1 on this single-vCPU host):
+        # symbol analysis runs in parent threads off the event loop, the
+        # semaphore caps how many are live at once (and keeps CBOE/yfinance
+        # serialized against rate limiting), and each batch's full payloads
+        # are consumed into compact result rows and released before the next
+        # batch. This bounds parent RSS (~150-200 MB) and keeps /health
+        # responsive on the 0.1-vCPU container (see SCAN_CONCURRENCY).
+        _BATCH_SIZE = SCAN_CONCURRENCY
         new_notifications: List[dict] = []
         alert_rows: Dict[str, dict] = {}
         for i in range(0, len(symbols), _BATCH_SIZE):

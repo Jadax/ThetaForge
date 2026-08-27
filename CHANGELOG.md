@@ -2,24 +2,25 @@
 
 ## v1.17.14 - 2026-08-27
 
-**Disable fork workers entirely — the threaded scan is the OOM fix.**
+**Stability: single-process threaded scan, sequential (SCAN_CONCURRENCY=1).**
 
-Iterating on the process pool tuned a symptom. The real structural problem:
-forking a scan worker spawns a second copy of the (~119 MB) dependency
-stack (pandas/numpy/yfinance/CBOE), and the child's copy-on-write sharing
-evaporates the instant it touches that stack during symbol analysis. Parent
-+ one diverged child routinely crossed the 512 MB container limit regardless
-of worker count or recycle interval.
+Two distinct Render failures, fixed separately:
 
-- `_use_process_workers()` now returns False on single-process hosts. The
-  scan runs in parent threads with `SCAN_CONCURRENCY=3`, the `_BATCH_SIZE=3`
-  streaming loop consumes each batch's full payloads into compact result
-  rows and releases them before the next batch, and gc runs in a thread
-  between batches. Measured peak is ~150-200 MB — comfortably under 512 MB
-  and bounded by universe size.
-- Also fixed a `.tmp` leak: the disk-backed daily memo's atomic-replace
-  temp file was committed to git once; `data/*.tmp` is now gitignored and
-  the stray file removed from tracking.
+- **Memory (exit 137):** forking scan workers spawns a second ~119 MB
+  dependency stack whose copy-on-write sharing evaporates on first touch —
+  parent + one diverged child crossed the 512 MB limit. `_use_process_workers()`
+  now returns False. The scan runs in parent threads with the streaming
+  `_BATCH_SIZE` loop: each batch's full payloads (chain + flow + gex + pcr +
+  brain) are consumed into compact result rows and released before the next,
+  bounding peak RSS to ~150-200 MB regardless of universe size.
+- **Health timeout (Render flapped the service):** on a 0.1-vCPU core, 3-way
+  concurrent scans contended for the single CPU + GIL and starved /health
+  past the 5s probe. `SCAN_CONCURRENCY` 3 → 1: sequential analysis is slower
+  (~40-60 min/pass) but keeps the loop responsive; a secondary benefit is
+  fully serialized CBOE requests, sidestepping the 429-fan-out that caused
+  the 502s documented on the constant.
+- `.tmp` leak from the disk memo's atomic replace: `data/*.tmp` gitignored,
+  stray file removed from tracking.
 
 ## v1.17.13 - 2026-08-26
 
