@@ -2,24 +2,24 @@
 
 ## v1.17.14 - 2026-08-27
 
-**Bound scanner parent memory to a single symbol (the real exit-137 fix).**
+**Disable fork workers entirely — the threaded scan is the OOM fix.**
 
-The core OOM driver was hiding in plain sight: the scan loop accumulated the
-*entire* universe's analysis payloads (option chain + flow + gex + pcr +
-brain result, ~10-13 MB each) in an `analyzed` list in the parent until the
-whole pass finished. A 108+ symbol universe meant the parent alone exceeded
-512 MB *before* the persist step — regardless of how the worker pool was
-tuned. Every prior worker tweak (2×3, 2×2, 1×3) treated a symptom.
+Iterating on the process pool tuned a symptom. The real structural problem:
+forking a scan worker spawns a second copy of the (~119 MB) dependency
+stack (pandas/numpy/yfinance/CBOE), and the child's copy-on-write sharing
+evaporates the instant it touches that stack during symbol analysis. Parent
++ one diverged child routinely crossed the 512 MB container limit regardless
+of worker count or recycle interval.
 
-- Scan now processes each symbol inline (`_BATCH_SIZE=1`): analyze one →
-  write the compact result row to `results`/notifications → `del` the full
-  payload → `gc` → next symbol. Parent RSS is now bounded by a single
-  symbol's payload (~15-20 MB) no matter how large the universe is.
-- Journal sync verified end-to-end: executor `journal_sync_push.sh` fires on
-  every placed order (entries + closes), regenerates `journal/trades.json`
-  from the VM's paper-order ledger, and mirrors to `gh-pages` (live site).
-  Confirmed present and executable on the VM at
-  `/opt/thetaforge-bridge/journal_sync_push.sh`.
+- `_use_process_workers()` now returns False on single-process hosts. The
+  scan runs in parent threads with `SCAN_CONCURRENCY=3`, the `_BATCH_SIZE=3`
+  streaming loop consumes each batch's full payloads into compact result
+  rows and releases them before the next batch, and gc runs in a thread
+  between batches. Measured peak is ~150-200 MB — comfortably under 512 MB
+  and bounded by universe size.
+- Also fixed a `.tmp` leak: the disk-backed daily memo's atomic-replace
+  temp file was committed to git once; `data/*.tmp` is now gitignored and
+  the stray file removed from tracking.
 
 ## v1.17.13 - 2026-08-26
 

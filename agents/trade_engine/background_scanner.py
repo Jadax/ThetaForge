@@ -383,12 +383,25 @@ _worker_scanner_instance: Optional["BackgroundBrainScanner"] = None
 
 
 def _use_process_workers() -> bool:
-    """Fork-based workers only where fork exists and tests aren't running."""
+    """Fork-based workers only where fork exists and tests aren't running.
+
+    NOTE: deliberately returns False on Render-class single-process hosts.
+    Forking a worker spawns a second copy of the (~119 MB) dependency stack;
+    the child's copy-on-write sharing evaporates the moment it touches
+    pandas/yfinance/CBOE during a symbol analysis, so parent + one diverged
+    child routinely crossed the 512 MB container limit (exit 137). The
+    threaded path — single process, bounded by the batch-size-1 streaming in
+    the scan loop, shared per-pass IV/PCR stores, and gc between symbols —
+    keeps peak RSS ~140 MB regardless of universe size, which is why opts/
+    equity both run this way in production. Edit only if you add a real
+    in-process stack that cannot share a loop; never to give the scan a
+    second copy of the interpreter.
+    """
     if os.name == "nt":
         return False
     if "PYTEST_CURRENT_TEST" in os.environ:
         return False
-    return True
+    return False
 
 
 def _get_process_executor() -> Optional[ProcessPoolExecutor]:
@@ -1059,17 +1072,22 @@ class BackgroundBrainScanner:
         # Process in batches of _BATCH_SIZE instead of asyncio.gather on all
         # symbols at once: each analyzed symbol leaves ~10-13 MB of transient
         # allocation churn, so holding more than a handful of results at a
-        # time only raises peak memory. _BATCH_SIZE=1 streams one symbol's
-        # full analysis payload (chain + flow + gex + pcr + brain) into the
-        # results dict and releases it before the next symbol, so parent RSS
-        # is bounded by a single symbol regardless of universe size. With
-        # process workers the pool itself caps concurrency; with threads the
-        # semaphore does. gc runs in a thread (it can pause the loop for
+        # time only raises peak memory. Symbol analysis runs in parent threads
+        # (process workers are disabled -- see _use_process_workers), the
+        # semaphore caps concurrency, and each batch's full payloads are
+        # consumed into the compact results rows and released before the next
+        # batch, so parent RSS is bounded by a few symbols regardless of
+        # universe size. gc runs in a thread (it can pause the loop for
         # hundreds of ms with this many live pandas objects) and each batch
         # yields to the loop so health checks are serviced even while workers
         # saturate the single CPU.
         executor = _get_process_executor()
-        _BATCH_SIZE = 1
+        # Batch the gather at SCAN_CONCURRENCY (3): the semaphore in
+        # _analyze_bounded caps how many symbols' transient work is live at
+        # once, so streaming batches keep peak RSS bounded (~150-200 MB) while
+        # still getting 3-way threaded fan-out on the single process. Results
+        # are consumed and released before the next batch.
+        _BATCH_SIZE = 3
         new_notifications: List[dict] = []
         alert_rows: Dict[str, dict] = {}
         for i in range(0, len(symbols), _BATCH_SIZE):
