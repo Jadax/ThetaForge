@@ -1059,14 +1059,19 @@ class BackgroundBrainScanner:
         # Process in batches of _BATCH_SIZE instead of asyncio.gather on all
         # symbols at once: each analyzed symbol leaves ~10-13 MB of transient
         # allocation churn, so holding more than a handful of results at a
-        # time only raises peak memory. With process workers the pool itself
-        # caps concurrency; with threads the semaphore does. gc runs in a
-        # thread (it can pause the loop for hundreds of ms with this many
-        # live pandas objects) and each batch yields to the loop so health
-        # checks are serviced even while workers saturate the single CPU.
+        # time only raises peak memory. _BATCH_SIZE=1 streams one symbol's
+        # full analysis payload (chain + flow + gex + pcr + brain) into the
+        # results dict and releases it before the next symbol, so parent RSS
+        # is bounded by a single symbol regardless of universe size. With
+        # process workers the pool itself caps concurrency; with threads the
+        # semaphore does. gc runs in a thread (it can pause the loop for
+        # hundreds of ms with this many live pandas objects) and each batch
+        # yields to the loop so health checks are serviced even while workers
+        # saturate the single CPU.
         executor = _get_process_executor()
-        _BATCH_SIZE = 6
-        analyzed: List[Tuple[str, Optional[dict], Optional[str]]] = []
+        _BATCH_SIZE = 1
+        new_notifications: List[dict] = []
+        alert_rows: Dict[str, dict] = {}
         for i in range(0, len(symbols), _BATCH_SIZE):
             batch = symbols[i : i + _BATCH_SIZE]
             if executor is not None:
@@ -1087,7 +1092,101 @@ class BackgroundBrainScanner:
                 batch_results = await asyncio.gather(
                     *(_analyze_bounded(symbol) for symbol in batch)
                 )
-            analyzed.extend(batch_results)
+
+            # Process this batch immediately and release the big per-symbol
+            # data dicts BEFORE the next batch. Accumulating every analyzed
+            # symbol's full payload (chain + flow + gex + pcr + brain) inside
+            # `analyzed` for the whole pass was the real driver of parent
+            # memory growth — a 108+ symbol universe blew past 512 MB before
+            # the loop even reached the persist step.
+            for symbol, data, skip_reason in batch_results:
+                if data is None:
+                    reason = skip_reason or "unknown"
+                    skipped[reason] = skipped.get(reason, 0) + 1
+                    continue
+
+                alert_rows[symbol] = data
+
+                # Only alert on tradeable signals — skip no_trade. The no-trade
+                # rows keep their full analysis payload (reasoning, confidence,
+                # vol context) so the scan results answer *why* nothing traded —
+                # the exact gap that hid the confidence-gate blockage for weeks.
+                if data["strategy"] in NON_ACTIONABLE_STRATEGIES:
+                    reason_code = data.get("no_trade_reason") or data["strategy"]
+                    no_trade_reasons[reason_code] = no_trade_reasons.get(reason_code, 0) + 1
+                    results[symbol] = {
+                        "score": data["score"],
+                        "signal": data["signal"],
+                        "regime": data.get("regime"),
+                        "strategy": data["strategy"],
+                        "filtered": "no_trade",
+                        "strategy_reasoning": data.get("strategy_reasoning", ""),
+                        "no_trade_reason": reason_code,
+                        "confidence": data.get("confidence"),
+                        "vix": data.get("vix"),
+                        "days_to_earnings": data.get("days_to_earnings"),
+                        "iv_rank": data.get("iv_rank"),
+                        "iv_percentile": data.get("iv_percentile"),
+                        "eff_iv_rank": data.get("eff_iv_rank"),
+                        "iv_hv_signal": data.get("iv_hv_signal"),
+                        "term_structure": data.get("term_structure"),
+                        "rv_band": data.get("rv_band"),
+                        "expected_move_pct": data.get("expected_move_pct"),
+                        "vol_risk_premium": data.get("vol_risk_premium"),
+                        "relative_strength": data.get("relative_strength"),
+                        "flow_bias": data.get("flow_bias"),
+                        "pcr_signal": data.get("pcr_signal"),
+                        "gex_regime": data.get("gex_regime"),
+                    }
+                    continue
+
+                if self._is_new_trade(symbol, data["score"], data["signal"],
+                                       data["strategy"], data["regime"]):
+                    notif = {
+                        "id": f"NTF-{symbol}-{int(datetime.now(timezone.utc).timestamp())}",
+                        "symbol": symbol,
+                        "score": data["score"],
+                        "signal": data["signal"],
+                        "regime": data["regime"],
+                        "best_strategy": data["strategy"],
+                        "strategy_reasoning": data.get("strategy_reasoning", ""),
+                        "iv_rank": data.get("iv_rank"),
+                        "iv_hv_ratio": data.get("iv_hv_ratio"),
+                        "iv_hv_signal": data.get("iv_hv_signal"),
+                        "iv_skew": data.get("iv_skew"),
+                        "short_interest": data.get("short_interest"),
+                        "earnings_move": data.get("earnings_move"),
+                        "top_signal": data.get("top_signal", ""),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "acknowledged": False,
+                    }
+                    self._last_results[symbol] = self._result_signature(
+                        data["score"], data["signal"], data["strategy"], data["regime"]
+                    )
+                    new_notifications.append(notif)
+                    notifs.append(notif)
+                    new_count += 1
+
+                results[symbol] = {
+                    "score": data["score"],
+                    "signal": data["signal"],
+                    "regime": data.get("regime"),
+                    "strategy": data["strategy"],
+                    "iv_rank": data.get("iv_rank"),
+                    "iv_percentile": data.get("iv_percentile"),
+                    "eff_iv_rank": data.get("eff_iv_rank"),
+                    "iv_hv_signal": data.get("iv_hv_signal"),
+                    "rv_band": data.get("rv_band"),
+                    "expected_move_pct": data.get("expected_move_pct"),
+                    "term_structure": data.get("term_structure"),
+                    "flow_signals": data.get("flow_signals"),
+                    "flow_bias": data.get("flow_bias"),
+                    "pcr_signal": data.get("pcr_signal"),
+                    "gex_regime": data.get("gex_regime"),
+                    "vol_risk_premium": data.get("vol_risk_premium"),
+                }
+
+            del batch_results
             import gc
             await asyncio.to_thread(gc.collect)
             # Peak-RSS breadcrumbs: exit 137 (OOM kill) during a pass was
@@ -1099,99 +1198,10 @@ class BackgroundBrainScanner:
                     "scan batch %d/%d done (%d symbols), peak RSS %.0f MB",
                     i // _BATCH_SIZE + 1,
                     (len(symbols) + _BATCH_SIZE - 1) // _BATCH_SIZE,
-                    len(analyzed),
+                    i + len(batch_results),
                     rss,
                 )
             await asyncio.sleep(0)
-
-        new_notifications: List[dict] = []
-        alert_rows: Dict[str, dict] = {}
-        for symbol, data, skip_reason in analyzed:
-            if data is None:
-                reason = skip_reason or "unknown"
-                skipped[reason] = skipped.get(reason, 0) + 1
-                continue
-
-            alert_rows[symbol] = data
-
-            # Only alert on tradeable signals — skip no_trade. The no-trade
-            # rows keep their full analysis payload (reasoning, confidence,
-            # vol context) so the scan results answer *why* nothing traded —
-            # the exact gap that hid the confidence-gate blockage for weeks.
-            if data["strategy"] in NON_ACTIONABLE_STRATEGIES:
-                reason_code = data.get("no_trade_reason") or data["strategy"]
-                no_trade_reasons[reason_code] = no_trade_reasons.get(reason_code, 0) + 1
-                results[symbol] = {
-                    "score": data["score"],
-                    "signal": data["signal"],
-                    "regime": data.get("regime"),
-                    "strategy": data["strategy"],
-                    "filtered": "no_trade",
-                    "strategy_reasoning": data.get("strategy_reasoning", ""),
-                    "no_trade_reason": reason_code,
-                    "confidence": data.get("confidence"),
-                    "vix": data.get("vix"),
-                    "days_to_earnings": data.get("days_to_earnings"),
-                    "iv_rank": data.get("iv_rank"),
-                    "iv_percentile": data.get("iv_percentile"),
-                    "eff_iv_rank": data.get("eff_iv_rank"),
-                    "iv_hv_signal": data.get("iv_hv_signal"),
-                    "term_structure": data.get("term_structure"),
-                    "rv_band": data.get("rv_band"),
-                    "expected_move_pct": data.get("expected_move_pct"),
-                    "vol_risk_premium": data.get("vol_risk_premium"),
-                    "relative_strength": data.get("relative_strength"),
-                    "flow_bias": data.get("flow_bias"),
-                    "pcr_signal": data.get("pcr_signal"),
-                    "gex_regime": data.get("gex_regime"),
-                }
-                continue
-
-            if self._is_new_trade(symbol, data["score"], data["signal"],
-                                   data["strategy"], data["regime"]):
-                notif = {
-                    "id": f"NTF-{symbol}-{int(datetime.now(timezone.utc).timestamp())}",
-                    "symbol": symbol,
-                    "score": data["score"],
-                    "signal": data["signal"],
-                    "regime": data["regime"],
-                    "best_strategy": data["strategy"],
-                    "strategy_reasoning": data.get("strategy_reasoning", ""),
-                    "iv_rank": data.get("iv_rank"),
-                    "iv_hv_ratio": data.get("iv_hv_ratio"),
-                    "iv_hv_signal": data.get("iv_hv_signal"),
-                    "iv_skew": data.get("iv_skew"),
-                    "short_interest": data.get("short_interest"),
-                    "earnings_move": data.get("earnings_move"),
-                    "top_signal": data.get("top_signal", ""),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "acknowledged": False,
-                }
-                self._last_results[symbol] = self._result_signature(
-                    data["score"], data["signal"], data["strategy"], data["regime"]
-                )
-                new_notifications.append(notif)
-                notifs.append(notif)
-                new_count += 1
-
-            results[symbol] = {
-                "score": data["score"],
-                "signal": data["signal"],
-                "regime": data.get("regime"),
-                "strategy": data["strategy"],
-                "iv_rank": data.get("iv_rank"),
-                "iv_percentile": data.get("iv_percentile"),
-                "eff_iv_rank": data.get("eff_iv_rank"),
-                "iv_hv_signal": data.get("iv_hv_signal"),
-                "rv_band": data.get("rv_band"),
-                "expected_move_pct": data.get("expected_move_pct"),
-                "term_structure": data.get("term_structure"),
-                "flow_signals": data.get("flow_signals"),
-                "flow_bias": data.get("flow_bias"),
-                "pcr_signal": data.get("pcr_signal"),
-                "gex_regime": data.get("gex_regime"),
-                "vol_risk_premium": data.get("vol_risk_premium"),
-            }
 
         # Threshold alerts run once per pass over every analyzed symbol --
         # tradeable or not -- so rules like "VIX above" fire regardless of

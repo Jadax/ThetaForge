@@ -1,5 +1,26 @@
 # ThetaForge Changelog
 
+## v1.17.14 - 2026-08-27
+
+**Bound scanner parent memory to a single symbol (the real exit-137 fix).**
+
+The core OOM driver was hiding in plain sight: the scan loop accumulated the
+*entire* universe's analysis payloads (option chain + flow + gex + pcr +
+brain result, ~10-13 MB each) in an `analyzed` list in the parent until the
+whole pass finished. A 108+ symbol universe meant the parent alone exceeded
+512 MB *before* the persist step — regardless of how the worker pool was
+tuned. Every prior worker tweak (2×3, 2×2, 1×3) treated a symptom.
+
+- Scan now processes each symbol inline (`_BATCH_SIZE=1`): analyze one →
+  write the compact result row to `results`/notifications → `del` the full
+  payload → `gc` → next symbol. Parent RSS is now bounded by a single
+  symbol's payload (~15-20 MB) no matter how large the universe is.
+- Journal sync verified end-to-end: executor `journal_sync_push.sh` fires on
+  every placed order (entries + closes), regenerates `journal/trades.json`
+  from the VM's paper-order ledger, and mirrors to `gh-pages` (live site).
+  Confirmed present and executable on the VM at
+  `/opt/thetaforge-bridge/journal_sync_push.sh`.
+
 ## v1.17.13 - 2026-08-26
 
 **Trade in any market condition: expand options strategy selection for calm
