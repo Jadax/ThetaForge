@@ -384,6 +384,21 @@ def _rss_mb() -> Optional[float]:
         return None
 
 
+# Fields the per-pass AlertEngine pass reads out of each symbol's snapshot.
+# Only these scalars are retained; the full analyzed payload (option chain,
+# flow, gex, pcr, brain reasoning) is dropped so alert bookkeeping never
+# re-accumulates the whole universe in memory.
+_ALERT_KEYS = (
+    "symbol", "price", "prev_price", "iv", "iv_rank", "iv_percentile",
+    "vix", "pcr", "score", "current_signal", "prev_signal", "gex_regime",
+    "days_to_earnings", "drawdown_pct", "net_delta", "theoretical_edge_pct",
+)
+
+
+def _alert_projection(data: dict) -> dict:
+    return {k: data.get(k) for k in _ALERT_KEYS if k in data}
+
+
 # ── per-symbol worker process plumbing ─────────────────────────────────────
 
 _process_executor: Optional[ProcessPoolExecutor] = None
@@ -1061,13 +1076,12 @@ class BackgroundBrainScanner:
             self._scan_pcr_store = PCRHistoryStore()
 
         # Every symbol's analysis is I/O-bound (price, chain, VIX, history,
-        # desk analytics — each its own network round trip), so a sequential
-        # loop over ~130+ symbols takes minutes. On a request-driven host
-        # billed by wall-clock instance time, that directly costs money; it
-        # also just makes the scan slow everywhere. Bounded concurrent
-        # fan-out cuts wall time roughly by SCAN_CONCURRENCY. The semaphore
-        # keeps us from hammering yfinance/CBOE with 100+ simultaneous
-        # requests. Notification/results bookkeeping below stays a plain
+        # desk analytics — each its own network round trip). Bounded
+        # fan-out cuts wall time by up to SCAN_CONCURRENCY without hammering
+        # yfinance/CBOE with 100+ simultaneous requests; SCAN_CONCURRENCY=1
+        # (sequential) is the production setting on the 0.1-vCPU Render host,
+        # where concurrency only contended for the single core and starved
+        # /health. Notification/results bookkeeping below stays a plain
         # sequential loop over the gathered results — unchanged from before —
         # so only one coroutine ever reads/writes the notifications file.
         semaphore = asyncio.Semaphore(SCAN_CONCURRENCY)
@@ -1077,26 +1091,17 @@ class BackgroundBrainScanner:
                 data, skip_reason = await self._analyze_one(symbol)
                 return symbol, data, skip_reason
 
-        # Process in batches of _BATCH_SIZE instead of asyncio.gather on all
-        # symbols at once: each analyzed symbol leaves ~10-13 MB of transient
-        # allocation churn, so holding more than a handful of results at a
-        # time only raises peak memory. Symbol analysis runs in parent threads
-        # (process workers are disabled -- see _use_process_workers), the
-        # semaphore caps concurrency, and each batch's full payloads are
-        # consumed into the compact results rows and released before the next
-        # batch, so parent RSS is bounded by a few symbols regardless of
-        # universe size. gc runs in a thread (it can pause the loop for
-        # hundreds of ms with this many live pandas objects) and each batch
-        # yields to the loop so health checks are serviced even while workers
-        # saturate the single CPU.
+        # Process in batches instead of asyncio.gather over all symbols: each
+        # analyzed symbol leaves ~10-13 MB of transient allocation churn, so
+        # holding more than a handful of results at a time raises peak memory.
+        # Symbol analysis runs in parent threads off the event loop (process
+        # workers are disabled — see _use_process_workers), the semaphore caps
+        # how many are live at once, and each batch's full payloads (chain +
+        # flow + gex + pcr + brain) are consumed into compact result rows and
+        # released (del + gc in a thread) before the next batch. This bounds
+        # parent RSS to ~150-200 MB regardless of universe size and yields to
+        # the loop between batches so health checks are still serviced.
         executor = _get_process_executor()
-        # Streaming batches of SCAN_CONCURRENCY (1 on this single-vCPU host):
-        # symbol analysis runs in parent threads off the event loop, the
-        # semaphore caps how many are live at once (and keeps CBOE/yfinance
-        # serialized against rate limiting), and each batch's full payloads
-        # are consumed into compact result rows and released before the next
-        # batch. This bounds parent RSS (~150-200 MB) and keeps /health
-        # responsive on the 0.1-vCPU container (see SCAN_CONCURRENCY).
         _BATCH_SIZE = SCAN_CONCURRENCY
         new_notifications: List[dict] = []
         alert_rows: Dict[str, dict] = {}
@@ -1133,7 +1138,12 @@ class BackgroundBrainScanner:
                     skipped[reason] = skipped.get(reason, 0) + 1
                     continue
 
-                alert_rows[symbol] = data
+                # Cheap scalar projection for the per-pass AlertEngine pass.
+                # Storing the full data dict here (chain + flow + gex + pcr +
+                # brain payloads) for every analyzed symbol would re-create the
+                # whole-process accumulation the batch loop exists to avoid --
+                # the AlertEngine only reads the handful of scalar keys below.
+                alert_rows[symbol] = _alert_projection(data)
 
                 # Only alert on tradeable signals — skip no_trade. The no-trade
                 # rows keep their full analysis payload (reasoning, confidence,

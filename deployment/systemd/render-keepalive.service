@@ -1,0 +1,8 @@
+[Unit]
+Description=ThetaForge Render advisor keepalive (prevents free-tier cold-boot /health timeouts)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/thetaforge-bridge/render_keepalive.sh

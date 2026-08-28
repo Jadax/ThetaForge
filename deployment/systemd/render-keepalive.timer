@@ -1,0 +1,11 @@
+[Unit]
+Description=Ping ThetaForge Render advisor every minute to keep the 0.1-vCPU free instance warm
+After=network-online.target
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=60s
+Unit=render-keepalive.service
+
+[Install]
+WantedBy=timers.target

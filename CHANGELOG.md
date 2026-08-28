@@ -1,24 +1,31 @@
 # ThetaForge Changelog
 
-## v1.17.14 - 2026-08-27
+## v1.17.14 - 2026-08-28
 
-**Stability: single-process threaded scan, sequential (SCAN_CONCURRENCY=1).**
+**Stability: single-process sequential scans + Render keepalive.**
 
-Two distinct Render failures, fixed separately:
+Three distinct Render failures fixed, separately.
 
-- **Memory (exit 137):** forking scan workers spawns a second ~119 MB
+- **Memory (exit 137):** forking scan workers spawned a second ~119 MB
   dependency stack whose copy-on-write sharing evaporates on first touch —
   parent + one diverged child crossed the 512 MB limit. `_use_process_workers()`
-  now returns False. The scan runs in parent threads with the streaming
-  `_BATCH_SIZE` loop: each batch's full payloads (chain + flow + gex + pcr +
-  brain) are consumed into compact result rows and released before the next,
-  bounding peak RSS to ~150-200 MB regardless of universe size.
-- **Health timeout (Render flapped the service):** on a 0.1-vCPU core, 3-way
-  concurrent scans contended for the single CPU + GIL and starved /health
-  past the 5s probe. `SCAN_CONCURRENCY` 3 → 1: sequential analysis is slower
-  (~40-60 min/pass) but keeps the loop responsive; a secondary benefit is
-  fully serialized CBOE requests, sidestepping the 429-fan-out that caused
-  the 502s documented on the constant.
+  now returns False. Both scanners run analysis in parent threads with the
+  streaming batch loop: each batch's full payloads are consumed into compact
+  result rows, `del` + `gc` run in a thread between batches, and `alert_rows`
+  keeps only a scalar projection (the AlertEngine reads a handful of keys)
+  instead of the full payloads. Peak RSS is ~150-200 MB regardless of universe.
+- **Health timeout (Render flap):** on a 0.1-vCPU core, concurrent scans
+  contended for the single CPU + GIL and starved /health past its 5s probe.
+  `SCAN_CONCURRENCY` dropped 3 → 1 in **both** the options and equity scanners:
+  sequential analysis keeps the loop responsive and serializes CBOE/yfinance
+  requests (also sidestepping the original 429-fan-out 502s).
+- **Cold-boot health flap (free-tier spin-down):** Render's 15-min idle
+  spin-down means a poke cold-boots the app, whose slow ~119 MB import exceeds
+  the 5s /health probe. Added `deployment/render_keepalive.sh` + the
+  `render-keepalive` systemd service/timer installed on the always-on broker
+  VM (`92.4.132.188`), pinging `/health` every minute (following the /health →
+  /health/ 307) to keep the instance warm 24/7. The market-hours executor's own
+  polling already keeps it warm during the session; the timer covers the rest.
 - `.tmp` leak from the disk memo's atomic replace: `data/*.tmp` gitignored,
   stray file removed from tracking.
 

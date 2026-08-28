@@ -37,11 +37,14 @@ EQUITY_STATE_FILE = os.path.join(DATA_DIR, "equity_scan_state.json")
 # executor; a recommender fetch can still reject for capital/position reasons.
 EQUITY_NOTIFICATION_SCORE_FLOOR = 70.0
 NON_ACTIONABLE = {"no_trade"}
-# Same bounded fan-out rationale as the options scanner: keep per-scan concurrency
-# low enough that the free data sources (and Render) are not overwhelmed.
-# Matched to the options scanner's 3: both scanners share one free-tier CPU,
-# and their combined worker threads must not starve the event loop.
-SCAN_CONCURRENCY = 3
+# Sequential (1), matching the options scanner: on Render's single 0.1-vCPU
+# core, concurrent symbol analyses contend for the one CPU + GIL and starved
+# the /health probe past its 5s timeout (flapping the service). Sequential
+# analysis is slower per pass but keeps the event loop responsive, and the
+# serialized requests sidestep the CBOE/yfinance 429-fan-out documented on the
+# options scanner constant. Do not raise without re-verifying against Render's
+# actual logs on a single core.
+SCAN_CONCURRENCY = 1
 
 # Post-boot delay before this scanner's first tick. The options scanner waits
 # STARTUP_GRACE_SECONDS; the extra stagger keeps both scanners' heavy passes
@@ -257,13 +260,12 @@ class EquityBackgroundScanner:
                 reason = data["no_trade_reason"]
                 no_trade_reasons[reason] = no_trade_reasons.get(reason, 0) + 1
 
-        # Batched fan-out (mirrors the options scanner): bounded concurrency,
-        # a gc pass in a thread between batches, and an explicit yield so the
-        # event loop keeps servicing health checks while worker threads chew
-        # through indicator math on the single free-tier CPU.
-        # Small batches for the same reason as the options scanner: bounded
-        # cyclic scrape-garbage between gc passes (see background_scanner).
-        _BATCH_SIZE = 6
+        # Batched sequential loop (SCAN_CONCURRENCY=1): a gc pass in a thread
+        # between batches, and an explicit yield so the event loop keeps
+        # servicing health checks while each symbol's analysis chews through
+        # indicator math on the single free-tier CPU. Mirrors the options
+        # scanner's streaming pattern.
+        _BATCH_SIZE = SCAN_CONCURRENCY
         for i in range(0, len(symbols), _BATCH_SIZE):
             batch = symbols[i : i + _BATCH_SIZE]
             await asyncio.gather(*(_one(symbol) for symbol in batch))

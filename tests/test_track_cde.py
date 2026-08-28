@@ -179,7 +179,10 @@ def test_scanner_emits_price_and_pcr_fields():
     # Alerts evaluate once per pass over every analyzed symbol (in a worker
     # thread) instead of one file-read per symbol on the event loop.
     assert "asyncio.to_thread(self._run_alert_checks, alert_rows)" in inspect.getsource(bs.BackgroundBrainScanner.scan_once)
-    assert "alert_rows[symbol] = data" in inspect.getsource(bs.BackgroundBrainScanner.scan_once)
+    # alert_rows holds a compact scalar projection (alert rules only read a
+    # few keys), never the full chain/flow/gex/pcr payload, so the per-pass
+    # alert bookkeeping cannot re-accumulate the whole universe in memory.
+    assert "alert_rows[symbol] = _alert_projection(data)" in inspect.getsource(bs.BackgroundBrainScanner.scan_once)
 
 
 # ── Track E: historical backtest ───────────────────────────────────────────
