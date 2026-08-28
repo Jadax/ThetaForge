@@ -98,30 +98,42 @@ def _scrape_short_interest(symbol: str) -> Optional[Dict[str, Any]]:
 
 _scrape_pool = None
 
+# Recycled after this many scrape tasks: bounds how much fragmented curl_cffi/
+# BeautifulSoup garbage a single still-alive scrape child can accumulate before
+# the OS reclaims it at exit (see _get_scrape_pool).
+SCRAPE_TASKS_PER_CHILD = 6
+
 
 def _get_scrape_pool() -> Optional[ProcessPoolExecutor]:
-    """Optional dedicated scrape pool -- OFF by default.
+    """Recycled process pool for the HTML-scraping calls -- ON by default.
 
-    A second process pool sounds safer than scraping in-process, but measured
-    on Render it was the opposite: spawn-context children each carry a full
-    pandas+yfinance interpreter (~140 MB), so pool(2) + the forked analysis
-    workers + the parent blew straight through the 512 MB container (exit
-    137). With the daily memo below, scrape volume is ~one pass per symbol
-    per day; on Linux/Render those scrapes run inside the recycled FORKED
-    analysis workers (memory returned at recycle), and elsewhere they run on
-    plain threads. Set TF_SCRAPE_POOL=1 only when explicitly debugging
-    scrape isolation on a roomy host.
+    The three scrape-heavy calls (next_earnings, earnings_dates, short_interest)
+    run curl_cffi + BeautifulSoup and leave ~10-13 MB of pyalloc-fragmented,
+    unreclaimable RSS behind per call even after gc. That memory can only be
+    returned to the OS by the process exiting, so scrape isolation is not an
+    optional optimization -- it is what keeps a long sequential pass flat in
+    memory when analysis runs in parent threads (fork workers disabled).
+
+    A single spawn worker is recycled every SCRAPE_TASKS_PER_CHILD tasks, so at
+    any moment at most one ~140 MB scrape interpreter exists alongside the
+    ~120 MB parent -- comfortably under the 512 MB container (unlike the
+    earlier pool(2)+fork+parent combination that crossed it). Pure-API calls
+    (prices, chains, history) stay in-process; only HTML scraping pays the
+    process tax. Set TF_SCRAPE_POOL=0 only to force in-process scraping on a
+    host where you can guarantee a small universe.
     """
     global _scrape_pool
     if _scrape_pool is not None:
         return _scrape_pool or None
-    if os.getenv("TF_SCRAPE_POOL", "") != "1":
+    if os.getenv("TF_SCRAPE_POOL", "1") != "1":
         _scrape_pool = False
         return None
     try:
         ctx = multiprocessing.get_context("spawn")
         _scrape_pool = ProcessPoolExecutor(
-            max_workers=1, max_tasks_per_child=6, mp_context=ctx,
+            max_workers=1,
+            max_tasks_per_child=SCRAPE_TASKS_PER_CHILD,
+            mp_context=ctx,
         )
         return _scrape_pool
     except Exception as error:  # pragma: no cover - platform-dependent

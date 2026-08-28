@@ -2,30 +2,37 @@
 
 ## v1.17.14 - 2026-08-28
 
-**Stability: single-process sequential scans + Render keepalive.**
+**Stability: single-process sequential scans + scrape isolation + keepalive.**
 
-Three distinct Render failures fixed, separately.
+The exit-137 OOM and the /health timeouts both trace to how scanning runs on
+Render's single 0.1-vCPU, 512 MB container. Fixed in three layers.
 
-- **Memory (exit 137):** forking scan workers spawned a second ~119 MB
-  dependency stack whose copy-on-write sharing evaporates on first touch —
-  parent + one diverged child crossed the 512 MB limit. `_use_process_workers()`
-  now returns False. Both scanners run analysis in parent threads with the
-  streaming batch loop: each batch's full payloads are consumed into compact
-  result rows, `del` + `gc` run in a thread between batches, and `alert_rows`
-  keeps only a scalar projection (the AlertEngine reads a handful of keys)
-  instead of the full payloads. Peak RSS is ~150-200 MB regardless of universe.
-- **Health timeout (Render flap):** on a 0.1-vCPU core, concurrent scans
-  contended for the single CPU + GIL and starved /health past its 5s probe.
-  `SCAN_CONCURRENCY` dropped 3 → 1 in **both** the options and equity scanners:
-  sequential analysis keeps the loop responsive and serializes CBOE/yfinance
-  requests (also sidestepping the original 429-fan-out 502s).
-- **Cold-boot health flap (free-tier spin-down):** Render's 15-min idle
-  spin-down means a poke cold-boots the app, whose slow ~119 MB import exceeds
-  the 5s /health probe. Added `deployment/render_keepalive.sh` + the
-  `render-keepalive` systemd service/timer installed on the always-on broker
-  VM (`92.4.132.188`), pinging `/health` every minute (following the /health →
-  /health/ 307) to keep the instance warm 24/7. The market-hours executor's own
-  polling already keeps it warm during the session; the timer covers the rest.
+- **Memory (exit 137) — scrape isolation restored.** The real leak was the
+  curl_cffi + BeautifulSoup scrapes (next_earnings, earnings_dates,
+  short_interest) leaving ~10-13 MB of pyalloc-fragmented, gc-unreclaimable
+  RSS per call. Historically those ran inside recycled **forked** analysis
+  workers, whose exit returned the memory to the OS. When fork workers were
+  disabled (so analysis runs in parent threads), the scrapes ran **in the
+  persistent parent**, and a 108-symbol pass accumulated ~30-40 MB/symbol of
+  unreturnable RSS → exit 137. Now a dedicated **spawn scrape pool is ON by
+  default** (single worker, recycled every 6 tasks): at most one ~140 MB scrape
+  interpreter coexists with the ~120 MB parent, keeping peak ~<300 MB. Pure-API
+  calls (prices/chains/history) stay in-process; only HTML scraping pays the
+  process tax, exactly as the original design comment specified. `TF_SCRAPE_POOL=0`
+  force-disables only for a guaranteed-small-universe host.
+- **Memory — compact scan rows.** `_analyze_one` returns scalar rows only
+  (never the big chain/history frames), and `alert_rows` keeps a 16-key scalar
+  projection instead of full payloads. `del batch_results` + `gc.collect()` in
+  a thread per batch. Peak RSS is now bounded regardless of universe size.
+- **Health timeout.** On one CPU + GIL, concurrent symbol analysis starved the
+  /health probe past 5s. `SCAN_CONCURRENCY` 3 → 1 in **both** scanners; the
+  sequential loop yields between batches so health stays responsive (measured
+  0.6-1.4s while scanning).
+- **Cold-boot flap.** Render's 15-min idle spin-down makes the next poke
+  cold-boot the app (slow ~119 MB import exceeds the 5s probe). Added a
+  keepalive systemd timer on the always-on broker VM pinging /health every
+  minute, keeping the instance warm 24/7 (during market hours the executor's
+  own polling already does this).
 - `.tmp` leak from the disk memo's atomic replace: `data/*.tmp` gitignored,
   stray file removed from tracking.
 
