@@ -1,8 +1,9 @@
 # ThetaForge Changelog
 
-## v1.17.14 - 2026-08-28
+## v1.17.15 - 2026-08-28
 
-**Stability: single-process sequential scans + scrape isolation + keepalive.**
+**Stability: single-process sequential scans + scrape isolation + keepalive +
+workload fit.**
 
 The exit-137 OOM and the /health timeouts both trace to how scanning runs on
 Render's single 0.1-vCPU, 512 MB container. Fixed in three layers.
@@ -33,6 +34,15 @@ Render's single 0.1-vCPU, 512 MB container. Fixed in three layers.
   keepalive systemd timer on the always-on broker VM pinging /health every
   minute, keeping the instance warm 24/7 (during market hours the executor's
   own polling already does this).
+- **Fit the workload to the 0.1-vCPU core.** The last residual issue is not
+  a leak but capacity: a full 108-options + 150-equity pass on a single free
+  core takes 30-60+ min, and its accumulated GC/heap pressure intermittently
+  starves /health past the 5s probe even with memory bounded. Reduced per-pass
+  work so health stays responsive and passes reliably complete: options
+  universe capped at 50 (high-liquidity core, `SCAN_UNIVERSE_MAX`), equity
+  universe capped at 40 (`EQUITY_UNIVERSE_MAX`), and both scanners' automatic
+  interval lengthened 300 → 600s (`SCAN_INTERVAL_SECONDS` /
+  `EQUITY_SCAN_INTERVAL_SECONDS`).
 - `.tmp` leak from the disk memo's atomic replace: `data/*.tmp` gitignored,
   stray file removed from tracking.
 

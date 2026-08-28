@@ -63,6 +63,20 @@ NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
 # 429-fan-out that caused the 502s in the first place.
 SCAN_CONCURRENCY = 1
 
+# Cap on how many symbols a single scan pass analyzes. On Render's 0.1-vCPU /
+# 512 MB free tier, a full 108+ symbol pass sequentially takes 30-60 min and
+# its GC/heap pressure intermittently starved /health past the 5s probe (Render
+# flapped the service). Capping to the high-liquidity core (~50) plus the long
+# scan interval below cuts pass time and peak heap roughly in half, so health
+# stays responsive and passes reliably complete. The liquid universe is the
+# priority; the long-tail Yahoo screeners are trimmed to fit the number.
+SCAN_UNIVERSE_MAX = 50
+
+# Seconds between automatic passes. Lengthened from 300 to 600: fewer heavy
+# passes/day means less accumulated CPU+GC pressure on the single free core
+# between health probes (see the SCAN_UNIVERSE_MAX note).
+SCAN_INTERVAL_SECONDS = 600
+
 # Hold the first scan tick after boot briefly so a fresh deploy can pass its
 # platform health checks before any heavy work starts -- Render probes /health/
 # right after boot, and a scan starting instantly on a 0.1-vCPU instance was
@@ -782,7 +796,7 @@ class BackgroundBrainScanner:
     NOTIFICATION_SCORE_FLOOR and whose result signature has changed.
     """
 
-    def __init__(self, interval_seconds: int = 300):
+    def __init__(self, interval_seconds: int = SCAN_INTERVAL_SECONDS):
         self.interval = interval_seconds
         self._task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
@@ -1034,7 +1048,7 @@ class BackgroundBrainScanner:
         Returns the count of new notifications generated.
         """
         if symbols is None:
-            symbols = await build_scan_universe()
+            symbols = await build_scan_universe(max_symbols=SCAN_UNIVERSE_MAX)
 
         new_count = 0
         results: Dict[str, dict] = {}
@@ -1439,5 +1453,5 @@ _scanner_instance: Optional[BackgroundBrainScanner] = None
 async def get_background_scanner() -> BackgroundBrainScanner:
     global _scanner_instance
     if _scanner_instance is None:
-        _scanner_instance = BackgroundBrainScanner(interval_seconds=300)
+        _scanner_instance = BackgroundBrainScanner(interval_seconds=SCAN_INTERVAL_SECONDS)
     return _scanner_instance

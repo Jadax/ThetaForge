@@ -46,6 +46,15 @@ NON_ACTIONABLE = {"no_trade"}
 # actual logs on a single core.
 SCAN_CONCURRENCY = 1
 
+# Cap + interval for the equity scan, matched to the options scanner's reduced
+# workload (see SCAN_UNIVERSE_MAX / SCAN_INTERVAL_SECONDS in background_scanner).
+# A 150-symbol equity pass on the shared 0.1-vCPU core adds as much CPU+GC
+# pressure as the options pass. Trimming to the highest-ranked names and
+# scanning every 10 minutes instead of 5 keeps both engines' combined load low
+# enough that /health stays responsive through a pass.
+EQUITY_UNIVERSE_MAX = 40
+EQUITY_SCAN_INTERVAL_SECONDS = 600
+
 # Post-boot delay before this scanner's first tick. The options scanner waits
 # STARTUP_GRACE_SECONDS; the extra stagger keeps both scanners' heavy passes
 # from starting (and re-aligning) at the same instant on a single free CPU.
@@ -61,7 +70,7 @@ ETF_SET = {
 class EquityBackgroundScanner:
     """Periodically runs the EquityBrain over the equity universe."""
 
-    def __init__(self, interval_seconds: int = 300):
+    def __init__(self, interval_seconds: int = EQUITY_SCAN_INTERVAL_SECONDS):
         self.interval = interval_seconds
         self._task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
@@ -229,7 +238,7 @@ class EquityBackgroundScanner:
     async def scan_once(self, symbols: Optional[List[str]] = None) -> int:
         """Run one full scan pass; returns the count of new notifications."""
         if symbols is None:
-            symbols = await build_equity_universe()
+            symbols = await build_equity_universe(max_symbols=EQUITY_UNIVERSE_MAX)
 
         new_count = 0
         results: Dict[str, dict] = {}
