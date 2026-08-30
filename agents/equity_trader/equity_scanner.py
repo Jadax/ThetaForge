@@ -252,6 +252,14 @@ class EquityBackgroundScanner:
             and (float(n.get("score") or 0)) >= EQUITY_NOTIFICATION_SCORE_FLOOR
         ]
 
+        # Warm the scrape-based daily memo (next_earnings) for the universe
+        # concurrently before the sequential loop; see the options scanner's
+        # identical warm-up for the cold-first-pass rationale.
+        try:
+            await self._provider.warm_scrape_memo(symbols)
+        except Exception:
+            logger.exception("Equity scrape memo warm-up failed; continuing cold")
+
         # Market-wide breadth read, once per pass and shared by every symbol's
         # analysis (MarketOverview pulls ~18 full-year histories per call).
         self._scan_risk_tilt = await self._market_risk_tilt()

@@ -10,7 +10,7 @@ import json
 import logging
 import math
 import os
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Sequence
 from datetime import datetime, timedelta, date
 
 import httpx
@@ -222,6 +222,42 @@ class FreeDataProvider:
                     del self._daily_memo[old]
         self._daily_memo[key] = (today, value)
         self._persist_memo()
+
+    async def warm_scrape_memo(self, symbols: Sequence[str],
+                               concurrency: int = 8) -> None:
+        """Prefetch the slow scrape-based enrichment fields for every symbol in
+        the universe, concurrently, and populate the daily memo BEFORE the
+        sequential CPU-bound analysis loop runs.
+
+        The three scrape calls (next_earnings, short_interest, earnings_dates)
+        are I/O-bound — each waits on the network, so running them in parallel
+        collapses up to (symbols × 3 × ~30s) of serial wall-clock into a few
+        batches, while the per-symbol study that follows reads them straight
+        from the memo. This is what keeps a cold (first pass after deploy) run
+        from spending 1-2 hours scraping one symbol at a time.
+
+        Each getter memoizes on success, so symbols already cached this day are
+        skipped by the getter's own memo check; the concurrent fan-out just
+        fills the gaps. Failures are swallowed (the getters already fail closed)
+        so a spotty source never aborts the warm-up.
+        """
+        if not symbols:
+            return
+        sem = asyncio.Semaphore(concurrency)
+
+        async def _warm(symbol: str) -> None:
+            async with sem:
+                await asyncio.gather(
+                    self.get_next_earnings_date(symbol),
+                    self.get_short_interest(symbol),
+                    self.get_earnings_dates(symbol, limit=12),
+                    return_exceptions=True,
+                )
+
+        for start in range(0, len(symbols), concurrency):
+            batch = symbols[start:start + concurrency]
+            await asyncio.gather(*(_warm(s) for s in batch),
+                                 return_exceptions=True)
 
     async def _get_ibkr_proxy_chain(self, symbol: str) -> Optional[List[Dict[str, Any]]]:
         """Pull a chain from the VM's read-only IBKR proxy. Returns None (never

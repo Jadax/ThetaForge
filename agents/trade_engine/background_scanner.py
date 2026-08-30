@@ -1076,6 +1076,19 @@ class BackgroundBrainScanner:
         self._scan_vix = _scan_vix
         self._scan_vix_term = _scan_vix_term
 
+        # Warm the scrape-based daily memo (next_earnings, short_interest,
+        # earnings_dates) for the whole universe CONCURRENTLY before the
+        # sequential symbol loop below. On a cold first pass (fresh deploy,
+        # empty Render FS) these scrapes otherwise run one symbol at a time --
+        # up to (symbols × 3 × ~30s) of serial wall-clock, i.e. an hour-plus of
+        # a 0.1-vCPU pass. They are I/O-bound, so parallelizing them collapses
+        # that to a few batches while the study loop reads them straight from
+        # the memo. Failures are swallowed (getters already fail closed).
+        try:
+            await self._provider.warm_scrape_memo(symbols)
+        except Exception:
+            logger.exception("Scrape memo warm-up failed; continuing cold")
+
         # Shared history stores: one instance per scan pass instead of per
         # symbol (each caches the full JSON file -- per-symbol instances were
         # the v1.17.4 OOM). Forked analysis workers don't inherit these

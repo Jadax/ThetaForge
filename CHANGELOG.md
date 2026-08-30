@@ -43,6 +43,14 @@ Render's single 0.1-vCPU, 512 MB container. Fixed in three layers.
   universe capped at 40 (`EQUITY_UNIVERSE_MAX`), and both scanners' automatic
   interval lengthened 300 → 600s (`SCAN_INTERVAL_SECONDS` /
   `EQUITY_SCAN_INTERVAL_SECONDS`).
+- **First-pass scrape warm-up.** On a cold deploy (empty Render FS) every
+  symbol's slow scrape-based enrichment (next_earnings, short_interest,
+  earnings_dates) ran one symbol at a time inside the sequential loop, making
+  the first pass take an hour+. `FreeDataProvider.warm_scrape_memo(symbols)`
+  now prefetches those I/O-bound fields for the whole universe concurrently
+  (bounded fan-out) and populates the daily memo BEFORE the CPU-bound study
+  loop, so the pass reads them from the memo instantly. Both scanners call it
+  once per pass.
 - `.tmp` leak from the disk memo's atomic replace: `data/*.tmp` gitignored,
   stray file removed from tracking.
 
