@@ -447,7 +447,7 @@ def _use_process_workers() -> bool:
         return False
     if "PYTEST_CURRENT_TEST" in os.environ:
         return False
-    return True
+    return False
 
 
 def _get_process_executor() -> Optional[ProcessPoolExecutor]:
