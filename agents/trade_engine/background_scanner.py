@@ -420,25 +420,34 @@ _worker_scanner_instance: Optional["BackgroundBrainScanner"] = None
 
 
 def _use_process_workers() -> bool:
-    """Fork-based workers only where fork exists and tests aren't running.
+    """Process-isolated analysis workers (spawn, single recycled child).
 
-    NOTE: deliberately returns False on Render-class single-process hosts.
-    Forking a worker spawns a second copy of the (~119 MB) dependency stack;
-    the child's copy-on-write sharing evaporates the moment it touches
-    pandas/yfinance/CBOE during a symbol analysis, so parent + one diverged
-    child routinely crossed the 512 MB container limit (exit 137). The
-    threaded path — single process, bounded by the batch-size-1 streaming in
-    the scan loop, shared per-pass IV/PCR stores, and gc between symbols —
-    keeps peak RSS ~140 MB regardless of universe size, which is why opts/
-    equity both run this way in production. Edit only if you add a real
-    in-process stack that cannot share a loop; never to give the scan a
-    second copy of the interpreter.
+    This is the GIL-isolation fix for the intermittent /health 5s timeouts.
+    Analysis in parent threads lets long pandas/numpy/cURL-C calls hold the GIL
+    for hundreds of ms to seconds — no asyncio.yield or concurrency setting
+    can preempt a C call, so the health server intermittently can't get the CPU
+    and Render flaps the service. Running each symbol's analysis in a spawned
+    child process removes that work from the parent's GIL entirely: the parent
+    only awaits, so its loop and /health always get scheduled, independent of
+    how heavy a symbol's analysis is.
+
+    Memory is kept safe:
+      - Universe capped (SCAN_UNIVERSE_MAX=50) halves total work.
+      - Results are compact scalar rows — no analyzed payload accumulation.
+      - bs4/curl scrape garbage is isolated in the RECYCLED scrape pool, not
+        the analysis child, so the child only touches chain/DataFrame/BS pages.
+      - Spawn child is a clean fresh process (~140 MB, same footprint as the
+        scrape pool), not a fork — no COW divergence risk.
+      - One worker, recycled every 3 tasks so memory is returned to the OS.
+      - Falls back to in-thread on failure (graceful degradation).
     """
+    if "TF_FORCE_ANALYSIS_POOL" in os.environ:
+        return True
     if os.name == "nt":
         return False
     if "PYTEST_CURRENT_TEST" in os.environ:
         return False
-    return False
+    return True
 
 
 def _get_process_executor() -> Optional[ProcessPoolExecutor]:
@@ -447,19 +456,22 @@ def _get_process_executor() -> Optional[ProcessPoolExecutor]:
         return None
     if _process_executor is None:
         try:
-            ctx = multiprocessing.get_context("fork")
-            # Two recycled workers, not three: each forked child accumulates
-            # ~40-80 MB of private (copy-on-write-diverged) pages before its
-            # recycle, and parent + 3 children peaked past the 512 MB
-            # container mid-pass (exit 137). Two workers keep peak well under
-            # the limit at a modest pass-time cost.
+            # Spawn (not fork): a clean subprocess worker fully isolates the
+            # GIL-heavy analysis CPU (pandas/numpy/cURL-C hold the GIL for
+            # hundreds of ms to seconds) away from the parent, so the parent's
+            # health-serving loop always gets scheduled and /health never flaps.
+            # Spawn re-imports the module in a fresh child (~140 MB, same
+            # proven footprint as the scrape pool) and is testable on Windows,
+            # unlike fork. One worker, recycled every 3 tasks so the process
+            # is reclaimed and memory returned to the OS repeatedly.
+            ctx = multiprocessing.get_context("spawn")
             _process_executor = ProcessPoolExecutor(
                 max_workers=1,
                 max_tasks_per_child=3,
                 mp_context=ctx,
             )
             logger.info(
-                "Scan workers: forked process pool (max_workers=1, recycle every 3 tasks)"
+                "Scan workers: spawned process pool (max_workers=1, recycle every 3 tasks)"
             )
         except Exception as error:
             logger.warning("Process pool unavailable (%s); using threads", error)
@@ -468,8 +480,8 @@ def _get_process_executor() -> Optional[ProcessPoolExecutor]:
 
 
 def _worker_scanner() -> "BackgroundBrainScanner":
-    """Per-process singleton for forked children (cheap after fork: the
-    child inherits the parent's already-imported modules copy-on-write)."""
+    """Per-process singleton for worker children (spawn children build this
+    once and reuse it across the tasks they're handed)."""
     global _worker_scanner_instance
     if _worker_scanner_instance is None:
         _worker_scanner_instance = BackgroundBrainScanner(interval_seconds=9999)
@@ -477,7 +489,7 @@ def _worker_scanner() -> "BackgroundBrainScanner":
 
 
 def process_analyze_symbol(payload: Tuple[str, Optional[float], Optional[dict]]):
-    """Forked-worker entry: analyze one symbol, return JSON-safe results.
+    """Spawned-worker entry: analyze one symbol, return JSON-safe results.
 
     Runs its own event loop inside the child. Shared market-wide inputs ride
     in the payload; history stores are file-backed so children read the same

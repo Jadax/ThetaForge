@@ -1,5 +1,33 @@
 # ThetaForge Changelog
 
+## v1.17.16 - 2026-08-31
+
+**Spawn-based analysis pool for GIL-isolated health + concurrent scrape
+warm-up.**
+
+- **Spawn analysis pool (GIL-isolation fix).** The residual /health 5s flaps
+  on Render were caused by long pandas/numpy/cURL-C calls in analysis threads
+  holding the GIL for hundreds of ms to seconds — no asyncio.yield can preempt
+  a C call, so the health server intermittently starved. Each symbol's analysis
+  now runs in a **spawned** child process (not fork, not thread), fully
+  isolating the GIL-heavy CPU from the parent's health-serving loop. The spawn
+  child is a clean fresh process (no COW divergence), recycled every 3 tasks,
+  and gracefully falls back to in-thread on failure. Same memory footprint as
+  the proven scrape pool (~140 MB child).
+- **Concurrent scrape-memo warm-up.** On a cold deploy (empty Render FS),
+  every symbol's slow scrape-based enrichment ran one at a time inside the
+  sequential loop, making the first pass take an hour+.
+  `FreeDataProvider.warm_scrape_memo(symbols)` now prefetches those I/O-bound
+  fields concurrently (bounded fan-out) and populates the daily memo BEFORE
+  the CPU-bound study loop, so the pass reads them from the memo instantly.
+  Both scanners call it once per pass.
+- `TF_FORCE_ANALYSIS_POOL` env var: force-enables the analysis pool on any
+  platform (for local testing on Windows where spawn is supported but the
+  default gate blocks it).
+- Options engine first-pass completion verified on Render: the pass runs
+  continuously (health rock-solid at 640-700ms), completes, and produces
+  notifications.
+
 ## v1.17.15 - 2026-08-28
 
 **Stability: single-process sequential scans + scrape isolation + keepalive +
