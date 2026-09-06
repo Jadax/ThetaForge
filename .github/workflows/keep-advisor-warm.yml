@@ -1,16 +1,13 @@
-name: Keep Advisor warm
+name: Advisor health monitor
 
-# Render's free tier sleeps a web service after 15 minutes with no HTTP
-# traffic, and fully restarts the container on the next request. That reset
-# would silently wipe data/iv_history.json (the real per-symbol IV history
-# behind IV Rank/Percentile — see docs/SIGNAL_POLICY.md) and the background
-# scanner's 300-second cadence (agents/trade_engine/background_scanner.py)
-# every time it happened, not just on redeploy.
+# The Advisor runs on Google Cloud (always-free e2-micro, never sleeps), so a
+# warm-up ping is unnecessary. This workflow is now a watchdog: it probes the
+# public /health endpoint every 10 minutes from GitHub's runners and fails
+# (notifying on the repository's commit/status page) the moment the Advisor
+# stops answering.
 #
-# A ping every 10 minutes stays comfortably inside that 15-minute window, so
-# the instance never actually sleeps under normal operation. It hits the
-# public /health probe only — no ADVISOR_API_TOKEN needed here, and no
-# secrets to manage in this workflow.
+# Uses the public /health probe only — no ADVISOR_API_TOKEN needed here, and
+# no secrets to manage in this workflow.
 on:
   schedule:
     - cron: "*/10 * * * *"
@@ -22,10 +19,10 @@ jobs:
     steps:
       - name: Ping the Advisor health probe
         run: |
-          url="https://thetaforge-advisor.onrender.com/health/"
+          url="http://35.212.227.109:8000/health/"
           status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$url")
           echo "GET $url -> $status"
           if [ "$status" != "200" ]; then
-            echo "::warning::Advisor health check returned $status (expected 200)"
+            echo "::error::Advisor health check returned $status (expected 200)"
             exit 1
           fi
