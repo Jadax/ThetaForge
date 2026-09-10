@@ -1,5 +1,26 @@
 # ThetaForge Changelog
 
+## v1.17.17 - 2026-09-10
+
+**Options scanner fix + Render-vs-GCP memory balance.**
+
+- **Fix: options scan pass now completes (was silently dead since v1.17.14).**
+  `659a7945` added `del batch_results` to bound scanner parent memory but the
+  next-batch RSS breadcrumb still read `i + len(batch_results)` after the
+  delete, so every `scan_once` crashed with `UnboundLocalError` on its first
+  batch — before any results/notifications/state persisted. The options brain
+  produced zero notifications and zero scan results from 2026-08-27 onward, on
+  Render and GCP alike, while equity scans (which lack this code path) kept
+  working. Tests never caught it because `_rss_mb()` returns `None` on Windows,
+  skipping the `if rss:` guard that references the deleted variable.
+  Now `len(batch)` (still in scope, equal to `len(batch_results)`) is used.
+- **Revert spawn-based analysis pool (OOM on Render's 512 MB).** v1.17.16's
+  spawn pool repeatedly exited via OOM-killer; analysis runs in-thread with
+  the bounded-memory batch loop + scrape-memo warm-up instead. The Advisor now
+  runs on the always-free GCP e2-micro (953 MB + 2 GB swap), which has the
+  headroom for the full 50-symbol options + 40-symbol equity scan in one pass.
+- Deployment migration to GCP is infra-only (see `docs/GCP_ADVISOR_DEPLOYMENT.md`).
+
 ## v1.17.16 - 2026-08-31
 
 **Spawn-based analysis pool for GIL-isolated health + concurrent scrape
