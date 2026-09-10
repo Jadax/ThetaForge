@@ -1275,7 +1275,7 @@ class BackgroundBrainScanner:
                     "scan batch %d/%d done (%d symbols), peak RSS %.0f MB",
                     i // _BATCH_SIZE + 1,
                     (len(symbols) + _BATCH_SIZE - 1) // _BATCH_SIZE,
-                    i + len(batch_results),
+                    i + len(batch),
                     rss,
                 )
             await asyncio.sleep(0)
