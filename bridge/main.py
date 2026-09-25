@@ -118,8 +118,8 @@ class PaperStockOrder(BaseModel):
     Long stock is the ONLY equity side this Bridge accepts: short stock is
     undefined risk, so it is rejected outright. The stop price defines the
     position's risk (shares x (entry - stop)) for the weekly capital
-    reservation; the Bridge independently re-verifies live IBKR quotes before
-    placing the order.
+    reservation; the Bridge independently re-verifies IBKR quotes (live
+    preferred, frozen/delayed accepted) before placing the order.
     """
     symbol: str = Field(min_length=1, max_length=12)
     shares: int = Field(gt=0, le=10000)
@@ -384,8 +384,30 @@ def _quote_number(value) -> float | None:
         return None
 
 
+# IBKR snapshot labels: 1=live, 2=frozen, 3=delayed, 4=delayed-frozen.
+# The paper Bridge deliberately accepts any snapshot with a usable bid/ask
+# rather than demanding live data: SIGNAL_POLICY.md requires every feed to be
+# free, and real-time IBKR market data is a paid subscription. Without one the
+# Gateway serves delayed/frozen quotes (error 10089) — which is fine for paper
+# fills. The data quality is recorded on the ledger so the journal's honesty
+# rule stands.
+MARKET_DATA_QUALITY = {1: "live", 2: "frozen", 3: "delayed", 4: "delayed_frozen"}
+
+
+def _snapshot_quality(tickers) -> str:
+    """Label an order's quote freshness from its least-fresh snapshot."""
+    if not tickers:
+        return "unavailable"
+    return MARKET_DATA_QUALITY.get(max(ticker.marketDataType for ticker in tickers), "unavailable")
+
+
+def _bid_ask_usable(ticker) -> tuple[float | None, float | None]:
+    """Return (bid, ask) numbers, or None if the side is missing entirely."""
+    return _quote_number(ticker.bid), _quote_number(ticker.ask)
+
+
 async def _live_option_tickers(legs: list[OptionQuoteLeg]):
-    """Qualify legs and request strict live snapshots from TWS."""
+    """Qualify legs and request snapshots from TWS (live-first, delayed OK)."""
     await ensure_connected()
     assert ib is not None
     contracts = [Option(leg.symbol.upper(), leg.expiry.replace("-", ""), leg.strike, leg.right, "SMART") for leg in legs]
@@ -443,7 +465,7 @@ def _owned_shares(symbol: str) -> float:
 
 
 async def _live_stock_ticker(symbol: str):
-    """Qualify a stock and request a strict live snapshot from TWS."""
+    """Qualify a stock and request a snapshot from TWS (live-first, delayed OK)."""
     await ensure_connected()
     assert ib is not None
     contract = Stock(symbol.upper(), "SMART", "USD")
@@ -464,7 +486,6 @@ async def option_quotes(request: OptionQuoteRequest, _: None = Depends(require_a
     dashboard to reject anything other than live for executable calculations.
     """
     _, tickers = await _live_option_tickers(request.legs)
-    quality = {1: "live", 2: "frozen", 3: "delayed", 4: "delayed_frozen"}
     quotes = []
     for leg, ticker in zip(request.legs, tickers):
         bid = _quote_number(ticker.bid)
@@ -477,7 +498,7 @@ async def option_quotes(request: OptionQuoteRequest, _: None = Depends(require_a
             "bid": bid,
             "ask": ask,
             "last": _quote_number(ticker.last),
-            "market_data_type": quality.get(ticker.marketDataType, "unavailable"),
+            "market_data_type": MARKET_DATA_QUALITY.get(ticker.marketDataType, "unavailable"),
             "executable": ticker.marketDataType == 1 and bid is not None and ask is not None,
         })
     return {"source": "IBKR TWS", "requested_at": datetime.now(timezone.utc).isoformat(), "quotes": quotes}
@@ -485,14 +506,20 @@ async def option_quotes(request: OptionQuoteRequest, _: None = Depends(require_a
 
 @app.post("/orders/submit-combo")
 async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_access_token)):
-    """Submit one live-quote-verified, defined-risk combo to IBKR paper TWS."""
+    """Submit one quote-verified, defined-risk combo to IBKR paper TWS.
+
+    Quote liveness is deliberately lenient: live is preferred, but frozen and
+    delayed snapshots are accepted for paper fills so the system works without
+    a paid real-time data subscription (see SIGNAL_POLICY.md). The snapshot
+    quality is recorded on the ledger.
+    """
     legs = [OptionQuoteLeg(**leg.model_dump(exclude={"action"})) for leg in order.legs]
     qualified, tickers = await _live_option_tickers(legs)
     live_prices = []
     for leg, ticker in zip(order.legs, tickers):
-        bid, ask = _quote_number(ticker.bid), _quote_number(ticker.ask)
-        if ticker.marketDataType != 1 or bid is None or ask is None:
-            raise HTTPException(status_code=422, detail="Live executable IBKR bid/ask data is required before a paper order can be submitted")
+        bid, ask = _bid_ask_usable(ticker)
+        if bid is None or ask is None:
+            raise HTTPException(status_code=422, detail="Executable IBKR bid/ask data is required before a paper order can be submitted")
         live_prices.append(bid if leg.action == "SELL" else -ask)
 
     net_credit = sum(live_prices)
@@ -557,6 +584,7 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
         "remaining": float(trade.orderStatus.remaining or order.quantity),
         "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
         "limit_price": limit_price,
+        "quote_quality": _snapshot_quality(tickers),
         "net_credit": round(net_credit, 2),
         "max_loss_per_combo": round(max_loss, 2),
         "max_loss_total": round(total_risk, 2),
@@ -582,7 +610,7 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
 
 
 # The former /orders/stage and /orders/{id}/submit pair was removed. It placed
-# orders without live-quote verification, defined-risk proof, capital-limit
+# orders without quote verification, defined-risk proof, capital-limit
 # enforcement, or covered/cash-secured checks, and it never reached the ledger,
 # so its risk was invisible to weekly capital reservation. Every paper order now
 # goes through /orders/submit-combo, which applies all of those controls.
@@ -628,9 +656,10 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
 
     The closing order reverses every action on the parent's own legs, so the
     caller only names *which* position to close and *why*. All the same safety
-    rails as submit-combo apply to the close: live IBKR bid/ask verification,
-    defined-risk structure continuity, and paper-only mode. A close never
-    reserves new capital; instead the parent's weekly reservation is released.
+    rails as submit-combo apply to the close: IBKR bid/ask verification (live
+    preferred, frozen/delayed accepted), defined-risk structure continuity, and
+    paper-only mode. A close never reserves new capital; instead the parent's
+    weekly reservation is released.
     """
     await ensure_connected()
     assert ib is not None
@@ -663,11 +692,11 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
     qualified, tickers = await _live_option_tickers(legs)
     live_prices = []
     for leg, ticker in zip(close_legs, tickers):
-        bid, ask = _quote_number(ticker.bid), _quote_number(ticker.ask)
-        if ticker.marketDataType != 1 or bid is None or ask is None:
+        bid, ask = _bid_ask_usable(ticker)
+        if bid is None or ask is None:
             raise HTTPException(
                 status_code=422,
-                detail="Live executable IBKR bid/ask data is required before a closing order can be submitted",
+                detail="Executable IBKR bid/ask data is required before a closing order can be submitted",
             )
         live_prices.append(bid if leg.action == "SELL" else -ask)
 
@@ -721,6 +750,7 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
         "remaining": float(trade.orderStatus.remaining or quantity),
         "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
         "limit_price": limit_price,
+        "quote_quality": _snapshot_quality(tickers),
         "net_credit": round(net_credit, 2),
         "cost_to_close": round(cost_to_close, 2),
         "realized_pnl": round(realized_pnl, 2),
@@ -756,8 +786,9 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
 async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_access_token)):
     """Submit a long-only paper stock/ETF buy to IBKR paper TWS.
 
-    Mirrors submit-combo's safety rails for equities: live-quote verification
-    (a BUY fills at the live ask), a hard reject on short side, and the weekly
+    Mirrors submit-combo's safety rails for equities: quote verification
+    (a BUY fills at the ask; live preferred, frozen/delayed accepted for paper
+    fills), a hard reject on short side, and the weekly
     capital ledger reserved by the ATR stop distance (shares x (entry - stop)),
     which is the defined risk the Advisor sized the position for. A stop is not
     a hard cap against a gap, so the reservation is deliberately conservative.
@@ -765,11 +796,11 @@ async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_a
     await ensure_connected()
     _, ticker = await _live_stock_ticker(order.symbol)
     ask = _quote_number(ticker.ask)
-    if ticker.marketDataType != 1 or ask is None:
-        raise HTTPException(status_code=422, detail="Live executable IBKR bid/ask data is required before a paper stock order can be submitted")
+    if ask is None:
+        raise HTTPException(status_code=422, detail="Executable IBKR ask data is required before a paper stock order can be submitted")
     entry_price = ask
     if order.stop_price >= entry_price:
-        raise HTTPException(status_code=422, detail="Stop price must be below the live entry price")
+        raise HTTPException(status_code=422, detail="Stop price must be below the entry price")
     stop_distance = entry_price - order.stop_price
     total_risk = stop_distance * order.shares
     if total_risk <= 0:
@@ -806,6 +837,7 @@ async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_a
         "remaining": float(trade.orderStatus.remaining or order.shares),
         "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
         "limit_price": limit_price,
+        "quote_quality": _snapshot_quality([ticker]),
         "entry_price": round(entry_price, 2),
         "stop_price": round(order.stop_price, 2),
         "target_price": round(order.target_price, 2) if order.target_price else None,
@@ -841,10 +873,11 @@ async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_a
 async def close_paper_stock(request: CloseStockRequest, _: None = Depends(require_access_token)):
     """Close a long paper stock/ETF position by mirroring its entry record.
 
-    The close reverses the entry side (SELL the same quantity) using a live
-    verified bid as the limit, and the parent's weekly stop-risk reservation is
-    released. Realized P&L is (fill - average entry cost) x shares, which the
-    journal folds into the parent entry.
+    The close reverses the entry side (SELL the same quantity) using a
+    quote-verified bid as the limit (live preferred, frozen/delayed accepted),
+    and the parent's weekly stop-risk reservation is released. Realized P&L is
+    (fill - average entry cost) x shares, which the journal folds into the
+    parent entry.
     """
     await ensure_connected()
     assert ib is not None
@@ -870,8 +903,8 @@ async def close_paper_stock(request: CloseStockRequest, _: None = Depends(requir
 
     _, ticker = await _live_stock_ticker(str(parent.get("symbol", "")))
     bid = _quote_number(ticker.bid)
-    if ticker.marketDataType != 1 or bid is None:
-        raise HTTPException(status_code=422, detail="Live executable IBKR bid/ask data is required before a closing order can be submitted")
+    if bid is None:
+        raise HTTPException(status_code=422, detail="Executable IBKR bid data is required before a closing order can be submitted")
 
     limit_price = round(bid, 2)
     ib_order = LimitOrder("SELL", shares, limit_price, tif="DAY")
@@ -894,6 +927,7 @@ async def close_paper_stock(request: CloseStockRequest, _: None = Depends(requir
         "remaining": float(trade.orderStatus.remaining or shares),
         "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
         "limit_price": limit_price,
+        "quote_quality": _snapshot_quality([ticker]),
         "cost_to_close": round(limit_price * shares, 2),
         "realized_pnl": round(realized_pnl, 2),
         "week_key": _current_week_key(),

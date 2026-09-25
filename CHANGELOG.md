@@ -1,5 +1,29 @@
 # ThetaForge Changelog
 
+## v1.17.18 - 2026-09-25
+
+**Paper Bridge accepts frozen/delayed IBKR quotes so paper trades can actually
+fill without a paid real-time data subscription.**
+
+- The Bridge hard-rejected every order unless IBKR returned a live
+  (`marketDataType == 1`) snapshot, which required a paid real-time market data
+  subscription. With the realtime subscription removed, the Gateway only serves
+  frozen/delayed quotes (IBKR error 10089), so the equity engine's qualifying
+  stock/ETF orders were all rejected with a 422 `bridge_rejected` — executions
+  that should have landed on the paper account since 2026-09-21 never did.
+- All four order paths (`submit-combo`, `close-combo`, `submit-stock`,
+  `close-stock`) now accept any snapshot with a usable bid/ask (live preferred,
+  frozen/delayed OK for paper fills), per `docs/SIGNAL_POLICY.md` (all feeds
+  free, no paid keys).
+- Snapshot quality is recorded on each ledger record as `quote_quality`
+  (live/frozen/delayed/delayed_frozen) so the journal's honesty rule stands.
+- Hard paper-only rails unchanged and intact: `PAPER_ONLY`, DU-account check,
+  defined-risk proof, capital-limit reservation, no naked/undefined-risk, no
+  short stock. `trading=paper` in the VM Gateway config untouched.
+- The `/options/quotes` disclosure endpoint still reports `executable: false`
+  for frozen/delayed quotes so the dashboard never treats them as live for
+  calculations.
+
 ## v1.17.17 - 2026-09-10
 
 **Options scanner fix + Render-vs-GCP memory balance.**
