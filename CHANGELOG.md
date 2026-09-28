@@ -1,5 +1,29 @@
 # ThetaForge Changelog
 
+## v1.17.19 - 2026-09-28
+
+**Paper Bridge now *requests* IBKR's free delayed data (live-first with a
+delayed fallback) — v1.17.18 accepted delayed quotes but never actually got
+any, because the Bridge kept asking only for live data.**
+
+- v1.17.18 loosened the Bridge's *check* (accept any snapshot with a usable
+  bid/ask) but the ticker requests still sent `reqMarketDataType(1)` (live)
+  with no fallback. Without a real-time subscription the Gateway answers error
+  10089 and returns **no** bid/ask at all, so every order still 422'd
+  (`Executable IBKR bid/ask data is required` / `...ask data is required`).
+  Sep 25 equity decisions all recorded `bridge_rejected` again.
+- Fix mirrors the proven `market_data_service._snapshot_quote`: request type 1
+  (live) first; if no contract in the batch returns a usable bid or ask, retry
+  once on type 3 (IBKR's free delayed feed) and record that in `quote_quality`.
+  Applied to both `_live_option_tickers` and `_live_stock_ticker`, covering all
+  four order paths (combo/stock, entry/close).
+- Verified live on paper Gateway: stock SPY falls back to `delayed`
+  (bid 767.42 / ask 767.44, `marketDataType=3`); option legs return executable
+  bid/ask. Deployed to the AMD VM and a confirmation quote shows
+  `"executable": true`.
+- Paper-only rails, DU check, defined-risk proof, capital reservation, no
+  naked/undefined-risk, no short stock: all unchanged and intact.
+
 ## v1.17.18 - 2026-09-25
 
 **Paper Bridge accepts frozen/delayed IBKR quotes so paper trades can actually

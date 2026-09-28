@@ -406,16 +406,40 @@ def _bid_ask_usable(ticker) -> tuple[float | None, float | None]:
     return _quote_number(ticker.bid), _quote_number(ticker.ask)
 
 
+async def _snapshot_tickers(contracts, wait_seconds: float = 2.0):
+    """Return a snapshot ticker per contract, live-first with a delayed retry.
+
+    Mirrors market_data_service._snapshot_quote: request live (type 1) first;
+    if it returns no usable bid/ask at all (a paper account without a real-time
+    subscription gets error 10089 for live), retry once on IBKR's free delayed
+    feed (type 3). Delayed-from-our-own-Gateway still beats any third-party
+    fallback and is what the Bridge records as quote_quality.
+    """
+    assert ib is not None
+
+    async def _attempt(data_type: int) -> list:
+        ib.reqMarketDataType(data_type)
+        tickers = [ib.reqMktData(c, "", True, False) for c in contracts]
+        await asyncio.sleep(wait_seconds)
+        return tickers
+
+    tickers = await _attempt(1)
+    if all((a[0] is not None or a[1] is not None) for a in (_bid_ask_usable(t) for t in tickers)):
+        return tickers
+    return await _attempt(3)
+
+
 async def _live_option_tickers(legs: list[OptionQuoteLeg]):
-    """Qualify legs and request snapshots from TWS (live-first, delayed OK)."""
+    """Qualify legs and fetch snapshots, live-first with a delayed fallback."""
     await ensure_connected()
     assert ib is not None
     contracts = [Option(leg.symbol.upper(), leg.expiry.replace("-", ""), leg.strike, leg.right, "SMART") for leg in legs]
     qualified = await ib.qualifyContractsAsync(*contracts)
     if len(qualified) != len(contracts):
         raise HTTPException(status_code=422, detail="IBKR could not qualify one or more option contracts")
-    ib.reqMarketDataType(1)
-    tickers = await ib.reqTickersAsync(*qualified)
+    tickers = await _snapshot_tickers(qualified)
+    if not any((a[0] is not None or a[1] is not None) for a in (_bid_ask_usable(t) for t in tickers)):
+        raise HTTPException(status_code=422, detail="No live or delayed IBKR bid/ask data available for the option legs")
     return qualified, tickers
 
 
@@ -465,16 +489,18 @@ def _owned_shares(symbol: str) -> float:
 
 
 async def _live_stock_ticker(symbol: str):
-    """Qualify a stock and request a snapshot from TWS (live-first, delayed OK)."""
+    """Qualify a stock and fetch a snapshot, live-first with delayed fallback."""
     await ensure_connected()
     assert ib is not None
     contract = Stock(symbol.upper(), "SMART", "USD")
     qualified = await ib.qualifyContractsAsync(contract)
     if not qualified:
         raise HTTPException(status_code=422, detail="IBKR could not qualify the stock contract")
-    ib.reqMarketDataType(1)
-    tickers = await ib.reqTickersAsync(*qualified)
-    return qualified[0], tickers[0]
+    tickers = await _snapshot_tickers(qualified)
+    ticker = tickers[0]
+    if _quote_number(ticker.bid) is None and _quote_number(ticker.ask) is None:
+        raise HTTPException(status_code=422, detail="No live or delayed IBKR bid/ask data available for the stock")
+    return qualified[0], ticker
 
 
 @app.post("/options/quotes")
