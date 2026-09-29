@@ -9,21 +9,71 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "e9480203d4a8cf557872242e3cdbf5c4a474262545abdf1f9c5fb86d3bbbb742",
-    "entries_from_ledger": 9,
+    "ledger_sha": "ee8635e7debfc8bda9a37eb98dd9f5b34a0d165348853b4ac05f8a54534150ad",
+    "entries_from_ledger": 10,
     "entries_manual": 0
   },
   "trades": [
+    {
+      "id": "9e9789a8-d0fb-4503-88ef-030626c0fef4",
+      "source_id": "9e9789a8-d0fb-4503-88ef-030626c0fef4",
+      "source": "ledger",
+      "ledger_ref": "9e9789a8-d0fb-4503-88ef-030626c0fef4",
+      "order": {
+        "status": "PendingSubmit",
+        "filled": 0.0,
+        "remaining": 53.0,
+        "average_fill_price": 0.0,
+        "limit_price": 10.38,
+        "net_credit": 0.0,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 53,
+        "submitted_at": "2026-09-29T14:18:50.373452+00:00",
+        "updated_at": "2026-09-29T14:18:50.373452+00:00"
+      },
+      "symbol": "NOK",
+      "asset_class": "equity",
+      "instrument_type": "stock",
+      "shares": 53,
+      "opened": "2026-09-29",
+      "closed": null,
+      "status": "open",
+      "strategy": "equity_momentum",
+      "legs": [],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": null,
+      "entry_price": 10.38,
+      "stop_price": 9.5,
+      "target_price": 12.32,
+      "capital_at_risk": 46.64,
+      "max_profit": 0.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "management_plan": {
+        "target": "take profit at 2R target 12.32",
+        "stop": "hard stop at 9.5",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long NOK \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T14:18:50.373452+00:00"
+    },
     {
       "id": "18c5b3ae-4226-48c8-81b5-0fe2b325f0b4",
       "source_id": "18c5b3ae-4226-48c8-81b5-0fe2b325f0b4",
       "source": "ledger",
       "ledger_ref": "18c5b3ae-4226-48c8-81b5-0fe2b325f0b4",
       "order": {
-        "status": "PendingSubmit",
-        "filled": 0.0,
-        "remaining": 29.0,
-        "average_fill_price": 0.0,
+        "status": "Filled",
+        "filled": 29.0,
+        "remaining": 0.0,
+        "average_fill_price": 12.11,
         "limit_price": 12.19,
         "net_credit": 0.0,
         "cost_to_close": null,
@@ -31,7 +81,7 @@
         "reason": null,
         "quantity": 29,
         "submitted_at": "2026-09-29T14:07:16.333593+00:00",
-        "updated_at": "2026-09-29T14:07:16.333593+00:00"
+        "updated_at": "2026-09-29T14:18:50.369269+00:00"
       },
       "symbol": "MARA",
       "asset_class": "equity",
@@ -81,7 +131,7 @@
         "reason": null,
         "quantity": 3,
         "submitted_at": "2026-09-29T13:56:35.147834+00:00",
-        "updated_at": "2026-09-29T14:07:16.327644+00:00"
+        "updated_at": "2026-09-29T14:18:50.369265+00:00"
       },
       "symbol": "AXTI",
       "asset_class": "equity",
@@ -131,7 +181,7 @@
         "reason": null,
         "quantity": 2,
         "submitted_at": "2026-09-29T13:56:23.152705+00:00",
-        "updated_at": "2026-09-29T14:07:16.327640+00:00"
+        "updated_at": "2026-09-29T14:18:50.369261+00:00"
       },
       "symbol": "AEHR",
       "asset_class": "equity",
@@ -181,7 +231,7 @@
         "reason": null,
         "quantity": 4,
         "submitted_at": "2026-09-29T13:43:55.514497+00:00",
-        "updated_at": "2026-09-29T14:07:16.327635+00:00"
+        "updated_at": "2026-09-29T14:18:50.369257+00:00"
       },
       "symbol": "INTC",
       "asset_class": "equity",
@@ -231,7 +281,7 @@
         "reason": null,
         "quantity": 4,
         "submitted_at": "2026-09-29T13:43:47.021113+00:00",
-        "updated_at": "2026-09-29T14:07:16.327628+00:00"
+        "updated_at": "2026-09-29T14:18:50.369252+00:00"
       },
       "symbol": "NVDA",
       "asset_class": "equity",
@@ -281,7 +331,7 @@
         "reason": null,
         "quantity": 8,
         "submitted_at": "2026-09-29T13:43:38.516260+00:00",
-        "updated_at": "2026-09-29T14:07:16.327123+00:00"
+        "updated_at": "2026-09-29T14:18:50.369233+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -331,7 +381,7 @@
         "reason": null,
         "quantity": 7,
         "submitted_at": "2026-09-29T13:43:30.025051+00:00",
-        "updated_at": "2026-09-29T14:07:16.327119+00:00"
+        "updated_at": "2026-09-29T14:18:50.369228+00:00"
       },
       "symbol": "XLK",
       "asset_class": "equity",
@@ -381,7 +431,7 @@
         "reason": null,
         "quantity": 2,
         "submitted_at": "2026-09-29T13:43:21.222495+00:00",
-        "updated_at": "2026-09-29T14:07:16.327112+00:00"
+        "updated_at": "2026-09-29T14:18:50.369221+00:00"
       },
       "symbol": "QQQ",
       "asset_class": "equity",
@@ -431,7 +481,7 @@
         "reason": null,
         "quantity": 1,
         "submitted_at": "2026-09-29T13:43:12.061112+00:00",
-        "updated_at": "2026-09-29T14:07:16.327090+00:00"
+        "updated_at": "2026-09-29T14:18:50.369199+00:00"
       },
       "symbol": "SPY",
       "asset_class": "equity",
