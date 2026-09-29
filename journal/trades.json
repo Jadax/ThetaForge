@@ -9,21 +9,121 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "ee8635e7debfc8bda9a37eb98dd9f5b34a0d165348853b4ac05f8a54534150ad",
-    "entries_from_ledger": 10,
+    "ledger_sha": "c907b0db442a3010dea3c2e7427f65b28da2a88da4af5071439a1bb6c8252444",
+    "entries_from_ledger": 12,
     "entries_manual": 0
   },
   "trades": [
+    {
+      "id": "82ed07ee-c5e4-452e-b82b-36e417e8a915",
+      "source_id": "82ed07ee-c5e4-452e-b82b-36e417e8a915",
+      "source": "ledger",
+      "ledger_ref": "82ed07ee-c5e4-452e-b82b-36e417e8a915",
+      "order": {
+        "status": "PendingSubmit",
+        "filled": 0.0,
+        "remaining": 8.0,
+        "average_fill_price": 0.0,
+        "limit_price": 170.46,
+        "net_credit": 0.0,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 8,
+        "submitted_at": "2026-09-29T18:40:46.898824+00:00",
+        "updated_at": "2026-09-29T18:40:46.898824+00:00"
+      },
+      "symbol": "XLV",
+      "asset_class": "equity",
+      "instrument_type": "etf",
+      "shares": 8,
+      "opened": "2026-09-29",
+      "closed": null,
+      "status": "open",
+      "strategy": "etf_rotation",
+      "legs": [],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": null,
+      "entry_price": 170.46,
+      "stop_price": 165.57,
+      "target_price": 180.08,
+      "capital_at_risk": 39.12,
+      "max_profit": 0.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "management_plan": {
+        "target": "take profit at 2R target 180.08",
+        "stop": "hard stop at 165.57",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T18:40:46.898824+00:00"
+    },
+    {
+      "id": "34b1c0f3-a74d-485c-9029-70d6a6eb0ca3",
+      "source_id": "34b1c0f3-a74d-485c-9029-70d6a6eb0ca3",
+      "source": "ledger",
+      "ledger_ref": "34b1c0f3-a74d-485c-9029-70d6a6eb0ca3",
+      "order": {
+        "status": "Submitted",
+        "filled": 0.0,
+        "remaining": 1.0,
+        "average_fill_price": 0.0,
+        "limit_price": 763.94,
+        "net_credit": 0.0,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "submitted_at": "2026-09-29T18:40:31.340893+00:00",
+        "updated_at": "2026-09-29T18:40:46.897956+00:00"
+      },
+      "symbol": "SPY",
+      "asset_class": "equity",
+      "instrument_type": "etf",
+      "shares": 1,
+      "opened": "2026-09-29",
+      "closed": null,
+      "status": "open",
+      "strategy": "etf_rotation",
+      "legs": [],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": null,
+      "entry_price": 763.94,
+      "stop_price": 751.82,
+      "target_price": 790.96,
+      "capital_at_risk": 12.12,
+      "max_profit": 0.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "management_plan": {
+        "target": "take profit at 2R target 790.96",
+        "stop": "hard stop at 751.82",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T18:40:46.897956+00:00"
+    },
     {
       "id": "9e9789a8-d0fb-4503-88ef-030626c0fef4",
       "source_id": "9e9789a8-d0fb-4503-88ef-030626c0fef4",
       "source": "ledger",
       "ledger_ref": "9e9789a8-d0fb-4503-88ef-030626c0fef4",
       "order": {
-        "status": "PendingSubmit",
-        "filled": 0.0,
-        "remaining": 53.0,
-        "average_fill_price": 0.0,
+        "status": "Filled",
+        "filled": 53.0,
+        "remaining": 0.0,
+        "average_fill_price": 10.38,
         "limit_price": 10.38,
         "net_credit": 0.0,
         "cost_to_close": null,
@@ -31,7 +131,7 @@
         "reason": null,
         "quantity": 53,
         "submitted_at": "2026-09-29T14:18:50.373452+00:00",
-        "updated_at": "2026-09-29T14:18:50.373452+00:00"
+        "updated_at": "2026-09-29T18:40:46.897952+00:00"
       },
       "symbol": "NOK",
       "asset_class": "equity",
@@ -81,7 +181,7 @@
         "reason": null,
         "quantity": 29,
         "submitted_at": "2026-09-29T14:07:16.333593+00:00",
-        "updated_at": "2026-09-29T14:18:50.369269+00:00"
+        "updated_at": "2026-09-29T18:40:46.897948+00:00"
       },
       "symbol": "MARA",
       "asset_class": "equity",
@@ -120,10 +220,10 @@
       "source": "ledger",
       "ledger_ref": "0282450e-6c96-4fd0-b43e-ec320c4086c3",
       "order": {
-        "status": "Submitted",
-        "filled": 0.0,
-        "remaining": 3.0,
-        "average_fill_price": 0.0,
+        "status": "Filled",
+        "filled": 3.0,
+        "remaining": 0.0,
+        "average_fill_price": 78.94,
         "limit_price": 78.94,
         "net_credit": 0.0,
         "cost_to_close": null,
@@ -131,7 +231,7 @@
         "reason": null,
         "quantity": 3,
         "submitted_at": "2026-09-29T13:56:35.147834+00:00",
-        "updated_at": "2026-09-29T14:18:50.369265+00:00"
+        "updated_at": "2026-09-29T18:40:46.897944+00:00"
       },
       "symbol": "AXTI",
       "asset_class": "equity",
@@ -181,7 +281,7 @@
         "reason": null,
         "quantity": 2,
         "submitted_at": "2026-09-29T13:56:23.152705+00:00",
-        "updated_at": "2026-09-29T14:18:50.369261+00:00"
+        "updated_at": "2026-09-29T18:40:46.897940+00:00"
       },
       "symbol": "AEHR",
       "asset_class": "equity",
@@ -231,7 +331,7 @@
         "reason": null,
         "quantity": 4,
         "submitted_at": "2026-09-29T13:43:55.514497+00:00",
-        "updated_at": "2026-09-29T14:18:50.369257+00:00"
+        "updated_at": "2026-09-29T18:40:46.897936+00:00"
       },
       "symbol": "INTC",
       "asset_class": "equity",
@@ -281,7 +381,7 @@
         "reason": null,
         "quantity": 4,
         "submitted_at": "2026-09-29T13:43:47.021113+00:00",
-        "updated_at": "2026-09-29T14:18:50.369252+00:00"
+        "updated_at": "2026-09-29T18:40:46.897932+00:00"
       },
       "symbol": "NVDA",
       "asset_class": "equity",
@@ -331,7 +431,7 @@
         "reason": null,
         "quantity": 8,
         "submitted_at": "2026-09-29T13:43:38.516260+00:00",
-        "updated_at": "2026-09-29T14:18:50.369233+00:00"
+        "updated_at": "2026-09-29T18:40:46.897928+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -381,7 +481,7 @@
         "reason": null,
         "quantity": 7,
         "submitted_at": "2026-09-29T13:43:30.025051+00:00",
-        "updated_at": "2026-09-29T14:18:50.369228+00:00"
+        "updated_at": "2026-09-29T18:40:46.897924+00:00"
       },
       "symbol": "XLK",
       "asset_class": "equity",
@@ -431,7 +531,7 @@
         "reason": null,
         "quantity": 2,
         "submitted_at": "2026-09-29T13:43:21.222495+00:00",
-        "updated_at": "2026-09-29T14:18:50.369221+00:00"
+        "updated_at": "2026-09-29T18:40:46.897918+00:00"
       },
       "symbol": "QQQ",
       "asset_class": "equity",
@@ -481,7 +581,7 @@
         "reason": null,
         "quantity": 1,
         "submitted_at": "2026-09-29T13:43:12.061112+00:00",
-        "updated_at": "2026-09-29T14:18:50.369199+00:00"
+        "updated_at": "2026-09-29T18:40:46.897896+00:00"
       },
       "symbol": "SPY",
       "asset_class": "equity",
