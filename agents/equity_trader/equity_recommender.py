@@ -111,6 +111,13 @@ class EquityRecommender:
         # bucket past the cap given the positions already held.
         positions = [str(s).upper() for s in (current_positions or [])]
         if positions:
+            symbol_upper = str(symbol).upper()
+            # No second position in the same name. The sector cap alone is not
+            # enough: XLV could count 1 in its bucket, cap is 3, so a second
+            # XLV passes the sector gate while stacking risk in the same name.
+            if symbol_upper in positions:
+                return self._reject(symbol, "already_held",
+                                    f"{symbol} already held — a second position in the same symbol is blocked.", price)
             counts: Dict[str, int] = {}
             for pos in positions:
                 bucket = SYMBOL_SECTOR.get(pos, pos)

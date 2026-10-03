@@ -304,6 +304,15 @@ def sync(args: argparse.Namespace) -> int:
         status = str(record.get("status", ""))
         if status in EXCLUDED_STATUSES:
             continue
+        # An order that never executed (still "Submitted" with no fill, or a
+        # day order that lapsed unfilled) is not a trade. Only ledger records
+        # with an actual fill belong in the public journal — anything else is
+        # an intent, not a receipt. The bridge always writes `filled` (0 for a
+        # never-executed order), so only an explicitly-set 0 is filtered; a
+        # record that omits the field is treated as filled (mirrors the
+        # executor's own fetch_open_equity_symbols guard).
+        if "filled" in record and float(record.get("filled") or 0) <= 0:
+            continue
         source = str(record.get("id", ""))
         if not source or source in seen_sources:
             continue

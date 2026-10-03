@@ -1,6 +1,31 @@
 # ThetaForge Changelog
 
-## v1.17.19 - 2026-09-28
+## v1.17.20 - 2026-10-03
+
+**Public journal no longer shows orders that never executed, and the equity
+recommender can't double up a second position in a symbol it already holds —
+plus the journal filter tabs now carry live counts and the BUY line shows the
+purchase date.**
+
+- `scripts/sync_journal.py`: ledger records with an explicitly-`filled` count
+  of 0 (e.g. a day order still `Submitted` that never executed) were being
+  journaled as open trades — the journal showed 3 phantom entries from the
+  Sep 29 equity batch (2× SPY, 1× XLV). The generator now skips them, matching
+  the executor's own `fetch_open_equity_symbols` guard. Only an explicitly-set
+  `filled` value filters; records that omit the field are treated as filled,
+  so reconstructed/minimal ledgers behave as before.
+- `agents/equity_trader/equity_recommender.py`: added a per-symbol
+  `already_held` gate that runs before the sector-cap check. XLV was filled
+  twice on Sep 29 (8 sh @170.88 and 8 sh @170.43) because the cap counts the
+  held symbol in its own bucket and no per-symbol dedup existed.
+- Journal UI: filter tabs (All/Options/Stocks) show position counts; the
+  equity BUY line now includes the purchase date and fill price alongside the
+  entry/stop/target.
+- Tests: `tests/test_sync_journal.py` excludes never-filled `Submitted` orders
+  and never-filled closes; `tests/test_equity_trader.py` covers the
+  `already_held` gate and its precedence over the sector cap; the sector-cap
+  fixture now exercises the cap with distinct correlated names.
+- Full suite green on the GCP venv (375 tests).
 
 **Paper Bridge now *requests* IBKR's free delayed data (live-first with a
 delayed fallback) — v1.17.18 accepted delayed quotes but never actually got

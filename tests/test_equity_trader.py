@@ -165,8 +165,14 @@ def test_recommender_sector_cap_blocks_fourth_correlated_position():
     read = analyze(symbol="AAPL")
     from agents.trade_engine.recommender import SYMBOL_SECTOR
     bucket = SYMBOL_SECTOR["AAPL"]
-    positions = [s for s, b in SYMBOL_SECTOR.items() if b == bucket][:MAX_CORRELATED_EQUITY_POSITIONS]
+    # Distinct correlated names only — the symbol under test is excluded so the
+    # per-symbol already_held gate (which takes precedence) doesn't shadow the cap.
+    positions = [
+        s for s, b in SYMBOL_SECTOR.items()
+        if b == bucket and s != "AAPL"
+    ][:MAX_CORRELATED_EQUITY_POSITIONS]
     assert len(positions) == MAX_CORRELATED_EQUITY_POSITIONS
+    assert "AAPL" not in positions
     rec = EquityRecommender().build(read, capital=100_000, current_positions=positions)
     assert rec.gate == "sector_cap"
 
@@ -179,6 +185,26 @@ def test_recommender_accepts_same_sector_under_cap():
     )
     # AAPL's sector (tech) is already at the cap via the six tech names above.
     assert rec.gate == "sector_cap"
+
+
+def test_recommender_blocks_second_position_in_same_symbol():
+    # XLV already open, cap is 3 so the sector gate alone would pass a repeat;
+    # the per-symbol gate must reject the duplicate outright.
+    read = analyze(symbol="XLV")
+    rec = EquityRecommender().build(read, capital=100_000, current_positions=["XLV"])
+    assert rec.gate == "already_held"
+    assert "already held" in rec.reasoning.lower()
+
+
+def test_recommender_same_symbol_reject_takes_precedence_over_sector_cap():
+    # Holding the same symbol and a full sector of other names: the duplicate
+    # gate fires regardless of where the sector sits.
+    from agents.trade_engine.recommender import SYMBOL_SECTOR
+    bucket = SYMBOL_SECTOR["XLV"]
+    others = [s for s, b in SYMBOL_SECTOR.items() if b == bucket and s != "XLV"][:2]
+    rec = EquityRecommender().build(read=analyze(symbol="XLV"), capital=100_000,
+                                    current_positions=["XLV"] + others)
+    assert rec.gate == "already_held"
 
 
 def test_recommender_rejects_undersized_capital():

@@ -28,6 +28,8 @@ def _record(rec_id, status="Filled", recommendation_id="rec-abc", **extra):
              "right": "P", "action": "BUY"},
         ],
         "quantity": 1,
+        "filled": 1,
+        "remaining": 0,
         "status": status,
         "net_credit": 300,
         "max_loss_total": 1500,
@@ -102,6 +104,46 @@ def test_excludes_cancelled_and_unrecommended(tmp_path):
                        "--ledger", str(ledger_path)])
     data = json.loads(journal_path.read_text(encoding="utf-8"))
     assert [trade["id"] for trade in data["trades"]] == ["rec-filled"]
+
+
+def test_excludes_never_filled_submitted_orders(tmp_path):
+    # An order that landed in the ledger as Submitted but never filled is not
+    # a trade — an intent, not a receipt. It must not appear as an open
+    # position next to the genuinely-held record for the same symbol.
+    ledger = [
+        _record("rec-1", symbol="XLV"),
+        _record("rec-2", symbol="XLV", status="Submitted", filled=0, remaining=8),
+        _record("rec-3", symbol="SPY", status="Submitted", filled=0, remaining=1),
+    ]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    assert sorted(trade["id"] for trade in data["trades"]) == ["rec-1"]
+    assert data["verification"]["entries_from_ledger"] == 1
+
+
+def test_never_filled_close_does_not_fold_into_parent(tmp_path):
+    # A closing order that never executed leaves the position open; folding it
+    # in would mark a held position closed by a phantom receipt.
+    ledger = [
+        _record("rec-1"),
+        _record("rec-close", status="Submitted", filled=0, remaining=1,
+                close_of="rec-1"),
+    ]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    assert [trade["id"] for trade in data["trades"]] == ["rec-1"]
+    assert data["trades"][0]["status"] == "open"
+    assert data["trades"][0].get("close_order") is None
 
 
 def test_overlays_narrative_by_source_id(tmp_path):
