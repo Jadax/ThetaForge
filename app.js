@@ -451,11 +451,14 @@
     var strategyLine;
     if (isEquity) {
       var shares = trade.order && trade.order.quantity != null ? trade.order.quantity : (trade.shares || "");
-      var entry = trade.entry_price != null ? "@ " + trade.entry_price : "";
+      var buyPrice = prices.buy != null
+        ? "@ " + prices.buy.toFixed(2)
+        : (trade.entry_price != null ? "@ " + trade.entry_price : "");
       var stop = trade.stop_price != null ? "stop " + trade.stop_price : "";
       var target = trade.target_price != null ? "target " + trade.target_price : "";
-      var sold = prices.sell != null ? " · sold @ " + prices.sell : "";
-      legs = "<span class='buy'>BUY " + esc(shares) + " shares " + esc(entry) +
+      var sold = prices.sell != null ? " · sold @ " + prices.sell.toFixed(2) : "";
+      legs = "<span class='buy'>BUY " + esc(shares) + " shares " +
+        esc(buyPrice) + " · " + esc(dateLabel(trade.opened)) +
         (stop ? " · " + esc(stop) : "") +
         (target ? " · " + esc(target) : "") + "</span>" +
         (sold ? "<span class='sell'>SELL " + esc(shares) + " shares " + esc(sold) + "</span>" : "");
@@ -567,6 +570,7 @@
 
   function wireFilters() {
     var bar = document.getElementById("journal-filters");
+    renderFilterCounts();
     bar.addEventListener("click", function (event) {
       var button = event.target.closest("[data-filter]");
       if (!button) return;
@@ -575,6 +579,18 @@
         tab.setAttribute("aria-selected", tab === button ? "true" : "false");
       });
       renderList();
+    });
+  }
+
+  function renderFilterCounts() {
+    var optionsCount = allTrades.filter(function (t) { return engineOf(t) === "options"; }).length;
+    var stocksCount = allTrades.filter(function (t) { return engineOf(t) === "stocks"; }).length;
+    var counts = { "all": allTrades.length, "options": optionsCount, "stocks": stocksCount };
+    var bar = document.getElementById("journal-filters");
+    Array.prototype.forEach.call(bar.querySelectorAll("[data-filter]"), function (tab) {
+      var engine = tab.getAttribute("data-filter");
+      tab.querySelector(".count")?.remove();
+      tab.insertAdjacentHTML("beforeend", "<span class='count'>" + counts[engine] + "</span>");
     });
   }
 
