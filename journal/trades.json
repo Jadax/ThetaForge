@@ -58,10 +58,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long XLV, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T19:34:09.739997+00:00",
       "conditions": {
         "engine": "equity",
@@ -125,10 +125,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long SPY, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T19:34:09.739992+00:00",
       "conditions": {
         "engine": "equity",
@@ -192,10 +192,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long XLV, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T18:40:46.898824+00:00",
       "conditions": {
         "engine": "equity",
@@ -259,10 +259,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long SPY, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T18:40:46.897956+00:00",
       "conditions": {
         "engine": "equity",
@@ -326,10 +326,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long NOK, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long NOK \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T14:18:50.373452+00:00",
       "conditions": {
         "engine": "equity",
@@ -393,10 +393,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long MARA, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long MARA \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T14:07:16.333593+00:00",
       "conditions": {
         "engine": "equity",
@@ -460,10 +460,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long AXTI, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long AXTI \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T13:56:35.147834+00:00",
       "conditions": {
         "engine": "equity",
@@ -527,10 +527,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long AEHR, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long AEHR \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T13:56:35.146650+00:00",
       "conditions": {
         "engine": "equity",
@@ -594,10 +594,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long INTC, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long INTC \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T13:43:59.578188+00:00",
       "conditions": {
         "engine": "equity",
@@ -661,10 +661,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long NVDA, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long NVDA \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T13:43:59.578184+00:00",
       "conditions": {
         "engine": "equity",
@@ -728,10 +728,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long XLV, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T13:43:59.578180+00:00",
       "conditions": {
         "engine": "equity",
@@ -795,10 +795,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long XLK, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long XLK \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T13:43:59.578176+00:00",
       "conditions": {
         "engine": "equity",
@@ -862,10 +862,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long QQQ, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long QQQ \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T13:43:59.578170+00:00",
       "conditions": {
         "engine": "equity",
@@ -929,10 +929,10 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long SPY, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open · monitoring the position.",
+      "exit_note": "Open \u2014 monitoring the position.",
       "timestamp": "2026-09-29T13:43:59.578141+00:00",
       "conditions": {
         "engine": "equity",
