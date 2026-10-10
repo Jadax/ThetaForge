@@ -220,7 +220,11 @@ def test_keeps_manual_entries_without_source_id(tmp_path):
     assert ids == {"rec-1", "TF-2026-099"}
 
 
-def test_drops_entries_whose_source_left_the_ledger(tmp_path):
+def test_keeps_entries_whose_source_left_the_ledger_as_carried(tmp_path):
+    # The executor VM migrated to a fresh Bridge ledger. A ledger that starts
+    # over must never wipe already-published receipts: entries whose record is
+    # absent from the ledger file are retained, marked carried, and counted in
+    # the verification block alongside the prior ledger's sha.
     ledger = [_record("rec-1")]
     ledger_path = tmp_path / "ledger.json"
     ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
@@ -238,7 +242,129 @@ def test_drops_entries_whose_source_left_the_ledger(tmp_path):
     sync_journal.main(["--journal", str(journal_path),
                        "--ledger", str(ledger_path)])
     data = json.loads(journal_path.read_text(encoding="utf-8"))
+    by_id = {trade["id"]: trade for trade in data["trades"]}
+    assert set(by_id) == {"rec-1", "rec-gone"}
+    assert by_id["rec-gone"].get("carried") is True
+    assert not by_id["rec-1"].get("carried")
+    assert data["verification"]["entries_carried"] == 1
+
+
+def test_excluded_ledger_record_is_dropped_not_carried(tmp_path):
+    # Physical presence in the ledger file decides carried-vs-dropped: a record
+    # the journal filters out (cancelled) is still *known* to this ledger, so
+    # it stays dropped rather than resurrected as a carried receipt.
+    ledger = [
+        _record("rec-1"),
+        _record("rec-cancelled", status="Cancelled"),
+    ]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    previously_published = [{
+        "id": "rec-cancelled", "source_id": "rec-cancelled", "symbol": "SPY",
+        "opened": "2026-08-01", "closed": None, "status": "open",
+        "strategy": "bull_put_credit", "legs": [], "entry_ivr": 40,
+        "dte_at_entry": 20, "capital_at_risk": 1500, "max_profit": 300,
+        "net_pnl": 0.0, "net_pnl_pct": 0.0, "reason": "x",
+        "research": [], "tags": [], "exit_note": "Open.",
+        "timestamp": "2026-08-01T00:00:00Z",
+    }]
+    journal_path = _journal(tmp_path, previously_published)
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
     assert [trade["id"] for trade in data["trades"]] == ["rec-1"]
+    assert data["verification"]["entries_carried"] == 0
+
+
+def test_carried_entries_survive_repeated_syncs_and_keep_prior_sha(tmp_path):
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text("[]", encoding="utf-8")
+    published = [{
+        "id": "oracle-1", "source_id": "oracle-1", "symbol": "SPY",
+        "opened": "2026-09-29", "closed": None, "status": "open",
+        "strategy": "etf_rotation", "legs": [], "entry_ivr": None,
+        "dte_at_entry": None, "capital_at_risk": 100, "max_profit": 0,
+        "net_pnl": 0.0, "net_pnl_pct": 0.0, "reason": "x",
+        "research": [], "tags": [], "exit_note": "Open.",
+        "timestamp": "2026-09-29T00:00:00Z",
+        "conditions": {"score": 70, "signal": "buy"},
+    }]
+    journal_path = tmp_path / "trades.json"
+    journal_path.write_text(json.dumps({
+        "trader": {"name": "T", "handle": "@t", "tagline": "x"},
+        "as_of": "2026-09-29",
+        "account_equity": 25000,
+        "verification": {"generator": "scripts/sync_journal.py",
+                         "ledger_source": "oracle",
+                         "ledger_sha": "a" * 64,
+                         "entries_from_ledger": 14,
+                         "entries_manual": 0},
+        "trades": published,
+    }), encoding="utf-8")
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    first = json.loads(journal_path.read_text(encoding="utf-8"))
+    assert len(first["trades"]) == 1
+    assert first["trades"][0]["carried"] is True
+    assert first["trades"][0]["conditions"] == {"score": 70, "signal": "buy"}
+    assert first["verification"]["entries_carried"] == 1
+    assert first["verification"]["prior_ledger_sha"] == "a" * 64
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    second = json.loads(journal_path.read_text(encoding="utf-8"))
+    assert len(second["trades"]) == 1
+    assert second["trades"][0]["carried"] is True
+    assert second["verification"]["entries_carried"] == 1
+    assert second["verification"]["prior_ledger_sha"] == "a" * 64
+
+
+def test_ledger_conditions_win_over_previously_stored_copy(tmp_path):
+    record = _record("rec-1", conditions={"score": 71, "signal": "buy"})
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps([record]), encoding="utf-8")
+    existing = [{
+        "id": "rec-1", "source_id": "rec-1", "symbol": "SPY",
+        "opened": "2026-08-01", "closed": None, "status": "open",
+        "strategy": "bull_put_credit", "legs": [],
+        "capital_at_risk": 1500, "max_profit": 300,
+        "net_pnl": 0.0, "net_pnl_pct": 0.0, "reason": "x",
+        "research": [], "tags": [], "exit_note": "Open.",
+        "timestamp": "2026-08-01T00:00:00Z",
+        "conditions": {"score": 60, "signal": "hold"},
+    }]
+    journal_path = _journal(tmp_path, existing)
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    assert data["trades"][0]["conditions"] == {"score": 71, "signal": "buy"}
+    assert not data["trades"][0].get("carried")
+
+
+def test_overlay_fills_conditions_when_ledger_record_lacks_them(tmp_path):
+    # Records placed before the executor captured conditions carry none; a
+    # backfilled copy stored on the journal entry is preserved by the overlay.
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps([_record("rec-1")]), encoding="utf-8")
+    existing = [{
+        "id": "rec-1", "source_id": "rec-1", "symbol": "SPY",
+        "opened": "2026-08-01", "closed": None, "status": "open",
+        "strategy": "bull_put_credit", "legs": [],
+        "capital_at_risk": 1500, "max_profit": 300,
+        "net_pnl": 0.0, "net_pnl_pct": 0.0, "reason": "x",
+        "research": [], "tags": [], "exit_note": "Open.",
+        "timestamp": "2026-08-01T00:00:00Z",
+        "conditions": {"score": 70, "signal": "buy"},
+    }]
+    journal_path = _journal(tmp_path, existing)
+
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    assert data["trades"][0]["conditions"] == {"score": 70, "signal": "buy"}
 
 
 def test_empty_ledger_yields_empty_journal(tmp_path):

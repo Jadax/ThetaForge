@@ -43,6 +43,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -67,6 +68,56 @@ BRIDGE_HEADERS = {"X-ThetaForge-Bridge-Token": BRIDGE_ACCESS_TOKEN, "Content-Typ
 
 def is_market_open(client: httpx.Client) -> bool:
     return _is_market_open(client, ADVISOR_URL, ADVISOR_HEADERS, logger)
+
+
+def _captured_at() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def _num(value: Any, digits: int = 2) -> float | None:
+    return round(float(value), digits) if isinstance(value, (int, float)) else None
+
+
+def option_conditions(trade: dict[str, Any]) -> dict[str, Any]:
+    """Snapshot the Advisor's entry conditions for the public journal.
+
+    Sent with the order so the Bridge stores it on the ledger record, letting
+    scripts/sync_journal.py publish *why* the structure was entered (regime,
+    IV rank, expected move, scores, entry/exit rules) beside the fill receipt.
+    """
+    return {
+        "engine": "options",
+        "captured_at": _captured_at(),
+        "regime": trade.get("market_regime"),
+        "vix": _num(trade.get("vix"), 2),
+        "iv_rank": _num(trade.get("iv_rank"), 1),
+        "expected_move_pct": _num(trade.get("expected_move_pct"), 2),
+        "composite_score": _num(trade.get("composite_score"), 1),
+        "confidence_score": _num(trade.get("confidence_score"), 1),
+        "pop": _num(trade.get("probability_of_profit"), 1),
+        "edge_pct": _num(trade.get("theoretical_edge_pct"), 2),
+        "reasoning": trade.get("reasoning"),
+        "entry_rules": trade.get("entry_rules") or None,
+        "exit_rules": trade.get("exit_rules") or None,
+    }
+
+
+def equity_conditions(trade: dict[str, Any], notification: dict[str, Any]) -> dict[str, Any]:
+    """Same journal snapshot for a long stock/ETF entry: the equity Brain's
+    score, read, trend, RSI/ADX/ATR, entry price, and risk tilt."""
+    return {
+        "engine": "equity",
+        "captured_at": _captured_at(),
+        "score": _num(trade.get("score"), 1),
+        "signal": trade.get("read"),
+        "trend": trade.get("trend"),
+        "rsi_14": _num(trade.get("rsi_14"), 1),
+        "adx_14": _num(trade.get("adx_14"), 1),
+        "atr_14": _num(trade.get("atr_14"), 2),
+        "price": _num(trade.get("price") or trade.get("entry_price"), 2),
+        "risk_tilt": notification.get("market_risk_tilt"),
+        "reasoning": trade.get("reasoning"),
+    }
 
 
 def fetch_actionable_notifications(client: httpx.Client) -> list[dict[str, Any]]:
@@ -138,6 +189,7 @@ def submit_to_bridge(client: httpx.Client, trade: dict[str, Any]) -> tuple[bool,
                 "capital_limit": CAPITAL_LIMIT,
                 "recommendation_id": trade["id"],
                 "strategy": trade["strategy"],
+                "conditions": option_conditions(trade),
             },
             timeout=30,
         )
@@ -225,7 +277,11 @@ def fetch_equity_recommendation(
     return None, f"gate={gate} reason={detail}"
 
 
-def submit_stock_to_bridge(client: httpx.Client, trade: dict[str, Any]) -> tuple[bool, str]:
+def submit_stock_to_bridge(
+    client: httpx.Client,
+    trade: dict[str, Any],
+    notification: dict[str, Any] | None = None,
+) -> tuple[bool, str]:
     try:
         response = client.post(
             f"{BRIDGE_URL}/orders/stock",
@@ -238,6 +294,7 @@ def submit_stock_to_bridge(client: httpx.Client, trade: dict[str, Any]) -> tuple
                 "target_price": trade.get("target_price"),
                 "recommendation_id": trade["id"],
                 "strategy": trade["strategy"],
+                "conditions": equity_conditions(trade, notification or {}),
             },
             timeout=30,
         )
@@ -304,7 +361,7 @@ def run_equity_once(client: httpx.Client) -> int:
         if trade is None:
             logger.info("%s: no qualifying equity structure at fetch time (%s)", symbol, detail)
         else:
-            ok, message = submit_stock_to_bridge(client, trade)
+            ok, message = submit_stock_to_bridge(client, trade, notification)
             logger.info("%s: %s", symbol, message)
             action = "placed" if ok else "bridge_rejected"
             detail = message

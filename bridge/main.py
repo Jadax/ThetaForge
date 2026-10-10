@@ -98,6 +98,7 @@ class PaperComboOrder(BaseModel):
     capital_limit: float = Field(gt=0)
     recommendation_id: str | None = Field(default=None, max_length=120)
     strategy: str | None = Field(default=None, max_length=80)
+    conditions: dict[str, Any] | None = Field(default=None)
 
 
 class CloseComboRequest(BaseModel):
@@ -128,6 +129,7 @@ class PaperStockOrder(BaseModel):
     target_price: float | None = Field(default=None, gt=0)
     recommendation_id: str | None = Field(default=None, max_length=120)
     strategy: str | None = Field(default=None, max_length=80)
+    conditions: dict[str, Any] | None = Field(default=None)
 
 
 class CloseStockRequest(BaseModel):
@@ -604,6 +606,7 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
         "symbol": order.legs[0].symbol.upper(),
         "legs": [leg.model_dump() for leg in order.legs],
         "quantity": order.quantity,
+        "conditions": order.conditions,
         "ibkr_order_id": int(trade.order.orderId),
         "status": status,
         "filled": float(trade.orderStatus.filled or 0),
@@ -857,6 +860,7 @@ async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_a
         "strategy": order.strategy,
         "symbol": order.symbol.upper(),
         "quantity": order.shares,
+        "conditions": order.conditions,
         "ibkr_order_id": int(trade.order.orderId),
         "status": status,
         "filled": float(trade.orderStatus.filled or 0),

@@ -234,7 +234,7 @@ def build_trade(args: argparse.Namespace, ledger: list[dict]) -> dict:
     reason = str(pick(args.reason, None, "Thesis (the why)", "")).strip()
     exit_note = pick(args.exit_note, None, "What happened (exit note)", None)
     if exit_note is None and status == "open":
-        exit_note = "Open — monitoring for 50% profit or 21 DTE management."
+        exit_note = "Open · monitoring for 50% profit or 21 DTE management."
     elif exit_note is None:
         raise CliError("A closed trade requires --exit-note")
     tags = list(args.tag) if args.tag else []

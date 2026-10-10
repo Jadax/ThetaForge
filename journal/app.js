@@ -1,21 +1,49 @@
 (function () {
   "use strict";
 
+  var C = {
+    line: "#e5dbc7",
+    line2: "#d6c9ad",
+    grid: "#eee5d3",
+    ink: "#29231b",
+    muted: "#877c69",
+    accent: "#b0541c",
+    accentFill: "rgba(176,84,28,0.13)",
+    gain: "#2f7a4a",
+    loss: "#ad3f2a",
+    panel: "#faf5ea",
+  };
+
   var usd = function (value) {
     if (value == null || isNaN(value)) value = 0;
-    return (value >= 0 ? "+" : "-") + "$" + Math.abs(value).toFixed(0);
+    return (value >= 0 ? "+" : "-") + "$" + Math.round(Math.abs(value)).toLocaleString("en-US");
   };
   var num = function (value, digits) {
-    if (value == null || isNaN(value)) return "—";
+    if (value == null || isNaN(value)) return "n/a";
     return value.toFixed(digits == null ? 1 : digits);
   };
   var pct = function (value) {
+    value = Number(value);
+    if (isNaN(value)) return "n/a";
     return (value >= 0 ? "+" : "") + value.toFixed(1) + "%";
   };
   var strategyLabel = function (value) {
-    return String(value).replaceAll("_", " ");
+    var raw = String(value == null ? "" : value);
+    var known = {
+      etf_rotation: "ETF Rotation",
+      equity_momentum: "Equity Momentum",
+      bull_put: "Bull Put Spread",
+      bear_call: "Bear Call Spread",
+      iron_condor: "Iron Condor",
+      cash_secured_put: "Cash-Secured Put",
+      call_debit: "Call Debit Spread",
+      put_debit: "Put Debit Spread"
+    };
+    if (known[raw]) return known[raw];
+    return raw.replaceAll("_", " ").replace(/\b[a-z]/g, function (ch) { return ch.toUpperCase(); });
   };
   var dateLabel = function (value) {
+    if (!value) return "n/a";
     var parts = String(value).split("-");
     return parts.length === 3 ? parts[1] + "/" + parts[2] + "/" + parts[0].slice(2) : value;
   };
@@ -29,6 +57,9 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
     });
   };
+  var plural = function (n, word) {
+    return n + " " + word + (n === 1 ? "" : "s");
+  };
   var rMultiple = function (trade) {
     if (trade.status !== "closed") return null;
     var risk = Number(trade.capital_at_risk);
@@ -39,9 +70,9 @@
   var allTrades = [];
   var allTradesAccountEquity = 0;
   var engineFilter = "all";
-  var engineOf = function (trade) {
-    return trade.asset_class === "equity" ? "stocks" : "options";
-  };
+  var subFilter = null;          // { kind: "instrument"|"symbol"|"strategy"|"month", value, label }
+  var expandedCards = {};        // trade id -> true while expanded
+
   var instrumentOf = function (trade) {
     if (trade.instrument_type === "etf" || trade.instrument_type === "stock") {
       return trade.instrument_type;
@@ -52,27 +83,30 @@
 
   function computeMetrics(trades) {
     var closed = trades.filter(function (trade) { return trade.status === "closed"; });
+    var open = trades.filter(function (trade) { return trade.status !== "closed"; });
     var winners = closed.filter(function (trade) { return trade.net_pnl > 0; });
     var losers = closed.filter(function (trade) { return trade.net_pnl <= 0; });
     var grossWin = winners.reduce(function (sum, trade) { return sum + trade.net_pnl; }, 0);
     var grossLoss = Math.abs(losers.reduce(function (sum, trade) { return sum + trade.net_pnl; }, 0));
-    var winRate = closed.length ? (winners.length / closed.length) * 100 : 0;
-    var profitFactor = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0;
+    var winRate = closed.length ? (winners.length / closed.length) * 100 : null;
+    var profitFactor = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? Infinity : (closed.length ? 0 : null);
     var avgWin = winners.length ? grossWin / winners.length : 0;
     var avgLoss = losers.length ? grossLoss / losers.length : 0;
     var netPnl = trades.reduce(function (sum, trade) { return sum + (trade.net_pnl || 0); }, 0);
-    var expectancy = closed.length ? netPnl / closed.length : 0;
+    var expectancy = closed.length ? netPnl / closed.length : null;
 
     var ordered = trades.slice().sort(function (a, b) { return a.opened.localeCompare(b.opened); });
     var running = 0;
     var cumulative = ordered.map(function (trade) { running += trade.net_pnl || 0; return running; });
     var peak = -Infinity;
-    var maxDrawdown = 0;
-    cumulative.forEach(function (value) {
-      peak = Math.max(peak, value);
-      maxDrawdown = Math.max(maxDrawdown, peak - value);
-    });
-    var drawdownFromPeak = cumulative.length ? Math.max(peak - cumulative[cumulative.length - 1], 0) : 0;
+    var maxDrawdown = null;
+    if (closed.length) {
+      maxDrawdown = 0;
+      cumulative.forEach(function (value) {
+        peak = Math.max(peak, value);
+        maxDrawdown = Math.max(maxDrawdown, peak - value);
+      });
+    }
 
     var streak = 0;
     for (var index = closed.length - 1; index >= 0; index -= 1) {
@@ -82,9 +116,14 @@
     var lastClosedWon = closed.length ? closed[closed.length - 1].net_pnl > 0 : null;
     var rValues = closed.map(rMultiple).filter(function (value) { return value != null; });
     var avgR = rValues.length
-      ? rValues.reduce(function (sum, value) { return sum + value; }, 0) / rValues.length : 0;
+      ? rValues.reduce(function (sum, value) { return sum + value; }, 0) / rValues.length : null;
     var best = closed.length ? closed.slice().sort(function (a, b) { return b.net_pnl - a.net_pnl; })[0] : null;
     var worst = closed.length ? closed.slice().sort(function (a, b) { return a.net_pnl - b.net_pnl; })[0] : null;
+    var riskOpen = open.reduce(function (sum, t) { return sum + (Number(t.capital_at_risk) || 0); }, 0);
+    var lastActivity = trades.reduce(function (max, t) {
+      var d = t.closed || t.opened || "";
+      return d > max ? d : max;
+    }, "");
 
     return {
       netPnl: netPnl,
@@ -94,15 +133,17 @@
       avgLoss: avgLoss,
       expectancy: expectancy,
       maxDrawdown: maxDrawdown,
-      drawdownFromPeak: drawdownFromPeak,
       streak: streak,
       lastClosedWon: lastClosedWon,
       winners: winners.length,
       closed: closed.length,
+      open: open.length,
       cumulative: cumulative,
       avgR: avgR,
       best: best,
       worst: worst,
+      riskOpen: riskOpen,
+      lastActivity: lastActivity,
     };
   }
 
@@ -114,44 +155,240 @@
     );
   }
 
-  function renderCurve(metrics, accountEquity) {
-    var cumulative = metrics.cumulative;
+  function renderHeadline(trades, metrics, accountEquity) {
+    var el = document.getElementById("headline");
+    if (!trades.length) {
+      el.hidden = true;
+      el.innerHTML = "";
+      return;
+    }
+    el.hidden = false;
+    var parts = [];
+    if (metrics.closed) {
+      var cls = metrics.netPnl >= 0 ? "gain" : "loss";
+      parts.push(
+        "<b class='" + cls + "'>" + esc(usd(metrics.netPnl)) + "</b> realized across " +
+        plural(metrics.closed, "closed trade") +
+        (metrics.winRate != null ? " (" + metrics.winRate.toFixed(0) + "% win rate)" : "")
+      );
+    } else {
+      parts.push("No exits yet, so realized P&amp;L stands at <b>$0</b>");
+    }
+    if (metrics.open) {
+      var riskShare = accountEquity > 0 ? (metrics.riskOpen / accountEquity) * 100 : null;
+      parts.push(
+        "<b>" + plural(metrics.open, "position") + "</b> still open with <b>" +
+        esc(usd(metrics.riskOpen).slice(1)) + "</b> at risk" +
+        (riskShare != null ? " (" + riskShare.toFixed(1) + "% of the " + esc(usd(accountEquity).slice(1)) + " book)" : "")
+      );
+    }
+    if (metrics.lastActivity) {
+      parts.push("last activity " + dateLabel(metrics.lastActivity));
+    }
+    el.innerHTML = "<p class='eyebrow'>STATE OF THE BOOK</p><p>" + parts.join(" · ") + ".</p>";
+  }
+
+  function renderKpis(trades, metrics) {
+    var pf = metrics.profitFactor == null ? "n/a"
+      : Number.isFinite(metrics.profitFactor) ? metrics.profitFactor.toFixed(2) : "inf";
+    var riskShare = allTradesAccountEquity > 0
+      ? ((metrics.riskOpen / allTradesAccountEquity) * 100).toFixed(1) + "% of equity"
+      : "capital at risk";
+    document.getElementById("metric-strip").innerHTML =
+      metricCell("NET P&L", esc(usd(metrics.netPnl)),
+        plural(trades.length, "trade") + " logged", metrics.netPnl > 0 ? "win" : metrics.netPnl < 0 ? "loss" : "") +
+      metricCell("WIN RATE", metrics.winRate != null ? metrics.winRate.toFixed(1) + "%" : "n/a",
+        metrics.closed ? metrics.winners + " of " + metrics.closed + " closed" : "no exits yet") +
+      metricCell("PROFIT FACTOR", pf, "gross wins / gross losses") +
+      metricCell("EXPECTANCY", metrics.expectancy != null ? esc(usd(metrics.expectancy)) : "n/a",
+        "avg per closed trade",
+        metrics.expectancy == null ? "" : metrics.expectancy >= 0 ? "win" : "loss") +
+      metricCell("CAPITAL AT RISK", esc(usd(metrics.riskOpen).slice(1)),
+        plural(metrics.open, "open position") + " · " + riskShare) +
+      metricCell("MAX DRAWDOWN", metrics.maxDrawdown != null ? "-" + esc(usd(metrics.maxDrawdown).slice(1)) : "n/a",
+        metrics.maxDrawdown != null ? "peak-to-trough" : "needs closed trades",
+        metrics.maxDrawdown ? "loss" : "");
+  }
+
+  function renderCurve(trades, metrics, accountEquity) {
+    var closed = trades
+      .filter(function (t) { return t.status === "closed"; })
+      .sort(function (a, b) { return String(a.closed).localeCompare(String(b.closed)); });
+
+    if (!trades.length) {
+      document.getElementById("curve-panel").innerHTML =
+        "<div><p class='eyebrow'>PERFORMANCE</p><h2>The equity curve</h2>" +
+        "<p>Nothing on the book yet.</p></div>" +
+        "<div class='chart-empty'>No trades yet. The curve appears with the first placed trade.</div>";
+      return;
+    }
+
+    if (!closed.length) {
+      renderDeployment(trades, metrics, accountEquity);
+      return;
+    }
+
     var start = accountEquity > 0 ? accountEquity : 0;
-    var W = 640, H = 220, PAD = 26;
-    var minV = start + Math.min(0, ...cumulative);
-    var maxV = start + Math.max(...cumulative, 1);
-    var span = maxV - minV || 1;
-    var xPos = function (index) {
-      return PAD + (index / Math.max(cumulative.length - 1, 1)) * (W - PAD * 2);
+    var running = 0;
+    var series = closed.map(function (t) {
+      running += t.net_pnl || 0;
+      return {
+        date: t.closed,
+        value: start + running,
+        pnl: t.net_pnl,
+        symbol: t.symbol,
+        strategy: t.strategy,
+      };
+    });
+    var values = [start].concat(series.map(function (p) { return p.value; }));
+    var minV = Math.min.apply(null, values);
+    var maxV = Math.max.apply(null, values);
+    if (maxV - minV < 2) { maxV += 1; minV -= 1; }
+    var span = maxV - minV;
+    var W = 640, H = 230, PAD = 30;
+    var xPos = function (i) {
+      return PAD + (i / Math.max(series.length, 1)) * (W - PAD * 2);
     };
-    var yPos = function (value) {
-      return H - PAD - ((value - minV) / span) * (H - PAD * 2);
+    var yPos = function (v) {
+      return H - PAD - ((v - minV) / span) * (H - PAD * 2);
     };
-    var points = cumulative
-      .map(function (value, index) { return xPos(index).toFixed(1) + "," + yPos(start + value).toFixed(1); })
-      .join(" ");
+    var pts = [PAD + "," + yPos(start).toFixed(1)].concat(
+      series.map(function (p, i) { return xPos(i + 1).toFixed(1) + "," + yPos(p.value).toFixed(1); })
+    );
+    var points = pts.join(" ");
     var area = PAD + "," + (H - PAD) + " " + points + " " + (W - PAD) + "," + (H - PAD);
+    var endValue = series.length ? series[series.length - 1].value : start;
+    var endCls = endValue >= start ? C.gain : C.loss;
+    var hoverPoints = [{ x: xPos(0), y: yPos(start), date: null, value: start, pnl: null, symbol: null }].concat(
+      series.map(function (p, i) {
+        return { x: xPos(i + 1), y: yPos(p.value), date: p.date, value: p.value, pnl: p.pnl, symbol: p.symbol, strategy: p.strategy };
+      })
+    );
 
     var text =
-      "<div><p class='eyebrow'>EQUITY CURVE</p><h2>Net P&L, trade by trade</h2>" +
-      "<p>Chronological, uncompressed. The line is the filled result at the TWS " +
-      "terminal against the starting equity; the dashed line is starting equity.</p></div>" +
+      "<div><p class='eyebrow'>PERFORMANCE</p><h2>Account equity, exit by exit</h2>" +
+      "<p>Chronological and uncompressed. Each point is a closed trade marked at " +
+      "the TWS terminal; the dashed line is starting equity of " +
+      esc(usd(start).replace("+", "")) + ". Hover the curve for the exact " +
+      "values behind each point.</p></div>" +
+      "<div class='curve-chart'>" +
       "<svg viewBox='0 0 " + W + " " + H + "' class='curve-svg' role='img' " +
-      "aria-label='Account equity curve ending at " + esc(usd(start + metrics.netPnl)) + "'>" +
+      "aria-label='Account equity curve, " + plural(closed.length, "closed trade") +
+      ", ending at " + esc(usd(endValue)) + "'>" +
       "<line x1='" + PAD + "' y1='" + yPos(start).toFixed(1) + "' x2='" + (W - PAD) + "' " +
-      "y2='" + yPos(start).toFixed(1) + "' stroke='#26322e' stroke-dasharray='4 4'/>" +
-      "<polygon points='" + area + "' fill='rgba(201,255,93,0.12)'/>" +
-      "<polyline points='" + points + "' fill='none' stroke='#c9ff5d' stroke-width='3' " +
-      "stroke-linejoin='round' stroke-linecap='round'/>";
-    cumulative.forEach(function (value, index) {
-      text += "<circle key='" + index + "' cx='" + xPos(index).toFixed(1) + "' " +
-        "cy='" + yPos(start + value).toFixed(1) + "' r='3.5' fill='#101714' stroke='#c9ff5d' stroke-width='2'/>";
-    });
-    text += "<text x='" + (W - PAD) + "' y='" + (yPos(maxV) - 6).toFixed(1) + "' fill='#8f9995' " +
-      "font-size='11' text-anchor='end'>" + esc(usd(maxV)) + "</text>" +
-      "<text x='" + (W - PAD) + "' y='" + (yPos(minV) + 14).toFixed(1) + "' fill='#8f9995' " +
-      "font-size='11' text-anchor='end'>" + esc(usd(minV)) + "</text></svg>";
+      "y2='" + yPos(start).toFixed(1) + "' stroke='" + C.line2 + "' stroke-dasharray='4 4'/>" +
+      "<polygon points='" + area + "' fill='" + C.accentFill + "'/>" +
+      "<polyline points='" + points + "' fill='none' stroke='" + C.accent + "' stroke-width='3' " +
+      "stroke-linejoin='round' stroke-linecap='round'/>" +
+      "<line class='curve-cross' x1='0' y1='" + PAD + "' x2='0' y2='" + (H - PAD) +
+      "' stroke='" + C.line2 + "' stroke-dasharray='3 3' opacity='0'/>" +
+      "<circle cx='" + xPos(series.length).toFixed(1) + "' cy='" + yPos(endValue).toFixed(1) +
+      "' r='5' fill='" + C.panel + "' stroke='" + endCls + "' stroke-width='3'/>" +
+      "<circle class='curve-dot' r='4.5' fill='" + C.panel + "' stroke='" + C.accent +
+      "' stroke-width='3' opacity='0'/>" +
+      "<text x='" + (W - PAD) + "' y='" + (yPos(maxV) - 7).toFixed(1) + "' fill='" + C.muted +
+      "' font-size='11' text-anchor='end'>" + esc(usd(maxV)) + "</text>" +
+      "<text x='" + (W - PAD) + "' y='" + (yPos(minV) + 15).toFixed(1) + "' fill='" + C.muted +
+      "' font-size='11' text-anchor='end'>" + esc(usd(minV)) + "</text>" +
+      "<text x='" + PAD + "' y='" + (H - 8) + "' fill='" + C.muted + "' font-size='10'>" +
+      esc(dateLabel(closed[0].closed)) + "</text>" +
+      "<text x='" + (W - PAD) + "' y='" + (H - 8) + "' fill='" + C.muted + "' font-size='10' text-anchor='end'>" +
+      esc(dateLabel(series[series.length - 1].date)) + "</text>" +
+      "</svg>" +
+      "<div class='chart-tip' id='curve-tip' hidden></div>" +
+      "</div>";
     document.getElementById("curve-panel").innerHTML = text;
+    wireCurveHover(hoverPoints);
+  }
+
+  function wireCurveHover(points) {
+    var wrap = document.querySelector("#curve-panel .curve-chart");
+    if (!wrap) return;
+    var svg = wrap.querySelector("svg");
+    var tip = wrap.querySelector(".chart-tip");
+    var cross = wrap.querySelector(".curve-cross");
+    var dot = wrap.querySelector(".curve-dot");
+    var hide = function () {
+      tip.hidden = true;
+      cross.setAttribute("opacity", "0");
+      dot.setAttribute("opacity", "0");
+    };
+    wrap.addEventListener("mousemove", function (event) {
+      var ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      var pt = svg.createSVGPoint();
+      pt.x = event.clientX;
+      pt.y = event.clientY;
+      var loc = pt.matrixTransform(ctm.inverse());
+      var best = points[0];
+      var bestD = Infinity;
+      points.forEach(function (p) {
+        var d = Math.abs(p.x - loc.x);
+        if (d < bestD) { bestD = d; best = p; }
+      });
+      cross.setAttribute("x1", best.x.toFixed(1));
+      cross.setAttribute("x2", best.x.toFixed(1));
+      cross.setAttribute("opacity", "1");
+      dot.setAttribute("cx", best.x.toFixed(1));
+      dot.setAttribute("cy", best.y.toFixed(1));
+      dot.setAttribute("opacity", "1");
+      if (best.symbol) {
+        var cls = best.pnl >= 0 ? "win" : "loss";
+        tip.innerHTML =
+          "<b>" + esc(dateLabel(best.date)) + " · " + esc(best.symbol) + "</b>" +
+          "<span class='" + cls + "'>this exit " + esc(usd(best.pnl)) + "</span>" +
+          "<span>equity " + esc(usd(best.value)) + "</span>";
+      } else {
+        tip.innerHTML =
+          "<b>Starting point</b>" +
+          "<span>starting equity " + esc(usd(best.value)) + "</span>";
+      }
+      tip.hidden = false;
+      var rect = wrap.getBoundingClientRect();
+      var x = event.clientX - rect.left + 16;
+      var y = event.clientY - rect.top - 12;
+      if (x + tip.offsetWidth > rect.width - 4) {
+        x = event.clientX - rect.left - tip.offsetWidth - 16;
+      }
+      if (y < 2) y = 2;
+      tip.style.left = x.toFixed(0) + "px";
+      tip.style.top = y.toFixed(0) + "px";
+    });
+    wrap.addEventListener("mouseleave", hide);
+  }
+
+  function renderDeployment(trades, metrics, accountEquity) {
+    var bySymbol = {};
+    trades.forEach(function (t) {
+      if (t.status === "closed") return;
+      var sym = String(t.symbol || "?").toUpperCase();
+      bySymbol[sym] = (bySymbol[sym] || 0) + (Number(t.capital_at_risk) || 0);
+    });
+    var rows = Object.keys(bySymbol).map(function (k) { return { sym: k, risk: bySymbol[k] }; })
+      .sort(function (a, b) { return b.risk - a.risk; });
+    var maxRisk = rows.length ? Math.max.apply(null, rows.map(function (r) { return r.risk; })) : 1;
+    var bars = rows.map(function (r) {
+      var width = maxRisk > 0 ? Math.max(2, (r.risk / maxRisk) * 100) : 2;
+      return (
+        "<div class='deploy-row' data-symbol='" + esc(r.sym) + "' role='button' tabindex='0' " +
+        "title='Click to filter the journal to " + esc(r.sym) + "'>" +
+        "<b>" + esc(r.sym) + "</b>" +
+        "<div class='deploy-track'><div class='deploy-fill' style='width:" + width.toFixed(1) + "%'></div></div>" +
+        "<span>" + esc(usd(r.risk).slice(1)) + "</span></div>"
+      );
+    }).join("");
+    var riskShare = accountEquity > 0
+      ? ((metrics.riskOpen / accountEquity) * 100).toFixed(1) + "% of the " + usd(accountEquity).replace("+", "") + " book"
+      : "";
+    document.getElementById("curve-panel").innerHTML =
+      "<div><p class='eyebrow'>PERFORMANCE</p><h2>Where the risk sits today</h2>" +
+      "<p>No position has closed yet, so realized equity is still flat at " +
+      esc(usd(accountEquity).replace("+", "")) + ". Each bar is the stop-defined risk " +
+      "of an open position" + (riskShare ? ", together " + esc(riskShare) : "") +
+      ". The equity curve takes over at the first exit.</p></div>" +
+      (rows.length
+        ? "<div class='deploy-list'>" + bars + "</div>"
+        : "<div class='chart-empty'>Open positions will appear here with their risk.</div>");
   }
 
   /* ---- KPI breakdowns ------------------------------------------------ */
@@ -194,19 +431,22 @@
       var s = summarize(group);
       var equity = group.reduce(function (sum, t) { return sum + (t.shares || 0); }, 0);
       return (
-        "<div class='mix-card'>" +
+        "<button class='mix-card' data-instrument='" + inst + "' " +
+        (s.count ? "" : "disabled ") +
+        "aria-label='Filter the journal to " + esc(instrumentLabel[inst]) + "'>" +
         "<span class='mix-chip " + inst + "'>" + instrumentLabel[inst] + "</span>" +
-        "<b>" + s.count + "</b><small>positions</small>" +
+        "<b>" + s.count + "</b><small>" + (s.count === 1 ? "position" : "positions") + "</small>" +
         "<span class='" + (s.net >= 0 ? "win" : "loss") + " mix-net'>" + esc(usd(s.net)) + "</span>" +
-        "<small>net P&amp;L" + (s.winRate != null ? " · " + s.winRate.toFixed(0) + "% WR (" + s.wins + "/" + s.closed + ")" : " · no closed trades") + "</small>" +
+        "<small>net P&amp;L" + (s.winRate != null ? " · " + s.winRate.toFixed(0) + "% win rate (" + s.wins + "/" + s.closed + ")" : " · no closed trades") + "</small>" +
         (inst === "etf" || inst === "stock"
-          ? "<small>" + equity.toLocaleString() + " shares traded across the book</small>" : "") +
-        "</div>"
+          ? "<small>" + esc(plural(equity, "share")) + " traded across the book</small>" : "") +
+        (s.count ? "<small class='mix-hint'>Click to see these trades ↓</small>" : "") +
+        "</button>"
       );
     });
     document.getElementById("asset-mix").innerHTML =
-      "<div class='journal-list-head'><div><p class='eyebrow'>ASSET MIX</p>" +
-      "<h2>Options, stocks, ETFs — where the P&L came from</h2></div></div>" +
+      "<div class='journal-list-head'><div><p class='eyebrow'>BREAKDOWN</p>" +
+      "<h2>Options, stocks, ETFs: where the book is</h2></div></div>" +
       "<div class='mix-grid'>" + cards.join("") + "</div>";
   }
 
@@ -223,8 +463,11 @@
       }
     });
     var keys = Object.keys(byMonth).sort();
-    if (!keys.length) {
-      el.innerHTML = "<div class='chart-empty'>No closed trades yet — monthly P&L appears here as positions close.</div>";
+    var anyClosed = trades.some(function (t) { return t.status === "closed"; });
+    if (!keys.length || !anyClosed) {
+      el.innerHTML = "<div class='chart-head'><p class='eyebrow'>MONTHLY P&amp;L</p>" +
+        "<h2>Profit per month, realized on close</h2></div>" +
+        "<div class='chart-empty'>No closed trades yet. Monthly P&amp;L appears here as positions close.</div>";
       return;
     }
     var values = keys.map(function (k) { return byMonth[k].net; });
@@ -238,33 +481,35 @@
 
     var html = "<svg viewBox='0 0 " + W + " " + H + "' class='monthly-svg' role='img' aria-label='Net P&L by month'>";
     html += "<line x1='" + PAD_L + "' y1='" + zero.toFixed(1) + "' x2='" + (W - PAD_R) + "' y2='" + zero.toFixed(1) +
-      "' stroke='#3a4a43' stroke-width='1.5'/>";
-    html += "<text x='" + (PAD_L - 8) + "' y='" + (zero - 3).toFixed(1) + "' fill='#8f9995' font-size='10' text-anchor='end'>0</text>";
+      "' stroke='" + C.line2 + "' stroke-width='1.5'/>";
+    html += "<text x='" + (PAD_L - 8) + "' y='" + (zero - 3).toFixed(1) + "' fill='" + C.muted + "' font-size='10' text-anchor='end'>0</text>";
     [1, -1].forEach(function (sign) {
       var y = zero - sign * (ih / 2 - 4);
       html += "<line x1='" + PAD_L + "' y1='" + y.toFixed(1) + "' x2='" + (W - PAD_R) + "' y2='" + y.toFixed(1) +
-        "' stroke='#1d2923'/>";
-      html += "<text x='" + (PAD_L - 8) + "' y='" + (y - 3).toFixed(1) + "' fill='#8f9995' font-size='10' text-anchor='end'>" +
+        "' stroke='" + C.grid + "'/>";
+      html += "<text x='" + (PAD_L - 8) + "' y='" + (y - 3).toFixed(1) + "' fill='" + C.muted + "' font-size='10' text-anchor='end'>" +
         esc(usd(sign * maxAbs)) + "</text>";
     });
     keys.forEach(function (key, i) {
       var v = byMonth[key].net;
       var x = PAD_L + i * step + (step - barW) / 2;
       var y = v >= 0 ? yFor(v) : zero;
-      var h = Math.max(Math.abs(v) / maxAbs * (ih / 2 - 4), v === 0 ? 0 : 2);
-      var fill = v >= 0 ? "#c9ff5d" : "#f0a79b";
-      html += "<rect x='" + x.toFixed(1) + "' y='" + y.toFixed(1) + "' width='" + barW.toFixed(1) +
-        "' height='" + h.toFixed(1) + "' fill='" + fill + "' rx='2'>" +
+      var h = Math.max(Math.abs(v) / maxAbs * (ih / 2 - 4), 2);
+      var fill = v >= 0 ? C.gain : C.loss;
+      html += "<rect class='mbar' data-month='" + key + "' x='" + x.toFixed(1) + "' y='" + y.toFixed(1) +
+        "' width='" + barW.toFixed(1) +
+        "' height='" + h.toFixed(1) + "' fill='" + fill + "' rx='2' role='button' " +
+        "aria-label='" + esc(monthLabel(key)) + ", " + esc(usd(v)) + ", filter the journal'>" +
         "<title>" + esc(monthLabel(key)) + " · " + esc(usd(v)) +
-        " (" + byMonth[key].closed + " closed)</title></rect>";
+        " (" + byMonth[key].closed + " closed) — click to filter</title></rect>";
       if (keys.length <= 18) {
         html += "<text x='" + (x + barW / 2).toFixed(1) + "' y='" + (y - 5).toFixed(1) +
-          "' fill='" + (v >= 0 ? "#c9ff5d" : "#f0a79b") + "' font-size='10' text-anchor='middle' font-weight='bold'>" +
+          "' fill='" + fill + "' font-size='10' text-anchor='middle' font-weight='bold'>" +
           esc(usd(v)) + "</text>";
       }
       var label = monthLabel(key).split(" ");
       html += "<text x='" + (PAD_L + i * step + step / 2).toFixed(1) + "' y='" + (H - PAD_B + 16).toFixed(1) +
-        "' fill='#8f9995' font-size='10' text-anchor='middle'>" + esc(label[0] + " " + label[1].slice(2)) + "</text>";
+        "' fill='" + C.muted + "' font-size='10' text-anchor='middle'>" + esc(label[0] + " " + label[1].slice(2)) + "</text>";
     });
     html += "</svg>";
     el.innerHTML = "<div class='chart-head'><p class='eyebrow'>MONTHLY P&amp;L</p>" +
@@ -281,9 +526,11 @@
     var bars = rows.map(function (row) {
       var width = Math.max(2, (Math.abs(row.net) / maxAbs) * 100);
       return (
-        "<div class='hbar-row'><div class='hbar-label'>" + esc(strategyLabel(row.key)) +
+        "<div class='hbar-row' data-strategy='" + esc(row.key) + "' role='button' tabindex='0' " +
+        "title='Click to filter the journal to " + esc(strategyLabel(row.key)) + "'>" +
+        "<div class='hbar-label'>" + esc(strategyLabel(row.key)) +
         "<small>" + row.closed + " closed · " + row.count + " total" +
-        (row.winRate != null ? " · " + row.winRate.toFixed(0) + "% WR" : "") + "</small></div>" +
+        (row.winRate != null ? " · " + row.winRate.toFixed(0) + "% win rate" : "") + "</small></div>" +
         "<div class='hbar-track'><div class='hbar " + (row.net >= 0 ? "win" : "loss") + "' style='width:" +
         width.toFixed(1) + "%'></div></div>" +
         "<b class='hbar-value " + (row.net >= 0 ? "win" : "loss") + "'>" + esc(usd(row.net)) + "</b></div>"
@@ -344,13 +591,14 @@
     var maxAbs = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.net); }).concat([1]));
     var body = rows.map(function (row) {
       var width = Math.max(2, (Math.abs(row.net) / maxAbs) * 100);
-      var buyCell = row.avgBuy != null ? "$" + row.avgBuy.toFixed(2) : "—";
-      var sellCell = row.avgSell != null ? "$" + row.avgSell.toFixed(2) : "—";
+      var buyCell = row.avgBuy != null ? "$" + row.avgBuy.toFixed(2) : "n/a";
+      var sellCell = row.avgSell != null ? "$" + row.avgSell.toFixed(2) : "n/a";
       return (
-        "<tr><td><b>" + esc(row.key) + "</b></td>" +
+        "<tr data-symbol='" + esc(row.key) + "' title='Click to filter the journal to " + esc(row.key) + "'>" +
+        "<td><b>" + esc(row.key) + "</b></td>" +
         "<td><span class='mix-chip " + row.instrument + "'>" + instrumentLabel[row.instrument] + "</span></td>" +
         "<td>" + row.count + "</td>" +
-        "<td>" + (row.winRate != null ? row.winRate.toFixed(0) + "%" : "—") + "</td>" +
+        "<td>" + (row.winRate != null ? row.winRate.toFixed(0) + "%" : "n/a") + "</td>" +
         "<td>" + buyCell + "</td><td>" + sellCell + "</td>" +
         "<td class='net-cell'><div class='hbar-track'><div class='hbar " +
         (row.net >= 0 ? "win" : "loss") + "' style='width:" + width.toFixed(1) + "%'></div></div>" +
@@ -360,7 +608,7 @@
     var empty = rows.length ? "" : "<div class='chart-empty'>No trades yet.</div>";
     document.getElementById("analytics-symbol").innerHTML =
       "<div class='journal-list-head'><div><p class='eyebrow'>BY SYMBOL</p>" +
-      "<h2>Profit per name — with average buy/sell prices</h2></div></div>" + empty +
+      "<h2>Profit per name, with average buy and sell prices</h2></div></div>" + empty +
       "<table class='symbol-table'><thead><tr>" +
       "<th>SYMBOL</th><th>TYPE</th><th>TRADES</th><th>WIN RATE</th>" +
       "<th>AVG BUY</th><th>AVG SELL</th><th>NET P&amp;L</th></tr></thead><tbody>" + body + "</tbody></table>";
@@ -370,7 +618,7 @@
     var card = function (trade, cls, title) {
       if (!trade) {
         return "<div class='extreme-card " + cls + "'><small>" + title + "</small>" +
-          "<b>—</b><span>No closed trades yet</span></div>";
+          "<b>n/a</b><span>No closed trades yet</span></div>";
       }
       var r = rMultiple(trade);
       return (
@@ -431,38 +679,141 @@
     if (plan.time) rows.push(["TIME", plan.time]);
     if (plan.event) rows.push(["EVENT", plan.event]);
     if (!rows.length) return "";
-    var html = "<div class='journal-plan'><small>MANAGEMENT PLAN</small>" +
+    return "<div class='journal-plan'><small>MANAGEMENT PLAN</small>" +
       rows.map(function (row) {
         return "<span><b>" + esc(row[0]) + "</b>" + esc(row[1]) + "</span>";
       }).join("") + "</div>";
-    return html;
+  }
+
+  function condDisplay(key, value) {
+    if (value == null || value === "") return null;
+    var n;
+    switch (key) {
+      case "trend":
+        if (value === "above_200d") return "Above 200d";
+        if (value === "below_200d") return "Below 200d";
+        return String(value).replace(/_/g, " ");
+      case "pop":
+        n = Number(value);
+        if (isNaN(n)) return null;
+        if (n > 0 && n <= 1) n *= 100;
+        return n.toFixed(0) + "%";
+      case "expected_move_pct":
+        n = Number(value);
+        return isNaN(n) ? null : "\u00b1" + n.toFixed(1) + "%";
+      case "edge_pct":
+        n = Number(value);
+        if (isNaN(n)) return null;
+        return (n >= 0 ? "+" : "") + String(Math.round(n * 100) / 100) + "%";
+      case "vix":
+      case "atr_14":
+        n = Number(value);
+        return isNaN(n) ? null : n.toFixed(2);
+      case "price":
+        n = Number(value);
+        return isNaN(n) ? null : "$" + n.toFixed(2);
+      case "score":
+      case "composite_score":
+      case "confidence_score":
+      case "iv_rank":
+      case "rsi_14":
+      case "adx_14":
+        n = Number(value);
+        return isNaN(n) ? null : String(Math.round(n * 10) / 10);
+      default:
+        return String(value).replace(/_/g, " ");
+    }
+  }
+
+  function entryConditions(trade) {
+    var c = trade.conditions;
+    if (!c) return "";
+    var specs = c.engine === "equity"
+      ? [["SCORE", "score"], ["READ", "signal"], ["TREND", "trend"], ["RSI 14", "rsi_14"],
+         ["ADX 14", "adx_14"], ["ATR 14", "atr_14"], ["RISK TILT", "risk_tilt"], ["ENTRY", "price"]]
+      : [["REGIME", "regime"], ["VIX", "vix"], ["IV RANK", "iv_rank"],
+         ["EXPECTED MOVE", "expected_move_pct"], ["SCORE", "composite_score"],
+         ["CONFIDENCE", "confidence_score"], ["POP", "pop"], ["EDGE", "edge_pct"]];
+    var chips = "";
+    specs.forEach(function (spec) {
+      var text = condDisplay(spec[1], c[spec[1]]);
+      if (text == null) return;
+      chips += "<span class='cond-chip'><small>" + esc(spec[0]) + "</small><b>" + esc(text) + "</b></span>";
+    });
+    if (!chips) return "";
+    var rules = "";
+    [["ENTRY RULES", c.entry_rules], ["EXIT RULES", c.exit_rules]].forEach(function (pair) {
+      if (!pair[1] || !pair[1].length) return;
+      rules += "<div class='cond-rules'><b>" + pair[0] + "</b><ul>" +
+        pair[1].map(function (rule) { return "<li>" + esc(rule) + "</li>"; }).join("") + "</ul></div>";
+    });
+    var captured = c.captured_at ? " \u00b7 captured " + esc(dateLabel(c.captured_at)) : "";
+    return (
+      "<div class='journal-conditions'><small>ENTRY CONDITIONS</small>" +
+      "<div class='cond-grid'>" + chips + "</div>" + rules +
+      "<p class='cond-note'>The values the quality gates saw when this trade was " +
+      "recommended, recorded with the order" + captured + ".</p></div>"
+    );
+  }
+
+  function headlineFacts(trade, prices, accountEquity) {
+    var isEquity = trade.asset_class === "equity";
+    var size, openedCell, closedCell;
+    if (isEquity) {
+      var shares = trade.order && trade.order.quantity != null ? trade.order.quantity : trade.shares;
+      size = shares != null ? plural(Number(shares), "share") : "n/a";
+      openedCell = prices.buy != null ? "@ $" + prices.buy.toFixed(2) : (trade.entry_price != null ? "@ $" + trade.entry_price : "price n/a");
+      closedCell = prices.sell != null ? "@ $" + prices.sell.toFixed(2) : "open, no exit fill";
+    } else {
+      var qty = trade.order && trade.order.quantity != null ? trade.order.quantity : null;
+      size = qty != null ? plural(Number(qty), "contract") : "n/a";
+      openedCell = prices.buy != null ? "credit $" + prices.buy.toFixed(2) + "/ctr" : "credit n/a";
+      closedCell = prices.sell != null ? "debit $" + prices.sell.toFixed(2) + "/ctr" : "open, no exit fill";
+    }
+    var riskLine = "n/a";
+    if (trade.capital_at_risk != null) {
+      riskLine = "risk " + esc(usd(trade.capital_at_risk).slice(1));
+      if (accountEquity > 0) {
+        riskLine += " · " + ((trade.capital_at_risk / accountEquity) * 100).toFixed(1) + "% of account";
+      }
+    }
+    return (
+      "<div class='journal-facts'>" +
+      "<span class='fact'><small>" + (isEquity ? "BOUGHT" : "OPENED") + "</small>" +
+      "<b>" + esc(dateLabel(trade.opened)) + "</b><span>" + esc(openedCell) + "</span></span>" +
+      "<span class='fact'><small>" + (isEquity ? "SOLD" : "CLOSED") + "</small>" +
+      "<b>" + (trade.closed ? esc(dateLabel(trade.closed)) : "n/a") + "</b><span>" + esc(closedCell) + "</span></span>" +
+      "<span class='fact'><small>SIZE</small><b>" + esc(size) + "</b>" +
+      "<span>" + riskLine + "</span></span>" +
+      "</div>"
+    );
   }
 
   function tradeCard(trade, accountEquity) {
     var won = trade.net_pnl > 0;
     var isLedger = trade.source === "ledger";
     var isEquity = trade.asset_class === "equity";
-    var statusLabel = trade.status === "open" ? "OPEN" : won ? "CLOSED · WIN" : "CLOSED · LOSS";
-    var statusClass = trade.status === "open" ? "open" : won ? "win" : "loss";
+    var closed = trade.status === "closed";
+    var statusLabel = !closed ? "OPEN" : won ? "CLOSED · WIN" : "CLOSED · LOSS";
+    var statusClass = !closed ? "open" : won ? "win" : "loss";
     var inst = instrumentOf(trade);
     var prices = tradePrices(trade);
+    var isExpanded = !!expandedCards[trade.id];
 
     var legs;
     var strategyLine;
     if (isEquity) {
       var shares = trade.order && trade.order.quantity != null ? trade.order.quantity : (trade.shares || "");
-      var buyPrice = prices.buy != null
-        ? "@ " + prices.buy.toFixed(2)
-        : (trade.entry_price != null ? "@ " + trade.entry_price : "");
-      var stop = trade.stop_price != null ? "stop " + trade.stop_price : "";
-      var target = trade.target_price != null ? "target " + trade.target_price : "";
-      var sold = prices.sell != null ? " · sold @ " + prices.sell.toFixed(2) : "";
-      legs = "<span class='buy'>BUY " + esc(shares) + " shares " +
-        esc(buyPrice) + " · " + esc(dateLabel(trade.opened)) +
-        (stop ? " · " + esc(stop) : "") +
-        (target ? " · " + esc(target) : "") + "</span>" +
-        (sold ? "<span class='sell'>SELL " + esc(shares) + " shares " + esc(sold) + "</span>" : "");
-      strategyLine = "Long " + esc(trade.symbol) + " · momentum/trend long" +
+      legs = "<span class='buy'>BUY " + esc(plural(Number(shares), "share")) +
+        (prices.buy != null ? " @ " + esc(prices.buy.toFixed(2)) : "") +
+        " · " + esc(dateLabel(trade.opened)) +
+        (trade.stop_price != null ? " · stop " + esc(trade.stop_price) : "") +
+        (trade.target_price != null ? " · target " + esc(trade.target_price) : "") + "</span>" +
+        (prices.sell != null
+          ? "<span class='sell'>SELL " + esc(plural(Number(shares), "share")) + " @ " + esc(prices.sell.toFixed(2)) +
+            (trade.closed ? " · " + esc(dateLabel(trade.closed)) : "") + "</span>"
+          : "");
+      strategyLine = "Long " + trade.symbol + " · momentum and trend long" +
         (trade.entry_ivr != null ? " · IVR " + trade.entry_ivr + " at entry" : "");
     } else {
       legs = trade.legs
@@ -477,8 +828,8 @@
       }
       strategyLine = strategyLabel(trade.strategy);
       if (trade.dte_at_entry) strategyLine += " · " + trade.dte_at_entry + " DTE at entry";
-      strategyLine += " · IVR " + (trade.entry_ivr != null ? trade.entry_ivr : "—") + " at entry";
-      if (trade.expected_move_pct != null) strategyLine += " · exp move \u00B1" + trade.expected_move_pct + "%";
+      strategyLine += " · IVR " + (trade.entry_ivr != null ? trade.entry_ivr : "n/a") + " at entry";
+      if (trade.expected_move_pct != null) strategyLine += " · expected move ±" + trade.expected_move_pct + "%";
     }
 
     var tags = trade.tags
@@ -497,44 +848,54 @@
     }
     var r = rMultiple(trade);
     var rText = r != null ? " · " + (r >= 0 ? "+" : "") + r.toFixed(2) + "R" : "";
-    var resultSub = isEquity
-      ? (r != null ? "realized " + rText + " on risk" : "open · risk defined by stop")
-      : esc(pct(trade.net_pnl_pct)) + " of max profit";
+    var resultSub = !closed
+      ? "open position"
+      : isEquity
+        ? (r != null ? "realized" + rText + " on risk" : "closed")
+        : esc(pct(trade.net_pnl_pct)) + " of max profit";
 
     var secondMeta;
     if (isEquity) {
       secondMeta = "<span><small>TARGET</small><b>" +
-        esc(trade.target_price != null ? "$" + trade.target_price : "—") + "</b></span>";
+        esc(trade.target_price != null ? "$" + trade.target_price : "n/a") + "</b></span>";
     } else {
-      secondMeta = "<span><small>MAX PROFIT</small><b>" + esc(usd(trade.max_profit).slice(1)) + "</b></span>";
+      secondMeta = "<span><small>MAX PROFIT</small><b>" +
+        esc(trade.max_profit != null ? "$" + Number(trade.max_profit).toFixed(0) : "n/a") + "</b></span>";
     }
 
     return (
-      "<article class='journal-card'>" +
-      "<div class='journal-card-head'>" +
-      "<div class='journal-symbol-row'><h3>" + esc(trade.symbol) + "</h3>" +
+      "<article class='journal-card" + (isExpanded ? "" : " collapsed") + "' data-id='" + esc(trade.id) + "'>" +
+      "<button class='journal-card-head' aria-expanded='" + (isExpanded ? "true" : "false") + "'>" +
+      "<div class='journal-symbol-row'><span class='sym'>" + esc(trade.symbol) + "</span>" +
       "<span class='engine-chip " + inst + "'>" + instrumentLabel[inst] + "</span>" +
       "<span class='provenance-badge " + (isLedger ? "ledger" : "manual") + "'>" +
       (isLedger ? "TWS LEDGER" : "MANUAL") + "</span>" +
-      "<span class='status-pill " + statusClass + "'>" + esc(statusLabel) + "</span></div>" +
+      "<span class='status-pill " + statusClass + "'>" + esc(statusLabel) + "</span>" +
+      "<span class='journal-strategy-sub'>" + esc(strategyLabel(trade.strategy || "")) + "</span></div>" +
+      headlineFacts(trade, prices, accountEquity) +
       "<div class='journal-pnl " + (won ? "win" : "loss") + "'>" +
       "<small>NET P&amp;L</small><b>" + esc(usd(trade.net_pnl)) + "</b>" +
-      "<span>" + (trade.status === "open" ? "open position" : resultSub) + "</span></div></div>" +
-      "<p class='journal-strategy'>" + esc(strategyLine) + "</p>" +
+      "<span>" + esc(resultSub) + "</span></div>" +
+      "<span class='chevron' aria-hidden='true'>▾</span>" +
+      "</button>" +
+      "<div class='journal-card-body'>" +
+      "<p class='journal-strategy' style='margin-top:14px'>" + esc(strategyLine) + "</p>" +
       "<div class='journal-legs'>" + legs + "</div>" +
       "<div class='journal-meta'>" +
       "<span><small>OPENED</small><b>" + esc(dateLabel(trade.opened)) + "</b></span>" +
-      "<span><small>" + (trade.status === "open" ? "CURRENT" : "CLOSED") + "</small><b>" +
-      (trade.closed ? esc(dateLabel(trade.closed)) : "—") + "</b></span>" +
+      "<span><small>" + (closed ? "CLOSED" : "CURRENT") + "</small><b>" +
+      (trade.closed ? esc(dateLabel(trade.closed)) : "n/a") + "</b></span>" +
       "<span><small>CAPITAL AT RISK</small><b>" + esc(usd(trade.capital_at_risk).slice(1) + riskPct) + "</b></span>" +
       secondMeta + "</div>" +
       managementPlan(trade) +
-      "<div class='journal-thesis'><small>THE WHY</small><p>" + esc(trade.reason) + "</p></div>" +
+      entryConditions(trade) +
+      "<div class='journal-thesis'><small>THE WHY</small><p>" +
+      esc((trade.conditions && trade.conditions.reasoning) || trade.reason) + "</p></div>" +
       "<div class='journal-exit'><small>WHAT HAPPENED</small><p>" + esc(trade.exit_note) + "</p></div>" +
       "<div class='journal-footer'>" +
       "<div class='journal-tags'>" + tags + "</div>" +
       "<div class='journal-links'>" + links + orderReceipt(trade) + "</div></div>" +
-      "</article>"
+      "</div></article>"
     );
   }
 
@@ -547,7 +908,7 @@
         byMonth[key].push(trade);
       });
     var keys = Object.keys(byMonth).sort().reverse();
-    if (!keys.length) return;
+    if (!keys.length) { document.getElementById("recaps").innerHTML = ""; return; }
     var blocks = keys.map(function (key) {
       var group = byMonth[key];
       var closed = group.filter(function (t) { return t.status === "closed"; });
@@ -557,15 +918,53 @@
       var biggestWin = closed.length ? Math.max.apply(null, closed.map(function (t) { return t.net_pnl; })) : 0;
       var biggestLoss = closed.length ? Math.min.apply(null, closed.map(function (t) { return t.net_pnl; })) : 0;
       return "<div class='recap-card'><b>" + esc(monthLabel(key)) + "</b>" +
-        "<span>" + group.length + " trades</span>" +
+        "<span>" + plural(group.length, "trade") + "</span>" +
         "<span class='" + (net >= 0 ? "win" : "loss") + "'>" + esc(usd(net)) + " net</span>" +
-        "<span>" + (winRate != null ? winRate.toFixed(0) + "% WR" : "no closed") + "</span>" +
-        "<span class='win'>+" + esc(usd(Math.max(biggestWin, 0)).slice(1)) + "</span>" +
-        "<span class='loss'>" + esc(usd(Math.min(biggestLoss, 0))) + "</span></div>";
+        "<span>" + (winRate != null ? winRate.toFixed(0) + "% win rate" : "no closes yet") + "</span>" +
+        (closed.length
+          ? "<span class='win'>best " + esc(usd(Math.max(biggestWin, 0))) + "</span>" +
+            "<span class='loss'>worst " + esc(usd(Math.min(biggestLoss, 0))) + "</span>"
+          : "");
     });
     document.getElementById("recaps").innerHTML =
-      "<div class='journal-list-head'><div><p class='eyebrow'>BY MONTH — DETAIL</p>" +
+      "<div class='journal-list-head'><div><p class='eyebrow'>MONTH IN REVIEW</p>" +
       "<h2>Weeks and months, in review</h2></div></div><div class='recap-grid'>" + blocks.join("") + "</div>";
+  }
+
+  /* ---- filters ---------------------------------------------------------- */
+
+  function setEngineTab(filter) {
+    engineFilter = filter;
+    var bar = document.getElementById("journal-filters");
+    Array.prototype.forEach.call(bar.querySelectorAll("[data-filter]"), function (tab) {
+      tab.setAttribute("aria-selected", tab.getAttribute("data-filter") === filter ? "true" : "false");
+    });
+  }
+
+  function renderSubFilter() {
+    var el = document.getElementById("sub-filter");
+    if (!subFilter) {
+      el.hidden = true;
+      el.innerHTML = "";
+      return;
+    }
+    el.hidden = false;
+    el.innerHTML = "Showing <b>" + esc(subFilter.label) + "</b>" +
+      "<button type='button' aria-label='Clear filter' title='Clear filter'>✕</button>";
+  }
+
+  function clearSubFilter() {
+    subFilter = null;
+    renderSubFilter();
+    renderList();
+  }
+
+  function applySubFilter(kind, value, label) {
+    subFilter = { kind: kind, value: value, label: label };
+    setEngineTab("all");
+    renderSubFilter();
+    renderList();
+    scrollToJournal();
   }
 
   function wireFilters() {
@@ -574,44 +973,154 @@
     bar.addEventListener("click", function (event) {
       var button = event.target.closest("[data-filter]");
       if (!button) return;
-      engineFilter = button.getAttribute("data-filter");
-      Array.prototype.forEach.call(bar.querySelectorAll("[data-filter]"), function (tab) {
-        tab.setAttribute("aria-selected", tab === button ? "true" : "false");
-      });
+      setEngineTab(button.getAttribute("data-filter"));
+      subFilter = null;
+      renderSubFilter();
       renderList();
+    });
+    document.getElementById("sub-filter").addEventListener("click", function (event) {
+      if (event.target.tagName === "BUTTON") clearSubFilter();
+    });
+    document.getElementById("asset-mix").addEventListener("click", function (event) {
+      var card = event.target.closest("[data-instrument]");
+      if (!card || card.disabled) return;
+      var inst = card.getAttribute("data-instrument");
+      applySubFilter("instrument", inst, instrumentLabel[inst]);
+    });
+    document.getElementById("analytics-symbol").addEventListener("click", function (event) {
+      var row = event.target.closest("tr[data-symbol]");
+      if (!row) return;
+      var sym = row.getAttribute("data-symbol");
+      applySubFilter("symbol", sym, sym);
+    });
+    document.getElementById("analytics-strategy").addEventListener("click", function (event) {
+      var row = event.target.closest("[data-strategy]");
+      if (!row) return;
+      var key = row.getAttribute("data-strategy");
+      applySubFilter("strategy", key, strategyLabel(key));
+    });
+    document.getElementById("monthly-chart").addEventListener("click", function (event) {
+      var bar = event.target.closest("[data-month]");
+      if (!bar) return;
+      var key = bar.getAttribute("data-month");
+      applySubFilter("month", key, monthLabel(key));
+    });
+    document.getElementById("curve-panel").addEventListener("click", function (event) {
+      var row = event.target.closest("[data-symbol]");
+      if (!row) return;
+      var sym = row.getAttribute("data-symbol");
+      applySubFilter("symbol", sym, sym);
+    });
+    document.getElementById("journal-list").addEventListener("click", function (event) {
+      var head = event.target.closest(".journal-card-head");
+      if (!head) return;
+      var card = head.closest(".journal-card");
+      var id = card.getAttribute("data-id");
+      var open = card.classList.toggle("collapsed") === false;
+      expandedCards[id] = open;
+      head.setAttribute("aria-expanded", open ? "true" : "false");
+      syncToggleButton();
+    });
+    document.getElementById("toggle-cards").addEventListener("click", function () {
+      var cards = document.querySelectorAll("#journal-list .journal-card");
+      var anyCollapsed = Array.prototype.some.call(cards, function (c) {
+        return c.classList.contains("collapsed");
+      });
+      Array.prototype.forEach.call(cards, function (card) {
+        var id = card.getAttribute("data-id");
+        if (anyCollapsed) {
+          card.classList.remove("collapsed");
+          expandedCards[id] = true;
+        } else {
+          card.classList.add("collapsed");
+          expandedCards[id] = false;
+        }
+        var head = card.querySelector(".journal-card-head");
+        if (head) head.setAttribute("aria-expanded", anyCollapsed ? "true" : "false");
+      });
+      syncToggleButton();
     });
   }
 
+  function scrollToJournal() {
+    var target = document.getElementById("journal-list");
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function syncToggleButton() {
+    var btn = document.getElementById("toggle-cards");
+    var cards = document.querySelectorAll("#journal-list .journal-card");
+    if (!cards.length) { btn.hidden = true; return; }
+    btn.hidden = false;
+    var anyExpanded = Array.prototype.some.call(cards, function (c) {
+      return !c.classList.contains("collapsed");
+    });
+    btn.textContent = anyExpanded ? "Collapse all" : "Expand all";
+    btn.setAttribute("aria-pressed", anyExpanded ? "true" : "false");
+  }
+
   function renderFilterCounts() {
-    var optionsCount = allTrades.filter(function (t) { return engineOf(t) === "options"; }).length;
-    var stocksCount = allTrades.filter(function (t) { return engineOf(t) === "stocks"; }).length;
-    var counts = { "all": allTrades.length, "options": optionsCount, "stocks": stocksCount };
+    var counts = { "all": allTrades.length, "options": 0, "stocks": 0, "etfs": 0 };
+    allTrades.forEach(function (t) {
+      var inst = instrumentOf(t);
+      if (inst === "option") counts.options += 1;
+      else if (inst === "etf") counts.etfs += 1;
+      else counts.stocks += 1;
+    });
     var bar = document.getElementById("journal-filters");
     Array.prototype.forEach.call(bar.querySelectorAll("[data-filter]"), function (tab) {
       var engine = tab.getAttribute("data-filter");
-      tab.querySelector(".count")?.remove();
+      var count = tab.querySelector(".count");
+      if (count) count.remove();
       tab.insertAdjacentHTML("beforeend", "<span class='count'>" + counts[engine] + "</span>");
     });
+  }
+
+  function tradeMonth(trade) {
+    return String(trade.closed || trade.opened || "").slice(0, 7);
   }
 
   function renderList() {
     var list = document.getElementById("journal-list");
     var filtered = allTrades;
     if (engineFilter !== "all") {
-      filtered = allTrades.filter(function (trade) { return engineOf(trade) === engineFilter; });
+      var wanted = { options: "option", stocks: "stock", etfs: "etf" }[engineFilter];
+      filtered = filtered.filter(function (trade) { return instrumentOf(trade) === wanted; });
     }
+    if (subFilter && subFilter.kind === "instrument") {
+      filtered = filtered.filter(function (trade) { return instrumentOf(trade) === subFilter.value; });
+    }
+    if (subFilter && subFilter.kind === "symbol") {
+      filtered = filtered.filter(function (trade) {
+        return String(trade.symbol || "").toUpperCase() === subFilter.value;
+      });
+    }
+    if (subFilter && subFilter.kind === "strategy") {
+      filtered = filtered.filter(function (trade) { return trade.strategy === subFilter.value; });
+    }
+    if (subFilter && subFilter.kind === "month") {
+      filtered = filtered.filter(function (trade) { return tradeMonth(trade) === subFilter.value; });
+    }
+    var instCounts = { option: 0, stock: 0, etf: 0 };
+    filtered.forEach(function (trade) { instCounts[instrumentOf(trade)] += 1; });
+    document.getElementById("sort-note").textContent =
+      "Newest first · " + filtered.length + " entries · " +
+      instCounts.option + " options / " + instCounts.stock + " stocks / " + instCounts.etf + " ETFs";
     if (!filtered.length) {
-      var engineName = engineFilter === "stocks" ? "Stocks" : engineFilter === "options" ? "Options" : "All";
+      var engineName = { stocks: "Stocks", etfs: "ETFs", options: "Options" }[engineFilter] || "Trades";
+      var scope = subFilter ? " for " + subFilter.label : "";
       list.innerHTML =
-        "<div class='journal-empty'><b>No " + engineName.toLowerCase() + " trades yet.</b><br/>" +
-        "The first " + engineName + " recommendation you place on paper will appear here, " +
-        "with the thesis, the structure, and the receipt.</div>";
+        "<div class='journal-empty'><b>No " + esc(engineName.toLowerCase()) + esc(scope) + " yet.</b><br/>" +
+        "Clear the filter above, or wait for the next recommendation to be placed on paper. " +
+        "Every trade lands here with its thesis, structure, and receipt.</div>";
+      syncToggleButton();
       return;
     }
     var ordered = filtered.slice().sort(function (a, b) { return a.opened.localeCompare(b.opened); });
     list.innerHTML = ordered.reverse()
       .map(function (trade) { return tradeCard(trade, allTradesAccountEquity); })
       .join("");
+    syncToggleButton();
   }
 
   function render(data) {
@@ -620,25 +1129,11 @@
     allTradesAccountEquity = data.account_equity || 0;
     var trader = data.trader || {};
     var metrics = computeMetrics(trades);
-    var pf = Number.isFinite(metrics.profitFactor)
-      ? metrics.profitFactor.toFixed(2)
-      : metrics.profitFactor === Infinity ? "—" : "0.00";
-    var streakValue = metrics.closed
-      ? metrics.streak + " " + (metrics.lastClosedWon ? "wins" : "losses")
-      : "—";
     var accountEquity = data.account_equity || 0;
 
-    document.getElementById("metric-strip").innerHTML =
-      metricCell("NET P&L", esc(usd(metrics.netPnl)), trades.length + " trades logged", metrics.netPnl >= 0 ? "win" : "loss") +
-      metricCell("WIN RATE", metrics.winRate.toFixed(1) + "%", metrics.winners + " of " + metrics.closed + " closed") +
-      metricCell("PROFIT FACTOR", pf, "gross wins / gross losses") +
-      metricCell("EXPECTANCY", esc(usd(metrics.expectancy)), "avg per closed trade", metrics.expectancy >= 0 ? "win" : "loss") +
-      metricCell("AVG WIN", esc(usd(metrics.avgWin)), "vs avg loss " + esc(usd(metrics.avgLoss)), "win") +
-      metricCell("AVG R", (metrics.avgR >= 0 ? "+" : "") + metrics.avgR.toFixed(2), "mean R across closed trades", metrics.avgR >= 0 ? "win" : "loss") +
-      metricCell("MAX DRAWDOWN", "-" + esc(usd(metrics.maxDrawdown).slice(1)), "peak-to-trough", "loss") +
-      metricCell("DRAW DOWN / PEAK", "-" + esc(usd(metrics.drawdownFromPeak).slice(1)), "currently below peak", "loss");
-
-    renderCurve(metrics, accountEquity);
+    renderHeadline(trades, metrics, accountEquity);
+    renderKpis(trades, metrics);
+    renderCurve(trades, metrics, accountEquity);
     renderAssetMix(trades);
     renderMonthlyChart(trades);
     renderStrategy(trades);
@@ -646,21 +1141,24 @@
     renderExtremes(metrics);
     renderRecaps(trades);
 
-    var optionsCount = trades.filter(function (trade) { return engineOf(trade) === "options"; }).length;
-    var stocksCount = trades.filter(function (trade) { return engineOf(trade) === "stocks"; }).length;
-    document.getElementById("sort-note").textContent =
-      "Newest first · " + trades.length + " entries · " +
-      optionsCount + " options / " + stocksCount + " stocks";
     document.getElementById("journal-sub").textContent =
       (trader.tagline || "") + " · " + (trader.name || "") + " (" + (trader.handle || "") + ")" +
       " · journal updated " + (data.as_of || "") +
       ". Every placed trade appears here, winners and losers. Nothing is filtered.";
 
     if (data.verification && data.verification.ledger_sha) {
-      document.getElementById("verify-note").textContent =
+      var verifyText =
         "Every ledger entry above is derived from the TWS paper-order ledger " +
         "(sha " + data.verification.ledger_sha.slice(0, 12) + ") on " + (data.as_of || "") +
         ". Recomputable, never edited by hand.";
+      var carried = Number(data.verification.entries_carried) || 0;
+      if (carried > 0 && data.verification.prior_ledger_sha) {
+        verifyText += " " + carried + " earlier " + plural(carried, "entry") +
+          " carried from the prior ledger (sha " +
+          String(data.verification.prior_ledger_sha).slice(0, 12) +
+          ") and kept verbatim.";
+      }
+      document.getElementById("verify-note").textContent = verifyText;
     }
 
     renderList();
@@ -668,24 +1166,24 @@
   }
 
   function renderEmpty() {
+    document.getElementById("headline").hidden = true;
     document.getElementById("metric-strip").innerHTML =
-      "<div><small>NET P&amp;L</small><b>+$0</b><span>0 trades logged</span></div>" +
-      "<div><small>WIN RATE</small><b>0.0%</b><span>0 of 0 closed</span></div>" +
-      "<div><small>PROFIT FACTOR</small><b>—</b><span>gross wins / gross losses</span></div>" +
-      "<div><small>EXPECTANCY</small><b>+$0</b><span>avg per closed trade</span></div>" +
-      "<div><small>AVG R</small><b>+0.00</b><span>mean R across closed trades</span></div>" +
-      "<div><small>MAX DRAWDOWN</small><b>-$0</b><span>peak-to-trough</span></div>" +
-      "<div><small>DRAW DOWN / PEAK</small><b>-$0</b><span>currently below peak</span></div>" +
-      "<div><small>CURRENT STREAK</small><b>—</b><span>consecutive closed trades</span></div>";
-    ["asset-mix", "monthly-chart", "analytics-strategy", "analytics-symbol", "analytics-extremes"]
+      "<div><small>NET P&L</small><b>+$0</b><span>0 trades logged</span></div>" +
+      "<div><small>WIN RATE</small><b>n/a</b><span>no exits yet</span></div>" +
+      "<div><small>PROFIT FACTOR</small><b>n/a</b><span>gross wins / gross losses</span></div>" +
+      "<div><small>EXPECTANCY</small><b>n/a</b><span>avg per closed trade</span></div>" +
+      "<div><small>CAPITAL AT RISK</small><b>$0</b><span>0 open positions</span></div>" +
+      "<div><small>MAX DRAWDOWN</small><b>n/a</b><span>needs closed trades</span></div>";
+    ["curve-panel", "asset-mix", "monthly-chart", "analytics-strategy", "analytics-symbol", "analytics-extremes"]
       .forEach(function (id) {
         document.getElementById(id).innerHTML =
-          "<div class='chart-empty'>No trades yet — the KPI breakdowns appear here as positions close.</div>";
+          "<div class='chart-empty'>No trades yet. The breakdowns appear here once positions are placed.</div>";
       });
     document.getElementById("journal-list").innerHTML =
       "<div class='journal-empty'><b>No trades yet.</b><br/>" +
       "The first ThetaForge recommendation you place on TWS will appear here, " +
       "with the thesis, the structure, and the receipt.</div>";
+    syncToggleButton();
   }
 
   fetch("./trades.json")

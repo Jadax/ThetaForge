@@ -26,9 +26,7 @@
 
       <section class="journal-hero">
         <p class="eyebrow">THE THETA PLAYBOOK · RECEIPTS INCLUDED</p>
-        <h1>
-          Trades, <em>reasoning,</em> and the numbers to back both.
-        </h1>
+        <h1>Trades, <em>reasoning,</em> and the numbers to back both.</h1>
         <p class="journal-sub" id="journal-sub">
           Every trade below was recommended by ThetaForge and executed on the
           TWS terminal. Each idea shows the setup, the structure, the thesis,
@@ -49,6 +47,8 @@
           recomputable reference to the TWS order that produced it.
         </div>
       </section>
+
+      <section class="headline" id="headline" aria-label="State of the book"></section>
 
       <section class="metric-strip" id="metric-strip" aria-label="Journal metrics"></section>
 
@@ -73,10 +73,15 @@
           </div>
           <span class="sort-note" id="sort-note"></span>
         </div>
-        <div class="journal-filters" id="journal-filters" role="tablist" aria-label="Filter trades by engine">
-          <button role="tab" aria-selected="true" data-filter="all">All</button>
-          <button role="tab" aria-selected="false" data-filter="options">Options</button>
-          <button role="tab" aria-selected="false" data-filter="stocks">Stocks</button>
+        <div class="journal-toolbar">
+          <div class="journal-filters" id="journal-filters" role="tablist" aria-label="Filter trades by instrument">
+            <button role="tab" aria-selected="true" data-filter="all">All</button>
+            <button role="tab" aria-selected="false" data-filter="options">Options</button>
+            <button role="tab" aria-selected="false" data-filter="stocks">Stocks</button>
+            <button role="tab" aria-selected="false" data-filter="etfs">ETFs</button>
+          </div>
+          <span class="sub-filter" id="sub-filter" hidden></span>
+          <button class="toggle-cards" id="toggle-cards" aria-pressed="false">Expand all</button>
         </div>
         <div id="journal-list"></div>
       </section>

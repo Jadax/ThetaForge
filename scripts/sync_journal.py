@@ -11,9 +11,15 @@ paper-order ledger (data/paper_order_ledger.json). This script:
     their parent entry, marking it `closed` with the exit receipt and
     realized P&L — a close is a lifecycle event on the position, never a
     phantom new "open" trade,
+  * retains previously published ledger entries whose record is absent from
+    the current ledger file entirely (marked `carried: true`) — e.g. after the
+    executor VM migrated to a fresh Bridge ledger — so a ledger that starts
+    over can never silently wipe already-published receipts; a record that is
+    still present but filtered out (cancelled / never filled) is still dropped,
   * overlays the human narrative (thesis, exit note, tags, P&L, close date)
     that was authored via `add_trade.py --from-ledger <id>` by matching
-    `source_id` on the existing journal,
+    `source_id` on the existing journal, plus any entry `conditions` captured
+    at recommendation time when the ledger record does not carry its own,
   * keeps user-authored entries that have no `source_id` (manual trades added
     via the CLI) untouched,
   * recomputes nothing stored (metrics are computed at render time),
@@ -170,12 +176,12 @@ def build_entry(record: dict, overlay: dict) -> dict:
     if asset_class == "equity":
         management_plan = _equity_management_plan(record)
         reason = (
-            f"Long {symbol} — momentum/trend long placed on the paper account "
+            f"Long {symbol}, momentum/trend long placed on the paper account "
             "from the ThetaForge equity recommendation."
         )
     else:
         management_plan = _default_management_plan(strategy, asset_class)
-        reason = (f"{strategy.replace('_', ' ').title()} on {symbol} — "
+        reason = (f"{strategy.replace('_', ' ').title()} on {symbol}, "
                   f"placed on the paper account from the ThetaForge recommendation.")
 
     base = {
@@ -203,11 +209,12 @@ def build_entry(record: dict, overlay: dict) -> dict:
         "max_profit": float(record.get("net_credit") or 0),
         "net_pnl": 0.0,
         "net_pnl_pct": 0.0,
+        "conditions": record.get("conditions"),
         "management_plan": management_plan,
         "reason": reason,
         "research": [],
         "tags": [],
-        "exit_note": "Open — monitoring the position.",
+        "exit_note": "Open · monitoring the position.",
         "timestamp": record.get("updated_at") or submitted_at,
     }
     for key in ("entry_ivr", "expected_move_pct", "dte_at_entry", "net_pnl",
@@ -215,8 +222,12 @@ def build_entry(record: dict, overlay: dict) -> dict:
         if overlay.get(key) is not None:
             base[key] = overlay[key]
     for key in ("closed", "status", "reason", "research", "tags", "exit_note",
-                "timestamp", "management_plan"):
+                "timestamp", "management_plan", "conditions"):
         if overlay.get(key):
+            # The ledger record's own captured conditions win over a previously
+            # stored copy — the record is the source of truth for its trade.
+            if key == "conditions" and base.get("conditions"):
+                continue
             base[key] = overlay[key]
     return base
 
@@ -277,7 +288,7 @@ def _standalone_close_entry(close: dict) -> dict:
     entry["exit_note"] = _exit_note(str(close.get("reason") or ""))
     entry["close_order"] = _order_block(close)
     entry["reason"] = (
-        f"Closing order for {symbol} ({strategy.replace('_', ' ').title()}) — "
+        f"Closing order for {symbol} ({strategy.replace('_', ' ').title()}): "
         "the parent entry was not found in the ledger."
     )
     return entry
@@ -325,10 +336,22 @@ def sync(args: argparse.Namespace) -> int:
             continue
         entries.append(build_entry(record, overlay_by_source.get(source, {})))
 
+    # Ids that exist anywhere in the current ledger file, including records the
+    # journal filters out (cancelled, never filled). Physical presence decides
+    # carried-vs-dropped: a missing id means this ledger never knew that trade.
+    ledger_ids = {str(record.get("id", "")) for record in ledger}
+
     for trade in existing:
         if not trade.get("source_id"):
             trade = dict(trade)
             trade.setdefault("source", "manual")
+            entries.append(trade)
+        elif str(trade["source_id"]) not in ledger_ids:
+            # Published entry whose ledger record is absent from this ledger
+            # file — the executor VM migrated to a fresh Bridge ledger. Keep the
+            # receipt; a ledger that starts over must not erase real trades.
+            trade = dict(trade)
+            trade["carried"] = True
             entries.append(trade)
 
     entries_by_source = {str(entry.get("source_id")): entry for entry in entries if entry.get("source_id")}
@@ -342,26 +365,42 @@ def sync(args: argparse.Namespace) -> int:
     entries.sort(key=lambda trade: (trade.get("opened", ""), trade.get("timestamp", "")))
     entries.reverse()
 
+    new_sha = _ledger_sha(consumed)
+    carried_entries = [trade for trade in entries if trade.get("carried")]
+    prior_sha = None
+    if carried_entries:
+        prior_verification = current.get("verification") if isinstance(current, dict) else None
+        if isinstance(prior_verification, dict):
+            prior_sha = prior_verification.get("prior_ledger_sha") or prior_verification.get("ledger_sha")
+        if prior_sha == new_sha:
+            prior_sha = None
+
+    verification = {
+        "generator": "scripts/sync_journal.py",
+        "ledger_source": str(args.ledger),
+        "ledger_sha": new_sha,
+        "entries_from_ledger": len(consumed),
+        "entries_manual": len([e for e in entries if not e.get("source_id")]),
+        "entries_carried": len(carried_entries),
+    }
+    if prior_sha:
+        verification["prior_ledger_sha"] = prior_sha
+
     journal = {
         "trader": (current.get("trader") if isinstance(current, dict)
                    else None) or DEFAULT_TRADER,
         "as_of": date.today().isoformat(),
         "account_equity": (current.get("account_equity") if isinstance(current, dict)
                            else None) or 25000,
-        "verification": {
-            "generator": "scripts/sync_journal.py",
-            "ledger_source": str(args.ledger),
-            "ledger_sha": _ledger_sha(consumed),
-            "entries_from_ledger": len(consumed),
-            "entries_manual": len([e for e in entries if not e.get("source_id")]),
-        },
+        "verification": verification,
         "trades": entries,
     }
     args.journal.write_text(json.dumps(journal, indent=2) + "\n", encoding="utf-8")
 
     print(f"Journal rebuilt at {args.journal}")
-    print(f"  {len(entries)} trades ({len(entries) - len([e for e in entries if not e.get('source_id')])} from ledger, "
-          f"{len([e for e in entries if not e.get('source_id')])} manual)")
+    manual_count = len([e for e in entries if not e.get("source_id")])
+    print(f"  {len(entries)} trades ({len(entries) - manual_count - len(carried_entries)} from ledger, "
+          f"{manual_count} manual, {len(carried_entries)} carried)")
     return 0
 
 

@@ -58,11 +58,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long XLV, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T19:34:09.739997+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T19:34:09.739997+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 85.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 57,
+        "adx_14": 25,
+        "price": 170.57,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 57; 6m strong; near 52w high; volume confirmed.",
+        "source": {
+          "type": "equity_notification",
+          "id": "03ad4d7e-dd5a-40dd-8ee8-b7f25a4c9e27",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "dc3c3ea2-87d2-47e5-bc42-f3a5c5dbd0a4",
@@ -108,11 +125,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long SPY, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T19:34:09.739992+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T19:34:09.739992+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 70.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 51,
+        "adx_14": 25,
+        "price": 764.66,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 51; 6m strong; near 52w high.",
+        "source": {
+          "type": "equity_notification",
+          "id": "10711440-761e-4d10-adb2-22f54f1e5b66",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "82ed07ee-c5e4-452e-b82b-36e417e8a915",
@@ -158,11 +192,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long XLV, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T18:40:46.898824+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T18:40:46.898824+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 85.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 56,
+        "adx_14": 25,
+        "price": 170.46,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 56; 6m strong; near 52w high; volume confirmed.",
+        "source": {
+          "type": "equity_notification",
+          "id": "2478a38a-6ca4-409a-a77e-41151cb46bca",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "34b1c0f3-a74d-485c-9029-70d6a6eb0ca3",
@@ -208,11 +259,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long SPY, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T18:40:46.897956+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T18:40:46.897956+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 70.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 51,
+        "adx_14": 25,
+        "price": 764.93,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 51; 6m strong; near 52w high.",
+        "source": {
+          "type": "equity_notification",
+          "id": "7e6b523f-9ad2-4987-96be-ca9d9937a7bd",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "9e9789a8-d0fb-4503-88ef-030626c0fef4",
@@ -258,11 +326,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long NOK \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long NOK, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T14:18:50.373452+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T14:18:50.373452+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 75.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 51,
+        "adx_14": 25,
+        "price": 10.44,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 51; 1m positive; 6m strong.",
+        "source": {
+          "type": "equity_notification",
+          "id": "3d442463-6cdd-49c4-a27f-406dc200f8fb",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "18c5b3ae-4226-48c8-81b5-0fe2b325f0b4",
@@ -308,11 +393,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long MARA \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long MARA, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T14:07:16.333593+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T14:07:16.333593+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 75.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 51,
+        "adx_14": 25,
+        "price": 12.1,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 51; 1m positive; 6m strong.",
+        "source": {
+          "type": "equity_notification",
+          "id": "99bd9031-4b12-4529-bd74-ec73ecdd1f94",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "0282450e-6c96-4fd0-b43e-ec320c4086c3",
@@ -358,11 +460,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long AXTI \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long AXTI, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:56:35.147834+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T13:56:35.147834+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 95.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 59,
+        "adx_14": 25,
+        "price": 80.74,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 59; 1m positive; 6m strong; 20d breakout.",
+        "source": {
+          "type": "equity_notification",
+          "id": "2d249614-73c2-489b-aeb9-f0eb8fb7b14c",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "c3484efc-c3b4-4531-9629-67abe0acb0c8",
@@ -408,11 +527,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long AEHR \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long AEHR, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:56:35.146650+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T13:56:35.146650+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 95.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 59,
+        "adx_14": 25,
+        "price": 107.18,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 59; 1m positive; 6m strong; 20d breakout.",
+        "source": {
+          "type": "equity_notification",
+          "id": "b8f44d90-0097-4929-a0b5-74f5bc7b2d68",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "80f99cc2-d763-486e-8e25-326b2afe8a92",
@@ -458,11 +594,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long INTC \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long INTC, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578188+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578188+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 75.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 57,
+        "adx_14": 25,
+        "price": 114.57,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 57; 1m positive; 6m strong.",
+        "source": {
+          "type": "equity_notification",
+          "id": "c2f53016-720d-49ea-a146-f75c67aa932a",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "5a6b5b34-214a-4b33-ac7c-69d51348a2c7",
@@ -508,11 +661,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long NVDA \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long NVDA, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578184+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578184+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 100.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 60,
+        "adx_14": 25,
+        "price": 230.2,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 60; 1m positive; 6m strong; 20d breakout; near 52w high.",
+        "source": {
+          "type": "equity_notification",
+          "id": "8d04d605-f2ca-4d72-8713-869ea0774e59",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "8e73b9a3-bfbb-44c4-9c06-49bbfbfc08da",
@@ -558,11 +728,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long XLV, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578180+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578180+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 80.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 59,
+        "adx_14": 25,
+        "price": 171.19,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 59; 6m strong; near 52w high.",
+        "source": {
+          "type": "equity_notification",
+          "id": "4f5b3bfa-47c5-4734-ac7f-d4ccc0519eea",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "d774aa85-ceef-42f8-a0a0-b1352ec16837",
@@ -608,11 +795,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long XLK \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long XLK, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578176+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578176+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 80.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 62,
+        "adx_14": 25,
+        "price": 194.8,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 62; 1m positive; 6m strong; near 52w high.",
+        "source": {
+          "type": "equity_notification",
+          "id": "484a3114-d433-4827-ac9f-2aa5a22bc343",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "64421085-a32e-4427-84ed-13cae0f073af",
@@ -658,11 +862,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long QQQ \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long QQQ, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578170+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578170+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 80.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 59,
+        "adx_14": 25,
+        "price": 737.16,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 59; 1m positive; 6m strong; near 52w high.",
+        "source": {
+          "type": "equity_notification",
+          "id": "c1beee4b-0af1-48c5-ae13-e7f5108d10e9",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     },
     {
       "id": "f7d9c1b7-b9a4-44d1-8e83-f03ffddeb8fe",
@@ -708,11 +929,28 @@
         "time": "re-examine after 60 days",
         "event": "close before earnings or scheduled macro if inside the blackout window"
       },
-      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "reason": "Long SPY, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578141+00:00"
+      "exit_note": "Open · monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578141+00:00",
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-09-29",
+        "score": 70.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 52,
+        "adx_14": 25,
+        "price": 765.77,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 52; 6m strong; near 52w high.",
+        "source": {
+          "type": "equity_notification",
+          "id": "d157a221-97d9-4ec5-a73b-a7b4abe99258",
+          "file": "/opt/thetaforge/data/equity_notifications.json"
+        }
+      }
     }
   ]
 }
