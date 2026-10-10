@@ -1,7 +1,7 @@
 # Remote Paper Bridge
 
-> **Operational setup (current):** the Bridge now runs on the always-on Oracle
-> Cloud VM beside a headless IB Gateway, and orders are placed autonomously by
+> **Operational setup (current):** the Bridge now runs on the always-on GCP
+> executor VM beside a headless IB Gateway, and orders are placed autonomously by
 > `deployment/vm_auto_executor.py` / `vm_auto_manager.py` with no desktop TWS
 > at all — see `docs/AUTONOMOUS_TRADING.md`. This page documents the original
 > local-laptop setup and is kept only as the fallback/reference for running

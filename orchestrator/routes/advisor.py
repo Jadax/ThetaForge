@@ -805,9 +805,10 @@ class EquityManagementRequest(BaseModel):
 class PortfolioAnalyticsRequest(BaseModel):
     """The Bridge's paper-order ledger, supplied by the caller.
 
-    The Advisor and the Bridge run on different hosts (Render vs the Oracle
-    VM), so the ledger records travel here in the request body -- the same
-    pattern as /positions/management, which the VM auto-manager already uses.
+    The Advisor and the Bridge run on different hosts (the GCP advisor VM
+    vs the GCP executor VM), so the ledger records travel here in the
+    request body -- the same pattern as /positions/management, which the
+    VM auto-manager already uses.
     """
     ledger: List[Dict[str, Any]] = Field(default_factory=list, max_length=2000)
     capital: float = Field(100_000, gt=0)

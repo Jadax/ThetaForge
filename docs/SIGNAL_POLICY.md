@@ -84,9 +84,9 @@ trades.json) hosted on GitHub Pages at
 dashboard/terminal is NOT deployed to Pages; it runs locally and stays
 token-gated. The journal shows only trades that the project recommended AND
 that were actually placed on the paper account — sourced from the paper-order
-ledger, which only the Bridge writes (the always-on auto-trader on the Oracle
-VM submits entries and exits through the Bridge; there is no manual TWS
-workflow in the current setup).
+ledger, which only the Bridge writes (the always-on auto-trader on the GCP
+executor VM submits entries and exits through the Bridge; there is no manual
+TWS workflow in the current setup).
 
 - **Single source of truth:** `scripts/sync_journal.py` regenerates
   `journal/trades.json` from `data/paper_order_ledger.json`. Every entry needs

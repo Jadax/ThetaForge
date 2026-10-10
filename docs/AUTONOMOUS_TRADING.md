@@ -1,4 +1,4 @@
-# Autonomous Paper Trading (Oracle Cloud VM)
+# Autonomous Paper Trading (GCP executor VM)
 
 This documents the always-on stack that runs the full pipeline —
 IB Gateway login, the Bridge, and autonomous order placement — without
@@ -12,18 +12,23 @@ all. See `docs/HOSTED_TERMINAL.md` for the (separate, optional) hosted
 ## What's running, and where
 
 ```
-Oracle Cloud "Always Free" VM (af-johannesburg-1, VM.Standard.E2.1.Micro)
-  92.4.132.188 — 1 OCPU, 1GB RAM + 2GB swap, Ubuntu 24.04 LTS Minimal
+GCP Always-Free e2-micro (thetaforge-executor, us-west1-b)
+  internal 10.138.0.3, external 8.231.58.224 (egress only; the project's
+  firewall has no ingress rule for 8002/8003, so nothing is internet-exposed)
+  1 vCPU / 1GB RAM + 2GB swap, Ubuntu 24.04 LTS (ubuntu-2404-lts-amd64)
 
   xvfb.service              — virtual display :1 (IB Gateway is a GUI app)
   ibgateway.service         — IB Gateway via IBC, auto-login, paper mode only
-  thetaforge-bridge.service — bridge/main.py, localhost:8002 only
+                              (Gateway 10.50 at ~/Jts/ibgateway/1050)
+  thetaforge-bridge.service — bridge/main.py, uvicorn on 0.0.0.0:8002,
+                              token-guarded, firewall-closed to the internet;
+                              the advisor reaches it over the VPC-internal IP
   thetaforge-auto-executor.service — deployment/vm_auto_executor.py (entries)
   thetaforge-auto-manager.service  — deployment/vm_auto_manager.py (exits, optional)
   thetaforge-market-data.service   — deployment/vm_market_data_service.py, read-only
-                                      option-chain/quote proxy, public IP:8003, own
-                                      token (see the module's own docstring)
-  thetaforge-market-supervisor.timer (every 5 min)
+                                      option-chain/quote proxy, VPC-internal :8003,
+                                      own token (see the module's own docstring)
+  thetaforge-market-supervisor.timer (every 5 min, already started)
     -> market_hours_supervisor.sh starts/stops the five services above
        based on the Advisor's real NYSE-calendar market_open status
 ```
@@ -34,17 +39,31 @@ thing enabled at boot, and it starts/stops the rest based on live market
 hours, so "opens at market open, closes at market close" holds regardless of
 when the VM itself reboots.
 
+The Advisor is the sibling VM `thetaforge-advisor` (10.138.0.2 /
+35.212.227.109, same VPC and region); its `.env` points `BRIDGE_URL` and
+`IBKR_MARKET_DATA_URL` at this VM's internal IP, and carries
+`BRIDGE_ACCESS_TOKEN` + `IBKR_MARKET_DATA_TOKEN` so every hop is
+authenticated. Bootstrap is `deployment/bridge_vm_setup.sh` (idempotent,
+mirrors the proven Oracle-era `/opt/thetaforge-bridge` layout exactly —
+`journal_sync_push.sh` and the supervisor hardcode paths under it). History:
+the Oracle ARM VM lost its host capacity in 2026-09; Azure free tier was
+blocked at signup time (Standard_B1s restricted subscription-wide across
+10 regions), which is why this host is GCP instead — free forever, not
+just 12 months, and no second signup.
+
 ## Why this shape
 
-- **The Bridge is never exposed publicly.** It binds `127.0.0.1:8002` only.
-  The auto-executor reaches it because it runs on the same VM — this
-  preserves the exact security posture documented in `docs/PAPER_BRIDGE.md`
-  for the local setup; moving the Bridge to a VM didn't change that.
+- **The Bridge is never reachable from the public internet.** It binds
+  `0.0.0.0:8002` (the advisor is a sibling VM, so localhost-only would not
+  work), but the GCP project firewall has **no ingress rule** for 8002 — an
+  external probe fails to connect — and `BRIDGE_ACCESS_TOKEN` still guards
+  every call. This preserves the security posture documented in
+  `docs/PAPER_BRIDGE.md`; moving the Bridge between hosts didn't change it.
 - **The auto-executor adds no new trade-safety logic.** It polls
   `GET /api/advisor/notifications` (already quality-gated by the same
   composite/edge/POP/liquidity thresholds the dashboard uses), fetches a
   fully-specified structure via `POST /api/advisor/recommend`, and submits
-  through the local Bridge's `POST /orders/submit-combo` — which
+  through the Bridge's `POST /orders/submit-combo` — which
   independently re-verifies live IBKR quotes, defined-risk, and the weekly
   capital-limit ledger regardless of who's calling it. See the module
   docstring in `deployment/vm_auto_executor.py` for the full flow.
@@ -69,40 +88,41 @@ when the VM itself reboots.
 - **The paper-only lock is intentional and should stay.** `bridge/main.py`'s
   `ensure_connected()` hard-rejects anything that isn't a paper port
   (4002/7497) or a `DU`-prefixed paper account. `TradingMode=paper` is also
-  set in IBC's config as a second, independent layer. Do not weaken either
-  to "make live easier later" — going live should be a deliberate, reviewed
-  change made at the time it's actually wanted, with its own additional
-  safeguards, not a standing unlock sitting in unattended automation.
-- **The market-data proxy is the one thing on this VM reachable from the
-  public internet**, and deliberately isolated from everything else that
-  matters: its own port (8003, not 8002), its own IB API client ID, its own
-  access token, and read-only endpoints only (`/option-chain`, `/stock`,
-  `/stock-history`) — nothing that can place an order or see account
-  positions. It's exposed via a direct port opening (Oracle security list +
-  the VM's own iptables), not a Cloudflare Tunnel, since `astraiva.app`'s
-  DNS lives at Spaceship rather than Cloudflare and moving the zone wasn't
-  worth it just for this. `agents/data_ingestion/free_data.py` calls it as
-  the priority-1 data source (`IBKR_MARKET_DATA_URL`/`TOKEN` env vars on
-  Render) and falls through to CBOE then yfinance on any failure, so a slow
-  or down VM degrades the data source, never the scan itself.
+  set in IBC's config as a second, independent layer (plus
+  `AcceptNonBrokerageAccountWarning=yes`, `ExistingSessionDetectedAction=
+  primaryoverride`, `AllowBlindTrading=yes` for unattended login). Do not
+  weaken any of it to "make live easier later" — going live should be a
+  deliberate, reviewed change made at the time it's actually wanted, with
+  its own additional safeguards, not a standing unlock sitting in unattended
+  automation.
+- **The market-data proxy is no longer exposed to the public internet at
+  all** (an improvement over the Oracle-era direct port opening): only the
+  advisor on the same VPC can reach it, still with its own port (8003, not
+  8002), its own IB API client ID, its own access token, and read-only
+  endpoints only (`/option-chain`, `/stock`, `/stock-history`) — nothing
+  that can place an order or see account positions.
+  `agents/data_ingestion/free_data.py` calls it as the priority-1 data
+  source (`IBKR_MARKET_DATA_URL`/`TOKEN` env vars in the advisor's `.env`)
+  and falls through to CBOE then yfinance on any failure, so a slow or down
+  VM degrades the data source, never the scan itself.
 
 ## Setup gotchas (undocumented anywhere else — read before rebuilding)
 
 If this VM is ever rebuilt from scratch, these are the non-obvious fixes
-that were needed and are not mentioned in IBC's own documentation:
+that were needed and are not mentioned in IBC's own documentation. Items
+1–5 date from the original Oracle setup; 6–8 were hit on 2026-10-10 and are
+already automated by `deployment/bridge_vm_setup.sh`:
 
 1. **`JAVA_PATH` in `gatewaystart.sh` must point at the `bin` directory**,
    not the JRE root. IBC appends `/java` directly to whatever you give it —
    pointing at the JRE root produces `Java installation at .../java does not
-   exist` even though Java is actually installed one level down. The
-   installer's bundled JRE lives at
-   `~/.local/share/i4j_jres/<hash>/<version>/bin/java` — find the exact hash
-   via `find ~/.local/share/i4j_jres -iname java -type f`.
+   exist` even though Java is actually installed one level down.
 2. **The Ubuntu Minimal image is missing X11 libraries IB Gateway's Swing
    UI needs even under Xvfb.** Without them it fails immediately with
    `libawt_xawt.so: libXtst.so.6: cannot open shared object file`. Install
    `libxtst6 libxrender1 libxi6 libxext6 libxrandr2 libxcursor1
-   libxinerama1 libfontconfig1 libfreetype6` before first launch.
+   libxinerama1 libfontconfig1 libfreetype6` before first launch. (The
+   bootstrap installs them.)
 3. **`Windows PowerShell 5.1`'s `Join-Path` only takes two segments** — see
    the equivalent note already in `deployment/cloudflare_deploy_terminal.ps1`
    if writing similar tooling for this stack.
@@ -112,19 +132,33 @@ that were needed and are not mentioned in IBC's own documentation:
    present in this repo's history.
 5. **`nano` isn't on the Minimal image.** `sudo apt-get install -y nano` if
    you need to hand-edit `/opt/ibc/config.ini` again (e.g. to update
-   credentials) — the alternative, `unminimize`, pulls back far more than
-   needed.
+   credentials).
+6. **The current standalone Gateway installer installs FLAT into
+   `~/ibgateway` (no version subdir), but IBC's `ibcstart.sh` expects
+   `~/Jts/ibgateway/<majorVer>/`.** The version is machine-readable in
+   `~/ibgateway/.install4j/i4jparams.conf` (`majorVersion`, e.g. `1050`);
+   the desktop file's `IB Gateway 10.50.desktop` name is the same number
+   dotted. Relocate the flat tree into the versioned path (or re-run the
+   installer with an explicit target dir: `installer.sh -q ~/Jts/ibgateway`).
+7. **The installer exits nonzero *after a successful install* if it cannot
+   `cd` back to its original working directory** — e.g. when started from
+   an ssh login dir owned by a different user. Run it from `$HOME` (the
+   bootstrap does) or the error is indistinguishable from a real failure.
+8. **`~/.local/share/i4j_jres` is empty for this installer** — the JRE to
+   point `JAVA_PATH` at is bundled inside the install dir itself
+   (`~/Jts/ibgateway/<ver>/jre/bin`). (See gotcha 1: the `bin` dir, not the
+   JRE root.)
 
 ## Credentials and secrets on this VM
 
 | What | Where | How it got there |
 | --- | --- | --- |
-| IBKR paper login | `/opt/ibc/config.ini` (`IbLoginId`/`IbPassword`), mode 600, owned by `ubuntu` | Typed directly by the account owner via `nano` over SSH — never seen by any automation or this repo |
-| `BRIDGE_ACCESS_TOKEN` | `thetaforge-bridge.service` and `thetaforge-auto-executor.service` systemd unit files, mode 600 | Generated locally, matches the value already used for local Bridge access |
-| `ADVISOR_API_TOKEN` | `thetaforge-auto-executor.service` and `market_hours_supervisor.sh` | Matches the value set in Render's environment variables |
-| `MARKET_DATA_ACCESS_TOKEN` | `thetaforge-market-data.service` systemd unit, mode 600 | Generated locally; also set as `IBKR_MARKET_DATA_TOKEN` in Render's environment variables so the Advisor can call the proxy |
-| Git deploy key (journal push) | `~/.ssh/thetaforge_repo_deploy_key`, write access to this repo only | Public half added as a GitHub Deploy Key by the account owner |
-| SSH access to the VM | `~/.ssh/thetaforge_vm` (this repo owner's machine only) | Provisioned at VM creation |
+| IBKR paper login | `/opt/ibc/config.ini` (`IbLoginId`/`IbPassword`), mode 600, owned by `ubuntu` | Typed directly by the account owner via `nano` over SSH — never seen by any automation or this repo. Everything else in that file (TradingMode, accept-warning, session-primaryoverride, blind-trading) is pre-filled by the bootstrap |
+| `BRIDGE_ACCESS_TOKEN` | `thetaforge-bridge.service`, `thetaforge-auto-executor.service`, `thetaforge-auto-manager.service` systemd units, mode 600 | Passed as `BRIDGE_TOKEN` to the bootstrap; matches the authoritative value in the advisor VM's `.env` |
+| `ADVISOR_API_TOKEN` | `thetaforge-auto-executor.service`, `thetaforge-auto-manager.service`, `market_hours_supervisor.service` units | Matches the advisor's token (its `.env`) |
+| `MARKET_DATA_ACCESS_TOKEN` | `thetaforge-market-data.service` unit + `/opt/thetaforge-bridge/.market_data_token`, mode 600 | Generated by the bootstrap; the same value is set as `IBKR_MARKET_DATA_TOKEN` in the advisor's `.env` |
+| Git deploy key (journal push) | `~/.ssh/thetaforge_repo_deploy_key` (ubuntu), write access to this repo only | Copied from the advisor VM (`/home/ubuntu/.ssh/thetaforge_repo_deploy_key`); public half is a GitHub Deploy Key |
+| SSH access to the VM | `gcloud compute ssh thetaforge-executor --zone=us-west1-b` (GCP OS Login; Windows user maps to `Tushant`, passwordless sudo; services run as `ubuntu`) | No local keypair — access flows through the account owner's gcloud login |
 
 ## Capital limit
 
@@ -134,7 +168,7 @@ dashboard's browser-stored "Maximum options capital" setting, since it's a
 headless service with no browser. To change it:
 
 ```bash
-ssh -i ~/.ssh/thetaforge_vm ubuntu@92.4.132.188
+gcloud compute ssh thetaforge-executor --zone=us-west1-b
 sudo nano /etc/systemd/system/thetaforge-auto-executor.service   # edit CAPITAL_LIMIT=
 sudo systemctl daemon-reload
 sudo systemctl restart thetaforge-auto-executor.service
@@ -143,14 +177,22 @@ sudo systemctl restart thetaforge-auto-executor.service
 ## Checking status
 
 ```bash
-ssh -i ~/.ssh/thetaforge_vm ubuntu@92.4.132.188
+gcloud compute ssh thetaforge-executor --zone=us-west1-b
 
-sudo systemctl status ibgateway.service thetaforge-bridge.service thetaforge-auto-executor.service thetaforge-market-data.service
+systemctl is-active ibgateway thetaforge-bridge thetaforge-auto-executor thetaforge-auto-manager thetaforge-market-data
 sudo journalctl -u thetaforge-auto-executor.service -n 50 --no-pager
 sudo journalctl -u thetaforge-market-supervisor.service -n 20 --no-pager
 curl -s http://127.0.0.1:8002/health
 curl -s -H "X-ThetaForge-Bridge-Token: <token>" http://127.0.0.1:8002/orders
 curl -s -H "X-Market-Data-Token: <token>" http://127.0.0.1:8003/health
+```
+
+From the advisor VM (cross-VPC-internal, what the scanners actually use):
+
+```bash
+gcloud compute ssh thetaforge-advisor --zone=us-west1-b
+curl -s http://10.138.0.3:8002/health
+curl -s -H "X-Market-Data-Token: <token>" http://10.138.0.3:8003/health
 ```
 
 ## Redeploying Bridge code changes
@@ -159,8 +201,8 @@ The VM runs its own copy of `bridge/main.py`, not a live checkout — after
 changing it in this repo:
 
 ```bash
-scp -i ~/.ssh/thetaforge_vm bridge/main.py ubuntu@92.4.132.188:/opt/thetaforge-bridge/bridge/main.py
-ssh -i ~/.ssh/thetaforge_vm ubuntu@92.4.132.188 'sudo systemctl restart thetaforge-bridge.service'
+gcloud compute scp bridge/main.py thetaforge-executor:/tmp/main.py
+gcloud compute ssh thetaforge-executor --zone=us-west1-b --command="sudo mv /tmp/main.py /opt/thetaforge-bridge/bridge/main.py && sudo systemctl restart thetaforge-bridge.service"
 ```
 
 `deployment/vm_auto_executor.py`, `deployment/vm_auto_manager.py`,
@@ -175,13 +217,13 @@ available on the VM.
 
 ## Known limitations
 
-- CBOE's free delayed-quotes feed rate-limits Render's outbound IP under
-  concurrent load — see the `v1.2.4` changelog entry and the comment above
-  `SCAN_CONCURRENCY` in `background_scanner.py`. This affects the Advisor's
-  scanning, not this VM directly, but it's the reason the auto-executor's
-  notification polling can occasionally see a quiet cycle even during market
-  hours — the background scan itself may have degraded some symbols to
-  `option_chain_unavailable` for that pass.
+- CBOE's free delayed-quotes feed rate-limits the advisor's outbound IP
+  under concurrent load — see the `v1.2.4` changelog entry and the comment
+  above `SCAN_CONCURRENCY` in `background_scanner.py`. This affects the
+  Advisor's scanning, not this VM directly, but it's the reason the
+  auto-executor's notification polling can occasionally see a quiet cycle
+  even during market hours — the background scan itself may have degraded
+  some symbols to `option_chain_unavailable` for that pass.
 - **The IBKR market-data proxy is deployed and wired in as the priority-1
   source, but as of 2026-08-13 has not been confirmed delivering real quotes
   reliably**, despite the account having an active OPRA subscription. A
@@ -194,5 +236,5 @@ available on the VM.
   account) rather than a code bug. Nothing is broken in the meantime: every
   call falls through to CBOE then yfinance automatically on any proxy
   failure. Re-verify with a clean request (`curl -H "X-Market-Data-Token:
-  <token>" http://92.4.132.188:8003/option-chain/SPY`) before assuming this
+  <token>" http://10.138.0.3:8003/option-chain/SPY`) before assuming this
   is fixed.
