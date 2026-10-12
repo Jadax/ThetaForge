@@ -533,3 +533,46 @@ footer span { color: var(--accent); }
 .cond-rules li + li { margin-top: 3px; }
 .cond-note { margin: 9px 0 0; color: var(--muted); font-size: 10.5px; line-height: 1.5; }
 
+/* Compact one-line rows (tap to expand the full card) */
+.trade-row-item {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.trade-row-item + .trade-row-item { margin-top: 10px; }
+.trade-row-item:hover { border-color: var(--line-2); }
+.trade-row-item.open { border-color: var(--line-2); box-shadow: 0 4px 14px rgba(80, 60, 30, 0.06); }
+.trade-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  padding: 13px 18px 13px 16px;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.trade-row .sym { font-size: 18px; font-family: Georgia, "Times New Roman", serif; font-weight: 700; letter-spacing: -0.3px; }
+.trade-row-date { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.trade-row-strategy { color: var(--muted); font-size: 12.5px; margin-inline-start: auto; }
+.trade-row-pnl { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.trade-row-pnl.win { color: var(--gain); }
+.trade-row-pnl.loss { color: var(--loss); }
+.trade-row .chevron { color: var(--muted); font-size: 14px; }
+.trade-row-body { display: none; }
+.trade-row-item.open .trade-row-body { display: block; }
+.trade-row-item.open .trade-row .chevron { transform: rotate(180deg); }
+.trade-row-body .journal-card { border: 0; border-radius: 0; box-shadow: none; }
+.trade-row-body .journal-card-head { display: none; }
+.trade-row-body .journal-card.collapsed .journal-card-body { display: block; }
+@media (max-width: 680px) {
+  .trade-row { padding: 11px 14px; gap: 6px 10px; }
+  .trade-row-strategy { margin-inline-start: 0; width: 100%; }
+}
+
