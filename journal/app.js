@@ -52,6 +52,10 @@
     var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     return parts.length === 2 ? months[parseInt(parts[1], 10) - 1] + " " + parts[0] : value;
   };
+  var sortStamp = function (trade) {
+    var order = trade.order || {};
+    return String(order.submitted_at || order.updated_at || trade.timestamp || trade.opened || "");
+  };
   var esc = function (value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
@@ -864,7 +868,7 @@
     }
 
     return (
-      "<article class='journal-card" + (isExpanded ? "" : " collapsed") + "' data-id='" + esc(trade.id) + "'>" +
+      "<article class='journal-card " + (isExpanded ? "" : "collapsed") + "' data-id='" + esc(trade.id) + "'>" +
       "<button class='journal-card-head' aria-expanded='" + (isExpanded ? "true" : "false") + "'>" +
       "<div class='journal-symbol-row'><span class='sym'>" + esc(trade.symbol) + "</span>" +
       "<span class='engine-chip " + inst + "'>" + instrumentLabel[inst] + "</span>" +
@@ -896,6 +900,29 @@
       "<div class='journal-tags'>" + tags + "</div>" +
       "<div class='journal-links'>" + links + orderReceipt(trade) + "</div></div>" +
       "</div></article>"
+    );
+  }
+
+  function tradeRow(trade) {
+    var won = trade.net_pnl > 0;
+    var closed = trade.status === "closed";
+    var inst = instrumentOf(trade);
+    var open = !!expandedCards[trade.id];
+    var statusPill = !closed ? "OPEN" : won ? "WIN" : "LOSS";
+    var statusClass = !closed ? "open" : won ? "win" : "loss";
+    return (
+      "<div class='trade-row-item" + (open ? " open" : "") + "' data-id='" + esc(trade.id) + "'>" +
+      "<button class='trade-row' aria-expanded='" + (open ? "true" : "false") + "'>" +
+      "<span class='sym'>" + esc(trade.symbol) + "</span>" +
+      "<span class='engine-chip " + inst + "'>" + instrumentLabel[inst] + "</span>" +
+      "<span class='trade-row-date'>" + esc(dateLabel(trade.opened)) + "</span>" +
+      "<span class='trade-row-strategy'>" + esc(strategyLabel(trade.strategy || "")) + "</span>" +
+      "<span class='status-pill " + statusClass + "'>" + esc(statusPill) + "</span>" +
+      "<span class='trade-row-pnl " + (won ? "win" : "loss") + "'>" + esc(usd(trade.net_pnl)) + "</span>" +
+      "<span class='chevron' aria-hidden='true'>▾</span>" +
+      "</button>" +
+      "<div class='trade-row-body'>" + tradeCard(trade, allTradesAccountEquity) + "</div>" +
+      "</div>"
     );
   }
 
@@ -1012,6 +1039,15 @@
       applySubFilter("symbol", sym, sym);
     });
     document.getElementById("journal-list").addEventListener("click", function (event) {
+      var row = event.target.closest(".trade-row");
+      if (row) {
+        var item = row.closest(".trade-row-item");
+        var opened = item.classList.toggle("open");
+        row.setAttribute("aria-expanded", opened ? "true" : "false");
+        expandedCards[item.getAttribute("data-id")] = opened;
+        syncToggleButton();
+        return;
+      }
       var head = event.target.closest(".journal-card-head");
       if (!head) return;
       var card = head.closest(".journal-card");
@@ -1022,21 +1058,21 @@
       syncToggleButton();
     });
     document.getElementById("toggle-cards").addEventListener("click", function () {
-      var cards = document.querySelectorAll("#journal-list .journal-card");
-      var anyCollapsed = Array.prototype.some.call(cards, function (c) {
-        return c.classList.contains("collapsed");
+      var items = document.querySelectorAll("#journal-list .trade-row-item");
+      var anyCollapsed = Array.prototype.some.call(items, function (i) {
+        return !i.classList.contains("open");
       });
-      Array.prototype.forEach.call(cards, function (card) {
-        var id = card.getAttribute("data-id");
+      Array.prototype.forEach.call(items, function (item) {
+        var id = item.getAttribute("data-id");
+        var rowBtn = item.querySelector(".trade-row");
         if (anyCollapsed) {
-          card.classList.remove("collapsed");
+          item.classList.add("open");
           expandedCards[id] = true;
         } else {
-          card.classList.add("collapsed");
+          item.classList.remove("open");
           expandedCards[id] = false;
         }
-        var head = card.querySelector(".journal-card-head");
-        if (head) head.setAttribute("aria-expanded", anyCollapsed ? "true" : "false");
+        if (rowBtn) rowBtn.setAttribute("aria-expanded", anyCollapsed ? "true" : "false");
       });
       syncToggleButton();
     });
@@ -1049,11 +1085,11 @@
 
   function syncToggleButton() {
     var btn = document.getElementById("toggle-cards");
-    var cards = document.querySelectorAll("#journal-list .journal-card");
-    if (!cards.length) { btn.hidden = true; return; }
+    var items = document.querySelectorAll("#journal-list .trade-row-item");
+    if (!items.length) { btn.hidden = true; return; }
     btn.hidden = false;
-    var anyExpanded = Array.prototype.some.call(cards, function (c) {
-      return !c.classList.contains("collapsed");
+    var anyExpanded = Array.prototype.some.call(items, function (i) {
+      return i.classList.contains("open");
     });
     btn.textContent = anyExpanded ? "Collapse all" : "Expand all";
     btn.setAttribute("aria-pressed", anyExpanded ? "true" : "false");
@@ -1116,9 +1152,9 @@
       syncToggleButton();
       return;
     }
-    var ordered = filtered.slice().sort(function (a, b) { return a.opened.localeCompare(b.opened); });
+    var ordered = filtered.slice().sort(function (a, b) { return sortStamp(a).localeCompare(sortStamp(b)); });
     list.innerHTML = ordered.reverse()
-      .map(function (trade) { return tradeCard(trade, allTradesAccountEquity); })
+      .map(function (trade) { return tradeRow(trade); })
       .join("");
     syncToggleButton();
   }
