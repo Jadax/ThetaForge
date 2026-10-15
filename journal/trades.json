@@ -4,14 +4,16 @@
     "handle": "@thetaforge",
     "tagline": "Defined-risk option seller. Recommendations placed, receipts always."
   },
-  "as_of": "2026-09-29",
+  "as_of": "2026-10-15",
   "account_equity": 25000,
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "f4400d5ee873e5f2501a1d8680fb593711417ec2e69894f17669f9147ea62009",
-    "entries_from_ledger": 14,
-    "entries_manual": 0
+    "ledger_sha": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "entries_from_ledger": 0,
+    "entries_manual": 0,
+    "entries_carried": 14,
+    "prior_ledger_sha": "f4400d5ee873e5f2501a1d8680fb593711417ec2e69894f17669f9147ea62009"
   },
   "trades": [
     {
@@ -79,7 +81,8 @@
           "id": "03ad4d7e-dd5a-40dd-8ee8-b7f25a4c9e27",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "dc3c3ea2-87d2-47e5-bc42-f3a5c5dbd0a4",
@@ -146,7 +149,8 @@
           "id": "10711440-761e-4d10-adb2-22f54f1e5b66",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "82ed07ee-c5e4-452e-b82b-36e417e8a915",
@@ -213,7 +217,8 @@
           "id": "2478a38a-6ca4-409a-a77e-41151cb46bca",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "34b1c0f3-a74d-485c-9029-70d6a6eb0ca3",
@@ -280,7 +285,8 @@
           "id": "7e6b523f-9ad2-4987-96be-ca9d9937a7bd",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "9e9789a8-d0fb-4503-88ef-030626c0fef4",
@@ -347,7 +353,8 @@
           "id": "3d442463-6cdd-49c4-a27f-406dc200f8fb",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "18c5b3ae-4226-48c8-81b5-0fe2b325f0b4",
@@ -414,7 +421,8 @@
           "id": "99bd9031-4b12-4529-bd74-ec73ecdd1f94",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "0282450e-6c96-4fd0-b43e-ec320c4086c3",
@@ -481,7 +489,8 @@
           "id": "2d249614-73c2-489b-aeb9-f0eb8fb7b14c",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "c3484efc-c3b4-4531-9629-67abe0acb0c8",
@@ -548,7 +557,8 @@
           "id": "b8f44d90-0097-4929-a0b5-74f5bc7b2d68",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "80f99cc2-d763-486e-8e25-326b2afe8a92",
@@ -615,7 +625,8 @@
           "id": "c2f53016-720d-49ea-a146-f75c67aa932a",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "5a6b5b34-214a-4b33-ac7c-69d51348a2c7",
@@ -682,7 +693,8 @@
           "id": "8d04d605-f2ca-4d72-8713-869ea0774e59",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "8e73b9a3-bfbb-44c4-9c06-49bbfbfc08da",
@@ -749,7 +761,8 @@
           "id": "4f5b3bfa-47c5-4734-ac7f-d4ccc0519eea",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "d774aa85-ceef-42f8-a0a0-b1352ec16837",
@@ -816,7 +829,8 @@
           "id": "484a3114-d433-4827-ac9f-2aa5a22bc343",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "64421085-a32e-4427-84ed-13cae0f073af",
@@ -883,7 +897,8 @@
           "id": "c1beee4b-0af1-48c5-ae13-e7f5108d10e9",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     },
     {
       "id": "f7d9c1b7-b9a4-44d1-8e83-f03ffddeb8fe",
@@ -950,7 +965,8 @@
           "id": "d157a221-97d9-4ec5-a73b-a7b4abe99258",
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
-      }
+      },
+      "carried": true
     }
   ]
 }
