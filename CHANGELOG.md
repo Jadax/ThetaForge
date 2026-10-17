@@ -1,5 +1,35 @@
 # ThetaForge Changelog
 
+## v1.17.21 - 2026-10-16
+
+**Ledger fills could be overwritten by a later session's order events, and an
+options-only book made the equity position manager unreachable — both fixed,
+and one day of cross-session fill data repaired out of the paper ledger.**
+
+- `bridge/main.py`: `_sync_order_ledger` matched IB trades to ledger records by
+  bare `orderId`, which is **session-scoped** — it resets on every gateway
+  restart, so a new session's order-status events (fills) overwrote old
+  ledger records that happened to share an orderId (Oct 15/16 equity records
+  displayed each other's symbols and fill prices, e.g. DHT showing AAPL's
+  `3 @ 342.60`). All four placement sites now stamp the ledger id into
+  `ib_order.orderRef` before `placeOrder`, and sync matches on orderRef
+  first, then the persisted `ibkr_perm_id`, falling back to bare orderId
+  only for legacy rows without an orderRef — every fallback guarded by a
+  new symbol/asset-class equality check. Tests: `tests/test_bridge_order_sync.py`.
+- `deployment/vm_auto_manager.py`: `run_once` returned early on
+  "no open manageable option positions", so `run_equity_once` never ran
+  whenever the options book was empty — which is always, because the
+  recommender's current gates keep publishing zero option candidates. The
+  equity cycle now runs every cycle regardless; regression test
+  `test_run_once_still_runs_equity_cycle_when_no_option_positions`.
+- Ops repair: 11 ledger records poisoned by the orderId bleed (all equity,
+  all from Oct 15/16 sessions before the Read-Only fix) were reconciled
+  back to `Cancelled` with a provenance note in `error_message`, checked
+  against the account's actual positions; the four genuine Friday fills
+  (XLE/XLV/CCC/AAPL, 18:14–18:16Z) were kept, and the public journal was
+  republished from the repaired ledger.
+- Full suite green (386 tests, GCP venv).
+
 ## v1.17.20 - 2026-10-03
 
 **Public journal no longer shows orders that never executed, and the equity

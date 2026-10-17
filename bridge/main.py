@@ -194,21 +194,76 @@ def _reserved_capital(records: list[dict[str, Any]], week_key: str | None = None
     ), 2)
 
 
+def _sym_str_same(record: dict[str, Any], contract: Any) -> bool:
+    """Identity guard: does this IB contract plausibly belong to the record?
+
+    IB orderIds are session-scoped (they reset on every gateway restart), so
+    a numeric match alone can silently pair an old ledger record with a
+    different order placed after a reconnect. Comparing the underlying
+    symbol (and asset class for equity records) makes that mis-association
+    impossible in practice.
+    """
+    if contract is None:
+        return False
+    symbol = str(record.get("symbol", "") or "").upper()
+    if not symbol or str(getattr(contract, "symbol", "") or "").upper() != symbol:
+        return False
+    if record.get("asset_class") == "equity":
+        return str(getattr(contract, "secType", "") or "").upper() == "STK"
+    return True
+
+
 def _sync_order_ledger() -> list[dict[str, Any]]:
     records = _read_order_ledger()
     if ib is None or not ib.isConnected():
         return records
-    trades_by_order_id = {
-        int(trade.order.orderId): trade
+    # Prefer the stable identities the Bridge stamped on each order at
+    # placement time: orderRef carries the ledger id (unique per record),
+    # permId is assigned by IBKR and survives gateway restarts. The bare
+    # orderId is only a fallback for records that must still live in the
+    # current session, and never overrides the symbol guard.
+    trades_by_ref = {
+        str(trade.order.orderRef): trade
         for trade in ib.trades()
-        if getattr(trade.order, "orderId", None) is not None
+        if getattr(trade.order, "orderRef", None)
     }
     changed = False
     for record in records:
-        order_id = record.get("ibkr_order_id")
-        trade = trades_by_order_id.get(int(order_id)) if order_id is not None else None
+        trade = trades_by_ref.get(str(record.get("id")))
+        if trade is None:
+            perm_id = record.get("ibkr_perm_id")
+            if perm_id:
+                trade = next(
+                    (
+                        item for item in ib.trades()
+                        if int(getattr(item.order, "permId", 0) or 0) == int(perm_id)
+                        and _sym_str_same(record, item.contract)
+                    ),
+                    None,
+                )
+            elif record.get("ibkr_order_id") is not None:
+                candidate = next(
+                    (
+                        item for item in ib.trades()
+                        if int(item.order.orderId) == int(record["ibkr_order_id"])
+                        and _sym_str_same(record, item.contract)
+                    ),
+                    None,
+                )
+                # A legacy record (placed before orderRef stamping) must only
+                # match while its order is still live in THIS session and the
+                # candidate carries no other record's stamp. Stale records from
+                # prior sessions are left untouched instead of adopting the new
+                # session's colliding order ids.
+                if candidate is not None and getattr(candidate.order, "orderRef", None):
+                    continue
+                trade = candidate
         if trade is None:
             continue
+        contract = trade.contract
+        if not _sym_str_same(record, contract):
+            continue
+        perm_now = int(getattr(trade.order, "permId", 0) or 0)
         status = str(trade.orderStatus.status or "Unknown")
         update = {
             "status": status,
@@ -217,6 +272,8 @@ def _sync_order_ledger() -> list[dict[str, Any]]:
             "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
+        if perm_now and perm_now != int(record.get("ibkr_perm_id", 0) or 0):
+            update["ibkr_perm_id"] = perm_now
         if any(record.get(key) != value for key, value in update.items()):
             record.update(update)
             changed = True
@@ -595,9 +652,10 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
         contract = bag
         ib_order = LimitOrder("BUY", order.quantity, limit_price, tif="DAY")
     assert ib is not None
+    ledger_id = str(uuid4())
+    ib_order.orderRef = ledger_id
     trade = ib.placeOrder(contract, ib_order)
     now = datetime.now(timezone.utc).isoformat()
-    ledger_id = str(uuid4())
     status = str(trade.orderStatus.status or "PendingSubmit")
     records.append({
         "id": ledger_id,
@@ -759,9 +817,10 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
         contract = bag
         ib_order = LimitOrder("BUY", quantity, limit_price, tif="DAY")
 
+    ledger_id = str(uuid4())
+    ib_order.orderRef = ledger_id
     trade = ib.placeOrder(contract, ib_order)
     now = datetime.now(timezone.utc).isoformat()
-    ledger_id = str(uuid4())
     status = str(trade.orderStatus.status or "PendingSubmit")
     entry_credit = float(parent.get("net_credit", 0) or 0)
     realized_pnl = (entry_credit - cost_to_close) * quantity
@@ -849,9 +908,10 @@ async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_a
     assert ib is not None
     limit_price = round(ask, 2)
     ib_order = LimitOrder("BUY", order.shares, limit_price, tif="DAY")
+    ledger_id = str(uuid4())
+    ib_order.orderRef = ledger_id
     trade = ib.placeOrder(ticker.contract, ib_order)
     now = datetime.now(timezone.utc).isoformat()
-    ledger_id = str(uuid4())
     status = str(trade.orderStatus.status or "PendingSubmit")
     records.append({
         "id": ledger_id,
@@ -938,9 +998,10 @@ async def close_paper_stock(request: CloseStockRequest, _: None = Depends(requir
 
     limit_price = round(bid, 2)
     ib_order = LimitOrder("SELL", shares, limit_price, tif="DAY")
+    ledger_id = str(uuid4())
+    ib_order.orderRef = ledger_id
     trade = ib.placeOrder(ticker.contract, ib_order)
     now = datetime.now(timezone.utc).isoformat()
-    ledger_id = str(uuid4())
     status = str(trade.orderStatus.status or "PendingSubmit")
     realized_pnl = (limit_price - cost_basis) * shares
     close_record = {

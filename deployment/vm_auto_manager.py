@@ -330,25 +330,33 @@ def run_once(client: httpx.Client) -> int:
         logger.info("Market closed; nothing to do this cycle")
         return 0
 
+    # The equity cycle below must run every cycle regardless of the option
+    # book: with zero open option positions this used to return early and the
+    # entire equity management loop was unreachable.
+    entries = None
+    realized_pnl = 0.0
+    reserved = 0.0
     try:
         entries, realized_pnl, reserved = open_positions(client)
     except Exception:
         logger.exception("Could not read the Bridge ledger; skipping this cycle")
-        return 0
 
-    if not entries:
+    if entries is None:
+        logger.warning("Option management cycle skipped: ledger unreadable")
+    elif not entries:
         logger.info("No open manageable paper positions")
-        return 0
-
-    positions = build_position_inputs(entries)
-    try:
-        actions = request_management(client, positions)
-    except Exception:
-        logger.exception("Management decision request failed; skipping this cycle")
-        return 0
 
     closes_submitted = 0
-    for record, action in zip(entries, actions):
+    actions = []
+    if entries:
+        positions = build_position_inputs(entries)
+        try:
+            actions = request_management(client, positions)
+        except Exception:
+            logger.exception("Management decision request failed; option cycle skipped")
+            actions = []
+
+    for record, action in zip(entries or [], actions):
         symbol = record["symbol"]
         action_name = action.get("action", "hold")
         reason = action.get("reason", "")

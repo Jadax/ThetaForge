@@ -185,3 +185,19 @@ def test_run_once_auto_submits_close_pre_macro():
     submitted = manager.run_once(client)
     assert submitted == 1
     assert any("close-combo" in url for _, url, _ in client.calls)
+
+
+def test_run_once_still_runs_equity_cycle_when_no_option_positions():
+    # Regression: run_once used to return early on an empty option book,
+    # making the entire equity management loop unreachable whenever the
+    # option book was empty (the recurring live case). The equity ledger
+    # fetch must still happen.
+    client = FakeClient([
+        FakeResponse(200, {"market_open": True}),
+        FakeResponse(200, {"capital_reserved": 0, "orders": []}),
+        FakeResponse(200, {"orders": []}),
+    ])
+    submitted = m.run_once(client)
+    assert submitted == 0
+    order_fetches = [c for c in client.calls if c[0] == "GET" and str(c[1]).endswith("/orders")]
+    assert len(order_fetches) == 2
