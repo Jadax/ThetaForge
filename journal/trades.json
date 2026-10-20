@@ -4,12 +4,12 @@
     "handle": "@thetaforge",
     "tagline": "Defined-risk option seller. Recommendations placed, receipts always."
   },
-  "as_of": "2026-10-19",
+  "as_of": "2026-10-20",
   "account_equity": 25000,
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "79da6c3a9ff3b21da55988a769b2e65796e996aceb924cd50c5311c70d4f3cb2",
+    "ledger_sha": "b5983b79c59f57227f368525f9aa413b230eab68268780b420ba3712797e23e8",
     "entries_from_ledger": 4,
     "entries_manual": 0,
     "entries_carried": 14,
@@ -33,7 +33,7 @@
         "reason": null,
         "quantity": 19,
         "submitted_at": "2026-10-16T18:14:24.080225+00:00",
-        "updated_at": "2026-10-19T13:56:17.992446+00:00"
+        "updated_at": "2026-10-20T13:39:40.700861+00:00"
       },
       "symbol": "XLE",
       "asset_class": "equity",
@@ -96,7 +96,7 @@
         "reason": null,
         "quantity": 3,
         "submitted_at": "2026-10-16T18:15:43.462247+00:00",
-        "updated_at": "2026-10-19T14:09:47.460146+00:00"
+        "updated_at": "2026-10-19T14:37:17.729787+00:00"
       },
       "symbol": "AAPL",
       "asset_class": "equity",
@@ -222,7 +222,7 @@
         "reason": null,
         "quantity": 8,
         "submitted_at": "2026-10-16T18:14:46.758266+00:00",
-        "updated_at": "2026-10-19T13:39:25.495643+00:00"
+        "updated_at": "2026-10-20T13:51:18.908880+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
