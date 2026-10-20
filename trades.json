@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "da3bec6730001ee2380aee86aa84099636fb3cb98a55894adeb7c7f43b5d45dd",
+    "ledger_sha": "26df5491daa1a75caf98773a46f465a5feda8c714308331244175fe7ff1a645e",
     "entries_from_ledger": 7,
     "entries_manual": 0,
     "entries_carried": 14,
@@ -33,7 +33,7 @@
         "reason": null,
         "quantity": 2,
         "submitted_at": "2026-10-20T16:44:46.295770+00:00",
-        "updated_at": "2026-10-20T16:45:51.898006+00:00"
+        "updated_at": "2026-10-20T19:39:42.904524+00:00"
       },
       "symbol": "DIA",
       "asset_class": "equity",
@@ -96,7 +96,7 @@
         "reason": null,
         "quantity": 3,
         "submitted_at": "2026-10-20T15:12:36.227430+00:00",
-        "updated_at": "2026-10-20T16:45:51.897993+00:00"
+        "updated_at": "2026-10-20T19:39:42.904512+00:00"
       },
       "symbol": "AMZN",
       "asset_class": "equity",
@@ -159,7 +159,7 @@
         "reason": null,
         "quantity": 17,
         "submitted_at": "2026-10-20T13:53:14.972896+00:00",
-        "updated_at": "2026-10-20T16:45:51.897965+00:00"
+        "updated_at": "2026-10-20T19:39:42.904471+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -411,7 +411,7 @@
         "reason": null,
         "quantity": 8,
         "submitted_at": "2026-10-16T18:14:46.758266+00:00",
-        "updated_at": "2026-10-20T16:04:26.752888+00:00"
+        "updated_at": "2026-10-20T18:11:47.406882+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",

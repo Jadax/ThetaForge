@@ -71,6 +71,39 @@
     return Number(trade.net_pnl) / risk;
   };
 
+  /* ---- live marks (VM-refreshed snapshots, delayed-quotes grade) -------- */
+
+  var LIVE_REFETCH_MS = 300000; // trades.json is re-pulled every 5 minutes,
+                                 // so an hourly VM snapshot never sits stale
+                                 // longer than that on an open tab.
+
+  var priceUsd = function (value, digits) {
+    var n = Number(value);
+    if (isNaN(n)) return "n/a";
+    return "$" + n.toFixed(digits == null ? 2 : digits);
+  };
+  var liveMark = function (trade) {
+    var live = trade.live;
+    if (!live || typeof Number(live.price) !== "number" || !isFinite(Number(live.price))) return null;
+    if (typeof Number(live.pnl) !== "number" || !isFinite(Number(live.pnl))) return null;
+    return live;
+  };
+  var liveTime = function (live) {
+    var match = String((live && live.at) || "").match(/T(\d{2}):(\d{2})/);
+    return match ? match[1] + ":" + match[2] + " UTC" : "";
+  };
+  var rOfPnl = function (trade, pnl) {
+    var risk = Number(trade.capital_at_risk);
+    if (!risk || risk <= 0) return null;
+    return pnl / risk;
+  };
+  var openMarked = function (trades) {
+    return trades.filter(function (t) { return t.status !== "closed" && liveMark(t); });
+  };
+  var unrealizedOf = function (trade) {
+    return Number(liveMark(trade).pnl);
+  };
+
   var allTrades = [];
   var allTradesAccountEquity = 0;
   var engineFilter = "all";
@@ -185,6 +218,18 @@
         esc(usd(metrics.riskOpen).slice(1)) + "</b> at risk" +
         (riskShare != null ? " (" + riskShare.toFixed(1) + "% of the " + esc(usd(accountEquity).slice(1)) + " book)" : "")
       );
+      var marked = openMarked(trades);
+      if (marked.length) {
+        var unrealized = marked.reduce(function (sum, t) { return sum + unrealizedOf(t); }, 0);
+        var unrealizedCls = unrealized >= 0 ? "win" : "loss";
+        parts.push(
+          "as of the last mark they sit at <b class='" + unrealizedCls + "'>" +
+          esc(usd(unrealized)) + "</b> unrealized (" + marked.length +
+          "/" + metrics.open + " marked" +
+          (liveTime(liveMark(marked[0])) ? " · " + liveTime(liveMark(marked[0])) : "") +
+          ")"
+        );
+      }
     }
     if (metrics.lastActivity) {
       parts.push("last activity " + dateLabel(metrics.lastActivity));
@@ -793,6 +838,144 @@
     );
   }
 
+  /* ---- live journey: stop -> entry -> mark -> target, plus the trail ---- */
+
+  function journeyGeometry(trade, mark) {
+    var risk = Number(trade.capital_at_risk) || 0;
+    if (risk <= 0) return null;
+    var isEquity = trade.asset_class === "equity";
+    var targetPnl = null, tpPnl = null, labels = {};
+    if (isEquity) {
+      var p = tradePrices(trade);
+      var entry = p.buy != null ? p.buy : (trade.entry_price != null ? Number(trade.entry_price) : null);
+      var shares = (trade.order && trade.order.quantity != null) ? Number(trade.order.quantity)
+        : (trade.shares != null ? Number(trade.shares) : null);
+      if (entry != null && shares > 0 && trade.target_price != null) {
+        targetPnl = (Number(trade.target_price) - entry) * shares;
+      }
+      labels = { low: "stop \u22121R", entry: "entry", target: "+2R target" };
+    } else if (trade.max_profit) {
+      var maxP = Number(trade.max_profit);
+      targetPnl = maxP;
+      tpPnl = maxP / 2;
+      labels = { low: "defined max loss", entry: "credit received",
+                 tp: "50% take-profit", target: "full credit" };
+    }
+    var now = Number(mark.pnl);
+    if (targetPnl == null) targetPnl = risk;   // symmetric fallback keeps a scale
+    var lo = -risk, hi = Math.max(targetPnl, now, 0.5 * risk);
+    if (hi - lo <= 0) return null;
+    var pos = function (value) {
+      var frac = (value - lo) / (hi - lo);
+      return Math.min(Math.max(frac, 0), 1) * 100;
+    };
+    return { lo: lo, hi: hi, pos: pos, targetPnl: targetPnl, tpPnl: tpPnl,
+             now: now, isEquity: isEquity, labels: labels };
+  }
+
+  function journeyBar(trade, mark) {
+    var geo = journeyGeometry(trade, mark);
+    if (!geo) return "";
+    var marker = function (value, label, cls) {
+      var x = geo.pos(value);
+      var snap = x < 14 ? " snap-left" : x > 86 ? " snap-right" : "";
+      return "<div class='journey-marker " + (cls || "") + snap + "' style='left:" + x.toFixed(1) + "%'>" +
+        "<i></i><small>" + esc(label) + "</small></div>";
+    };
+    var entryX = geo.pos(0), nowX = geo.pos(geo.now);
+    var fillLeft = Math.min(entryX, nowX);
+    var fillWidth = Math.abs(nowX - entryX);
+    var fillCls = geo.now >= 0 ? "gain" : "drop";
+    var markers = marker(geo.lo, geo.labels.low, "extreme") +
+      marker(0, geo.labels.entry, "entry") +
+      (geo.tpPnl != null ? marker(geo.tpPnl, geo.labels.tp, "tp") : "") +
+      marker(geo.targetPnl, geo.labels.target, "extreme target");
+    var markersHtml = mark ? markers + marker(geo.now, "now", "live") : markers;
+    return (
+      "<div class='journey-bar' role='img' aria-label='Position journey from a " +
+      esc(geo.labels.low) + " to a " + esc(geo.labels.target) + ", currently " +
+      esc(usd(geo.now)) + "'>" +
+      "<div class='journey-track'>" +
+      "<div class='journey-fill " + fillCls + "' style='left:" + fillLeft.toFixed(1) +
+      "%;width:" + fillWidth.toFixed(1) + "%'></div>" +
+      (mark ? "<div class='journey-now-dot' style='left:" + nowX.toFixed(1) + "%'></div>" : "") +
+      "</div>" +
+      "<div class='journey-layer'>" + markersHtml + "</div>" +
+      "</div>"
+    );
+  }
+
+  function sparklineSvg(trade, mark) {
+    var trail = (trade.price_trail || []).filter(function (point) {
+      return point && isFinite(Number(point.price));
+    });
+    if (trail.length < 2) return "";
+    var values = trail.map(function (point) { return Number(point.price); });
+    var minV = Math.min.apply(null, values);
+    var maxV = Math.max.apply(null, values);
+    if (maxV - minV < 1e-9) { maxV += 1; minV -= 1; }
+    var W = 320, H = 52, PAD = 6;
+    var xAt = function (i) { return PAD + (i / (trail.length - 1)) * (W - PAD * 2); };
+    var yAt = function (v) { return H - PAD - ((v - minV) / (maxV - minV)) * (H - PAD * 2); };
+    var pts = values.map(function (v, i) {
+      return xAt(i).toFixed(1) + "," + yAt(v).toFixed(1);
+    }).join(" ");
+    var endY = yAt(values[values.length - 1]);
+    var endX = xAt(trail.length - 1);
+    var up = mark ? Number(mark.pnl) >= 0
+      : values[values.length - 1] >= values[0];
+    var color = up ? C.gain : C.loss;
+    var entryLine = "";
+    var p = tradePrices(trade);
+    var entry = p.buy != null ? p.buy : (trade.entry_price != null ? Number(trade.entry_price) : null);
+    if (trade.asset_class === "equity" && entry != null && entry >= minV && entry <= maxV) {
+      entryLine = "<line x1='" + PAD + "' x2='" + (W - PAD) + "' y1='" + yAt(entry).toFixed(1) +
+        "' y2='" + yAt(entry).toFixed(1) + "' stroke='" + C.line2 + "' stroke-dasharray='4 3'/>";
+    }
+    var lastLabel = liveTime(mark) || "";
+    return (
+      "<svg class='journey-spark' viewBox='0 0 " + W + " " + H +
+      "' preserveAspectRatio='none' role='img' aria-label='" +
+      esc(unusedLabel(trade, values)) + "'>" +
+      entryLine +
+      "<polyline points='" + pts + "' fill='none' stroke='" + color +
+      "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>" +
+      "<circle cx='" + endX.toFixed(1) + "' cy='" + endY.toFixed(1) +
+      "' r='3.5' fill='" + color + "'>" +
+      (lastLabel ? "<title>" + esc(priceUsd(values[values.length - 1])) + " · " +
+        esc(lastLabel) + "</title>" : "") +
+      "</circle>" +
+      "</svg>"
+    );
+  }
+
+  var unusedLabel = function (trade, values) {
+    var verb = trade.asset_class === "equity" ? "Price" : "Cost to close";
+    return verb + " since entry, " + plural(trade.price_trail.length, "mark") +
+      ", latest " + priceUsd(values[values.length - 1], trade.asset_class === "equity" ? 2 : 3);
+  };
+
+  function journeyPanel(trade) {
+    if (trade.status === "closed") return "";
+    var mark = liveMark(trade);
+    var bar = mark ? journeyBar(trade, mark) : "";
+    var spark = sparklineSvg(trade, mark);
+    if (!bar && !spark) return "";
+    var title = trade.asset_class === "equity" ? "Price journey since entry" : "Mark since entry";
+    var trailPoints = (trade.price_trail || []).length;
+    var note = "Delayed-venue marks refreshed by the engine" +
+      (trailPoints > 1 ? " · " + trailPoints + " snapshots retained" : "") +
+      (mark && liveTime(mark) ? " · latest " + esc(liveTime(mark)) : "");
+    return (
+      "<div class='journey-panel'>" +
+      "<small>" + esc(title.toUpperCase()) + "</small>" +
+      (bar ? "<div class='journey-bar-wrap'>" + bar + "</div>" : "") +
+      (spark ? "<div class='journey-spark-wrap'>" + spark + "</div>" : "") +
+      "<p class='journey-note'>" + note + "</p>" +
+      "</div>"
+    );
+  }
+
   function tradeCard(trade, accountEquity) {
     var won = trade.net_pnl > 0;
     var isLedger = trade.source === "ledger";
@@ -851,12 +1034,50 @@
       riskPct = " · " + ((trade.capital_at_risk / accountEquity) * 100).toFixed(1) + "% of account";
     }
     var r = rMultiple(trade);
-    var rText = r != null ? " · " + (r >= 0 ? "+" : "") + r.toFixed(2) + "R" : "";
-    var resultSub = !closed
-      ? "open position"
-      : isEquity
-        ? (r != null ? "realized" + rText + " on risk" : "closed")
-        : esc(pct(trade.net_pnl_pct)) + " of max profit";
+    var mark = liveMark(trade);
+
+    var resultSub = closed
+      ? (isEquity
+        ? (r != null ? "realized · " + (r >= 0 ? "+" : "") + r.toFixed(2) + "R on risk" : "closed")
+        : esc(pct(trade.net_pnl_pct)) + " of max profit")
+      : "";
+
+    var pnlBlock;
+    if (!closed) {
+      if (mark) {
+        var uPnl = Number(mark.pnl);
+        var uR = rOfPnl(trade, uPnl);
+        pnlBlock =
+          "<div class='journal-pnl " + (uPnl >= 0 ? "win" : "loss") + "'>" +
+          "<small>UNREALIZED</small><b>" + esc(usd(uPnl)) + "</b>" +
+          "<span>" + esc(pct(mark.pnl_pct)) + " of risk" +
+          (uR != null ? " · " + (uR >= 0 ? "+" : "") + uR.toFixed(2) + "R" : "") +
+          (liveTime(mark) ? " · marked " + esc(liveTime(mark)) : "") + "</span></div>";
+      } else {
+        pnlBlock =
+          "<div class='journal-pnl not-yet'><small>POSITION</small><b>open</b>" +
+          "<span>waiting for the first price mark</span></div>";
+      }
+    } else {
+      pnlBlock =
+        "<div class='journal-pnl " + (won ? "win" : "loss") + "'>" +
+        "<small>NET P&amp;L</small><b>" + esc(usd(trade.net_pnl)) + "</b>" +
+        "<span>" + esc(resultSub) + "</span></div>";
+    }
+
+    var closedOrLiveCell;
+    if (closed) {
+      closedOrLiveCell = "<span><small>CLOSED</small><b>" + esc(dateLabel(trade.closed)) + "</b></span>";
+    } else if (mark) {
+      var closeWord = trade.asset_class === "equity" ? "" : " to close";
+      closedOrLiveCell =
+        "<span><small>CURRENT · " + esc(liveTime(mark)) + "</small><b>" +
+        esc(priceUsd(mark.price)) + closeWord + "</b>" +
+        "<span class='" + (Number(mark.pnl) >= 0 ? "win" : "loss") + "'>" +
+        esc(usd(Number(mark.pnl))) + " since entry</span></span>";
+    } else {
+      closedOrLiveCell = "<span><small>CURRENT</small><b>n/a</b><span>no mark yet</span></span>";
+    }
 
     var secondMeta;
     if (isEquity) {
@@ -877,9 +1098,7 @@
       "<span class='status-pill " + statusClass + "'>" + esc(statusLabel) + "</span>" +
       "<span class='journal-strategy-sub'>" + esc(strategyLabel(trade.strategy || "")) + "</span></div>" +
       headlineFacts(trade, prices, accountEquity) +
-      "<div class='journal-pnl " + (won ? "win" : "loss") + "'>" +
-      "<small>NET P&amp;L</small><b>" + esc(usd(trade.net_pnl)) + "</b>" +
-      "<span>" + esc(resultSub) + "</span></div>" +
+      pnlBlock +
       "<span class='chevron' aria-hidden='true'>▾</span>" +
       "</button>" +
       "<div class='journal-card-body'>" +
@@ -887,10 +1106,10 @@
       "<div class='journal-legs'>" + legs + "</div>" +
       "<div class='journal-meta'>" +
       "<span><small>OPENED</small><b>" + esc(dateLabel(trade.opened)) + "</b></span>" +
-      "<span><small>" + (closed ? "CLOSED" : "CURRENT") + "</small><b>" +
-      (trade.closed ? esc(dateLabel(trade.closed)) : "n/a") + "</b></span>" +
+      closedOrLiveCell +
       "<span><small>CAPITAL AT RISK</small><b>" + esc(usd(trade.capital_at_risk).slice(1) + riskPct) + "</b></span>" +
       secondMeta + "</div>" +
+      journeyPanel(trade) +
       managementPlan(trade) +
       entryConditions(trade) +
       "<div class='journal-thesis'><small>THE WHY</small><p>" +
@@ -910,6 +1129,22 @@
     var open = !!expandedCards[trade.id];
     var statusPill = !closed ? "OPEN" : won ? "WIN" : "LOSS";
     var statusClass = !closed ? "open" : won ? "win" : "loss";
+    var pnlCell = "";
+    var mark = !closed ? liveMark(trade) : null;
+    if (mark) {
+      var uPnl = Number(mark.pnl);
+      var uR = rOfPnl(trade, uPnl);
+      pnlCell =
+        "<span class='trade-row-pnl " + (uPnl >= 0 ? "win" : "loss") + "'>" +
+        esc(usd(uPnl)) +
+        "<small>" + esc(pct(mark.pnl_pct)) + " · " +
+        (uR != null ? (uR >= 0 ? "+" : "") + uR.toFixed(2) + "R" : esc(liveTime(mark))) +
+        "</small></span>";
+    } else {
+      pnlCell =
+        "<span class='trade-row-pnl " + (won ? "win" : "loss") + "'>" +
+        esc(usd(trade.net_pnl)) + "</span>";
+    }
     return (
       "<div class='trade-row-item" + (open ? " open" : "") + "' data-id='" + esc(trade.id) + "'>" +
       "<button class='trade-row' aria-expanded='" + (open ? "true" : "false") + "'>" +
@@ -918,7 +1153,7 @@
       "<span class='trade-row-date'>" + esc(dateLabel(trade.opened)) + "</span>" +
       "<span class='trade-row-strategy'>" + esc(strategyLabel(trade.strategy || "")) + "</span>" +
       "<span class='status-pill " + statusClass + "'>" + esc(statusPill) + "</span>" +
-      "<span class='trade-row-pnl " + (won ? "win" : "loss") + "'>" + esc(usd(trade.net_pnl)) + "</span>" +
+      pnlCell +
       "<span class='chevron' aria-hidden='true'>▾</span>" +
       "</button>" +
       "<div class='trade-row-body'>" + tradeCard(trade, allTradesAccountEquity) + "</div>" +
@@ -1222,8 +1457,20 @@
     syncToggleButton();
   }
 
-  fetch("./trades.json")
-    .then(function (response) { return response.json(); })
-    .then(render)
-    .catch(renderEmpty);
+  var lastPayload = null;
+  function loadJournal() {
+    fetch("./trades.json", { cache: "no-store" })
+      .then(function (response) { return response.text(); })
+      .then(function (text) {
+        if (text === lastPayload) return;   // nothing changed VM-side; skip re-render
+        lastPayload = text;
+        render(JSON.parse(text));
+      })
+      .catch(renderEmpty);
+  }
+  loadJournal();
+  // The VM bakes fresh price marks into trades.json hourly (journal timer),
+  // and a five-minute same-origin re-fetch keeps an open tab no more than
+  // ~5 min behind whatever the latest published snapshot is.
+  setInterval(loadJournal, LIVE_REFETCH_MS);
 })();
