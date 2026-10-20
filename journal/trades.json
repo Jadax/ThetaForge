@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "cfdbdc9a13530d327dcc02132389c9fde8298127c77e5de3ee827d9fe90aba2a",
+    "ledger_sha": "f220dbc58930843ffeb2f149a4c0b3051c1c7ed620104fad99cb50bc023707ab",
     "entries_from_ledger": 7,
     "entries_manual": 0,
     "entries_carried": 14,
@@ -33,7 +33,7 @@
         "reason": null,
         "quantity": 2,
         "submitted_at": "2026-10-20T16:44:46.295770+00:00",
-        "updated_at": "2026-10-20T19:48:22.668184+00:00"
+        "updated_at": "2026-10-20T19:51:25.066688+00:00"
       },
       "symbol": "DIA",
       "asset_class": "equity",
@@ -96,7 +96,7 @@
         "reason": null,
         "quantity": 3,
         "submitted_at": "2026-10-20T15:12:36.227430+00:00",
-        "updated_at": "2026-10-20T19:48:22.668176+00:00"
+        "updated_at": "2026-10-20T19:51:25.066679+00:00"
       },
       "symbol": "AMZN",
       "asset_class": "equity",
@@ -159,7 +159,7 @@
         "reason": null,
         "quantity": 17,
         "submitted_at": "2026-10-20T13:53:14.972896+00:00",
-        "updated_at": "2026-10-20T19:48:22.668157+00:00"
+        "updated_at": "2026-10-20T19:51:25.066651+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -266,7 +266,12 @@
       "research": [],
       "tags": [],
       "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-10-16T19:32:59.176489+00:00"
+      "timestamp": "2026-10-16T19:32:59.176489+00:00",
+      "live": {
+        "price": 67.995,
+        "at": "2026-10-20T19:51:41+00:00",
+        "kind": "stock"
+      }
     },
     {
       "id": "e0267e3d-bd95-436d-ae4d-eefade32ad01",
