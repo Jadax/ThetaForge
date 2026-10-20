@@ -79,8 +79,8 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-20T16:45:51.898006+00:00",
       "live": {
-        "price": 524.17,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 524.43,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -157,8 +157,8 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-20T16:45:51.897993+00:00",
       "live": {
-        "price": 262.59,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 262.63,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -235,8 +235,8 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-20T14:21:27.424938+00:00",
       "live": {
-        "price": 87.735,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 87.74,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -313,8 +313,8 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-16T19:32:59.176489+00:00",
       "live": {
-        "price": 67.96,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 67.955,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -391,8 +391,8 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-16T18:22:36.598808+00:00",
       "live": {
-        "price": 339.43,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 339.5,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -469,8 +469,8 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-16T18:16:11.360385+00:00",
       "live": {
-        "price": 7.62,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 7.63,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -481,6 +481,10 @@
         {
           "at": "2026-10-20T19:58:59+00:00",
           "price": 7.62
+        },
+        {
+          "at": "2026-10-20T19:59:55+00:00",
+          "price": 7.63
         }
       ]
     },
@@ -547,8 +551,8 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-16T18:16:11.360379+00:00",
       "live": {
-        "price": 179.755,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 179.83,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -630,8 +634,8 @@
       },
       "carried": true,
       "live": {
-        "price": 179.755,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 179.83,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -713,8 +717,8 @@
       },
       "carried": true,
       "live": {
-        "price": 768.6,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 769.32,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -796,8 +800,8 @@
       },
       "carried": true,
       "live": {
-        "price": 179.755,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 179.83,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -879,8 +883,8 @@
       },
       "carried": true,
       "live": {
-        "price": 768.6,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 769.32,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -962,8 +966,8 @@
       },
       "carried": true,
       "live": {
-        "price": 9.02,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 9.015,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -1045,8 +1049,8 @@
       },
       "carried": true,
       "live": {
-        "price": 7.475,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 7.48,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -1128,8 +1132,8 @@
       },
       "carried": true,
       "live": {
-        "price": 57.01,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 57.09,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -1140,6 +1144,10 @@
         {
           "at": "2026-10-20T19:58:59+00:00",
           "price": 57.01
+        },
+        {
+          "at": "2026-10-20T19:59:55+00:00",
+          "price": 57.09
         }
       ]
     },
@@ -1211,8 +1219,8 @@
       },
       "carried": true,
       "live": {
-        "price": 61.93,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 61.99,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -1294,8 +1302,8 @@
       },
       "carried": true,
       "live": {
-        "price": 91.61,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 91.69,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -1377,8 +1385,8 @@
       },
       "carried": true,
       "live": {
-        "price": 216.285,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 216.47,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -1460,8 +1468,8 @@
       },
       "carried": true,
       "live": {
-        "price": 179.755,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 179.83,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -1543,8 +1551,8 @@
       },
       "carried": true,
       "live": {
-        "price": 185.38,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 185.46,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -1626,8 +1634,8 @@
       },
       "carried": true,
       "live": {
-        "price": 717.13,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 717.63,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
@@ -1709,8 +1717,8 @@
       },
       "carried": true,
       "live": {
-        "price": 768.6,
-        "at": "2026-10-20T19:58:59+00:00",
+        "price": 769.32,
+        "at": "2026-10-20T19:59:55+00:00",
         "kind": "stock"
       },
       "price_trail": [
