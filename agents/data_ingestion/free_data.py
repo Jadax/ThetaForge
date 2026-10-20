@@ -481,15 +481,6 @@ class FreeDataProvider:
         except Exception as error:
             logger.debug("CBOE VIX term structure unavailable: %s", error)
         return structure
-        # Fill any gaps from the CBOE daily-history feed (no key required).
-        try:
-            cboe_structure = await self.cboe.get_vix_term_structure()
-            for index, value in cboe_structure.items():
-                if structure.get(index) is None:
-                    structure[index] = value
-        except Exception as error:
-            logger.debug("CBOE VIX term structure unavailable: %s", error)
-        return structure
 
     def is_vix_contango(self, term_structure: Dict[str, Optional[float]]) -> Optional[bool]:
         """True when the VIX term structure is in healthy contango
@@ -587,20 +578,25 @@ class FreeDataProvider:
             return pd.DataFrame()
 
     async def get_put_call_ratio(self) -> Optional[float]:
-        """Get CBOE put/call ratio (free from CBOE website)."""
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    "https://cdn.cboe.com/data/us/equities/daily_statistics/TotalPutCallRatio.json",
-                    timeout=10,
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if "data" in data and data["data"]:
-                        latest = data["data"][0]
-                        return float(latest.get("P/C Ratio", 0))
-        except Exception as e:
-            logger.warning(f"CBOE put/call ratio fetch failed: {e}")
+        """Get CBOE put/call ratio (free from CBOE website).
+
+        The feed follows CBOE's CDN: cdn.cboe.com 307-redirects to
+        cdn-api.cboe.com (Oct 2026), so try both hosts explicitly.
+        """
+        for host in ("cdn-api.cboe.com", "cdn.cboe.com"):
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(
+                        f"https://{host}/data/us/equities/daily_statistics/TotalPutCallRatio.json",
+                        timeout=10,
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if "data" in data and data["data"]:
+                            latest = data["data"][0]
+                            return float(latest.get("P/C Ratio", 0))
+            except Exception as e:
+                logger.debug(f"CBOE put/call ratio fetch failed on {host}: {e}")
         return None
 
     async def get_active_stock_universe(self, limit: int = 80) -> List[str]:

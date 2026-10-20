@@ -8,9 +8,16 @@ and no rate-limit agreement; the endpoints are the same ones the CBOE
 website's own tables use.
 
 Endpoints:
-  - Options chain:      https://cdn.cboe.com/api/global/delayed_quotes/options/{SYMBOL}.json
-  - Underlying quote:   https://cdn.cboe.com/api/global/delayed_quotes/quotes/{SYMBOL}.json
-  - VIX indices hist:   https://cdn.cboe.com/api/global/us_indices/daily_history/{INDEX}.json
+  - Options chain:      https://cdn-api.cboe.com/api/global/delayed_quotes/options/{SYMBOL}.json
+  - Underlying quote:   https://cdn-api.cboe.com/api/global/delayed_quotes/quotes/{SYMBOL}.json
+  - VIX indices hist:   https://cdn-api.cboe.com/api/global/us_indices/daily_history/{INDEX}.json
+
+Note: CBOE moved the CDN host from cdn.cboe.com (307-redirects now) to
+cdn-api.cboe.com in Oct 2026 — the option-chain and quote endpoints survive
+there, while the us_indices/daily_history and data/us/equities JSON feeds
+returned 403 AccessDenied on the new host, so the VIX term-structure and PCR
+files are effectively retired at the source (free_data's yfinance primary
+for the term structure covers the former; the PCR history simply fails open).
 
 This module is intentionally dependency-free apart from httpx and the standard
 library, so it can also be copied into other projects verbatim.
@@ -18,6 +25,7 @@ library, so it can also be copied into other projects verbatim.
 import asyncio
 import logging
 import math
+import re
 from datetime import datetime, date
 from typing import Dict, Any, List, Optional
 
@@ -25,8 +33,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-CDN_BASE = "https://cdn.cboe.com/api/global/delayed_quotes"
-INDEX_BASE = "https://cdn.cboe.com/api/global/us_indices/daily_history"
+CDN_BASE = "https://cdn-api.cboe.com/api/global/delayed_quotes"
+INDEX_BASE = "https://cdn-api.cboe.com/api/global/us_indices/daily_history"
 
 # The CDN returns a 403 to plain library user agents. A normal browser
 # User-Agent plus the CBOE referer is all that is required to read the same
@@ -113,23 +121,41 @@ class CBOEDataProvider:
                 chain.append(parsed)
         return chain
 
+    _OCC_SYMBOL_RE = re.compile(
+        r"^\s*([A-Z]+)\s*(\d{6})([CP])(\d{8})\s*$"
+    )
+
     def _parse_option(self, option: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if not isinstance(option, dict):
             return None
         expiry = str(option.get("expiry") or "")
         strike = _finite_number(option.get("strike"))
         opt_type = str(option.get("type") or "").upper()
-        if not expiry or strike <= 0:
-            return None
-        # CBOE encodes the type in the option symbol too, e.g. "AAPL 250 C".
-        if opt_type not in ("CALL", "PUT"):
-            option_symbol = str(option.get("option") or "").upper()
-            opt_type = "CALL" if " C " in f" {option_symbol} " else "PUT"
+        raw_contract = str(option.get("option") or "")
+        base_symbol = raw_contract.split()[0] if raw_contract else ""
+        if not expiry or strike <= 0 or opt_type not in ("CALL", "PUT"):
+            # Newer CBOE payloads omit the explicit expiry/strike/type fields
+            # and carry only the OCC contract description, e.g.
+            # "AAPL 261019C00245000" — decode it as the fallback.
+            decoded = self._OCC_SYMBOL_RE.match(raw_contract)
+            if decoded is None:
+                return None
+            base_symbol = decoded.group(1)
+            yymmdd, flag, strike_digits = decoded.group(2), decoded.group(3), decoded.group(4)
+            if not expiry:
+                expiry = f"20{yymmdd[:2]}-{yymmdd[2:4]}-{yymmdd[4:6]}"
+            try:
+                strike = float(int(strike_digits)) / 1000.0
+            except ValueError:
+                strike = 0.0
+            if strike <= 0:
+                return None
+            if opt_type not in ("CALL", "PUT"):
+                opt_type = "CALL" if flag == "C" else "PUT"
         try:
             dte = max((datetime.strptime(expiry, "%Y-%m-%d").date() - date.today()).days, 0)
         except (TypeError, ValueError):
             dte = 0
-        base_symbol = str(option.get("option") or "").split()[0]
         return {
             "symbol": base_symbol,
             "strike": strike,

@@ -81,6 +81,14 @@ SYMBOL_SECTOR = {
 # A candidate must demonstrate strong agreement across the strategy scorer's
 # inputs before it is eligible for the dashboard. Ranking alone is never enough.
 MIN_COMPOSITE_SCORE = 75.0
+# Debit spreads buy premium only when the Brain's IV-Rank ceiling authorizes
+# that (MIN_IV_RANK_BUY=45), which is the opposite side of the same decision
+# — so their composite floor is the scorer's declared baseline, not baseline+5.
+# StrategyScorer documents "Normalize around 70 = baseline"; a 75 floor made
+# every buy structure structurally unreachable over a live 12,530-pair chain
+# sweep (Oct 2026, measured best 69.9) while 946 pairs cleared the execution
+# gate. Premium selling keeps the strict 75 bar — bigger account risk.
+MIN_COMPOSITE_SCORE_DEBIT = 70.0
 MIN_EDGE_SCORE = 60.0
 MIN_PROBABILITY_OF_PROFIT = 55.0
 MIN_PROBABILITY_OF_PROFIT_DEBIT = 45.0
@@ -504,8 +512,13 @@ class TradeRecommender:
             if strategy in ("call_debit", "put_debit")
             else MIN_PROBABILITY_OF_PROFIT
         )
+        min_composite = (
+            MIN_COMPOSITE_SCORE_DEBIT
+            if strategy in ("call_debit", "put_debit")
+            else MIN_COMPOSITE_SCORE
+        )
         if not (
-            score.get("composite_score", 0) >= MIN_COMPOSITE_SCORE
+            score.get("composite_score", 0) >= min_composite
             and score.get("edge_score", 0) >= MIN_EDGE_SCORE
             and roi.get("probability_of_profit", 0) >= min_pop
         ):

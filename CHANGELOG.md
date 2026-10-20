@@ -1,5 +1,37 @@
 # ThetaForge Changelog
 
+## v1.17.22 - 2026-10-20
+
+**The CBOE free feed silently died (host migration + payload flattening) and
+the 75-floor was structurally unreachable for every debit strategy — both
+explanations of the two-month-long zero option trades are fixed and verified
+live.**
+
+- `agents/data_ingestion/cboe_data.py`: CBOE 307-redirects every
+  `cdn.cboe.com/api/global/...` path to the new `cdn-api.cboe.com` host
+  (verified quotes + full chains 200), and the new chain payload dropped the
+  explicit `expiry`/`strike`/`type` fields — rows carry only the OCC contract
+  description. `_parse_option` used to reject every row, so the whole chain
+  came back `[]` and the provider was silently dead. It now decodes the OCC
+  symbol (e.g. `AAPL261220C00245000`) whenever the explicit fields are
+  missing. `agents/data_ingestion/free_data.py`'s `get_put_call_ratio`
+  tries both hosts; the VIX term structure already primaries on yfinance
+  (CBOE's new host 403s its `us_indices/daily_history` JSON), and its
+  duplicated unreachable CBOE-fallback block was removed.
+  Test: `test_option_chain_decodes_occ_only_rows`.
+- `agents/trade_engine/recommender.py`: calibrated the debit-spread composite
+  floor to the scorer's own declared baseline (`MIN_COMPOSITE_SCORE_DEBIT=70`
+  — StrategyScorer documents "Normalize around 70 = baseline"). The uniform
+  75 floor made every buy structure structurally unreachable: a live
+  12,530-pair sweep produced 946 execution-gate-clearing pairs whose best
+  composite was 69.9. Premium selling keeps the strict 75 bar and its
+  IVR≥30 / VIX≤30 / IV>HV / touch / high-winrate / empirical gates are all
+  unchanged. Tests: `test_recommender_debit_composite_floor_is_scorer_baseline`.
+- Live verification on the GCP advisor: CBOE chains back at 3,422 rows for
+  AAPL with 6 expiries in the 14–60 DTE band; gate counters now flow past
+  execution and IVR vetoes into per-family scoring.
+- Full suite green (388 tests). Deployed to the advisor VM and restarted.
+
 ## v1.17.21 - 2026-10-16
 
 **Ledger fills could be overwritten by a later session's order events, and an

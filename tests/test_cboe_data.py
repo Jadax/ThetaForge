@@ -113,3 +113,49 @@ def test_finite_number_defensive_parse():
     assert _finite_number(float("nan")) == 0.0
     assert _finite_number("12.5") == 12.5
     assert _finite_number("nonsense") == 0.0
+
+OCC_ONLY_PAYLOAD = {
+    "data": {
+        "options": [
+            {
+                "option": "AAPL261220C00270000",
+                "bid": 10.1,
+                "ask": 10.6,
+                "iv": 0.44,
+                "open_interest": 1200,
+                "volume": 42,
+            },
+            {
+                "option": "AAPL261220P00240000",
+                "bid": 8.2,
+                "ask": 8.7,
+                "iv": 0.46,
+                "open_interest": 900,
+                "volume": 17,
+            },
+            {"option": "GARBAGE-NOT-OCC", "bid": 1.0},
+        ]
+    }
+}
+
+
+@pytest.mark.anyio
+async def test_option_chain_decodes_occ_only_rows():
+    """CBOE's new API carries only the OCC contract description -- no explicit
+    expiry/strike/type fields. The parser must decode it or the chain is empty
+    and the free feed is silently dead (real production outage Oct 2026)."""
+    provider = CBOEDataProvider()
+    with patch.object(provider, "_get_json", new=AsyncMock(return_value=OCC_ONLY_PAYLOAD)):
+        chain = await provider.get_option_chain("aapl")
+    assert len(chain) == 2
+    call = chain[0]
+    assert call["symbol"] == "AAPL"
+    assert call["expiry"] == "2026-12-20"
+    assert abs(call["strike"] - 270.0) < 1e-6
+    assert call["option_type"] == "CALL"
+    assert call["bid"] == 10.1
+    assert call["open_interest"] == 1200
+    put = chain[1]
+    assert put["expiry"] == "2026-12-20"
+    assert abs(put["strike"] - 240.0) < 1e-6
+    assert put["option_type"] == "PUT"
