@@ -37,11 +37,14 @@ if [ "${1:-}" = "prices" ]; then
 fi
 
 export GIT_SSH_COMMAND="ssh -i /home/ubuntu/.ssh/thetaforge_repo_deploy_key -o IdentitiesOnly=yes"
+# The Bridge venv carries httpx etc. (the refresh pass imports free_data via
+# its provider); the plain system python3 does not.
+PYTHON_BIN="${PYTHON_BIN:-/opt/thetaforge-bridge/venv/bin/python3}"
 
 cd "$MAIN_REPO"
 git pull --ff-only origin main
 
-python3 scripts/sync_journal.py "${SYNC_ARGS[@]}"
+"$PYTHON_BIN" scripts/sync_journal.py "${SYNC_ARGS[@]}"
 
 if git diff --quiet -- journal/trades.json; then
     echo "journal unchanged, nothing to publish"
