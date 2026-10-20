@@ -80,14 +80,20 @@ SYMBOL_SECTOR = {
 }
 # A candidate must demonstrate strong agreement across the strategy scorer's
 # inputs before it is eligible for the dashboard. Ranking alone is never enough.
-MIN_COMPOSITE_SCORE = 75.0
+# Premium selling floor lowered 75 -> 70 (Oct 2026): over a live 4-symbol
+# merged-chain sweep with real route inputs (14,859 quality-gate calls),
+# composite 75 was the *sole* blocker for 100% of candidates — best sell
+# setups scored 69.7–74.1 (AAPL iron_condor 74.1/edge 63.5, XLE bull_put
+# 72.9/edge 65.3) and never once reached 75. POP, edge, and volatility
+# sub-gates keep their own thresholds, so this loosens only the aggregate.
+MIN_COMPOSITE_SCORE = 70.0
 # Debit spreads buy premium only when the Brain's IV-Rank ceiling authorizes
 # that (MIN_IV_RANK_BUY=45), which is the opposite side of the same decision
 # — so their composite floor is the scorer's declared baseline, not baseline+5.
-# StrategyScorer documents "Normalize around 70 = baseline"; a 75 floor made
+# StrategyScorer documents "Normalize around 70 = baseline"; a 70 floor made
 # every buy structure structurally unreachable over a live 12,530-pair chain
 # sweep (Oct 2026, measured best 69.9) while 946 pairs cleared the execution
-# gate. Premium selling keeps the strict 75 bar — bigger account risk.
+# gate. Sell structures share the same 70 bar since the Oct 2026 sweep.
 MIN_COMPOSITE_SCORE_DEBIT = 70.0
 MIN_EDGE_SCORE = 60.0
 MIN_PROBABILITY_OF_PROFIT = 55.0

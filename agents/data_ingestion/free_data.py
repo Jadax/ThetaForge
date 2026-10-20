@@ -344,23 +344,30 @@ class FreeDataProvider:
         return None
 
     async def get_option_chain(self, symbol: str) -> List[Dict[str, Any]]:
-        """Get full option chain. IBKR (via the VM's own market-data proxy)
-        is the priority source when configured, since it's the account's own
-        live-ish OPRA feed rather than a shared public endpoint.
-
-        Falls back to the free CBOE delayed-quotes feed (full Greeks, no API
-        key, 15-minute delayed NBBO) and then to yfinance.
-        """
+        """Get a merged full option chain. IBKR (via the VM's own market-data
+        proxy) is the priority executable-quote source when configured, since
+        it's the account's own delayed OPRA feed rather than a shared public
+        endpoint. CBOE (no API key, real open interest) is merged in for
+        liquidity fields; yfinance is the last-resort fallback."""
         ibkr_chain = await self._get_ibkr_proxy_chain(symbol)
-        if ibkr_chain:
-            return ibkr_chain
-
+        # IBKR's delayed feed supplies executable bid/ask and volume but NO
+        # open interest (the OPRA-delivery band this account gets does not
+        # include OI), while CBOE is the reverse (OI everywhere, quotes on a
+        # thin band). When both responded, merge row-wise on
+        # (expiry, strike, option_type): liquid-quote fields come from IBKR,
+        # open interest and fallback quotes from CBOE.
+        cboe_chain: List[Dict[str, Any]] = []
         try:
-            chain = await self.cboe.get_option_chain(symbol)
-            if chain:
-                return chain
+            cboe_chain = await self.cboe.get_option_chain(symbol)
         except Exception as error:
             logger.debug("CBOE chain unavailable for %s: %s", symbol, error)
+
+        if ibkr_chain and cboe_chain:
+            return self._merge_chains(ibkr_chain, cboe_chain)
+        if ibkr_chain:
+            return ibkr_chain
+        if cboe_chain:
+            return cboe_chain
 
         try:
             def fetch_chain() -> List[Dict[str, Any]]:
@@ -659,6 +666,47 @@ class FreeDataProvider:
             if isinstance(result, (int, float)):
                 perf[sectors[name]] = result
         return perf
+
+    @staticmethod
+    def _merge_chains(broker_chain: List[Dict[str, Any]], free_chain: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Row-wise merge of the broker chain (live bid/ask, no OI) with the
+        free chain (real OI, sparse quotes). Keys are
+        (expiry, strike, option_type). For each field the first non-zero
+        value wins in the order [broker, free], except open_interest where
+        the free source is preferred because the broker band carries none."""
+        merged_rows: Dict[tuple, Dict[str, Any]] = {}
+        for row in free_chain:
+            key = (str(row.get("expiry") or ""), round(float(row.get("strike") or 0), 6),
+                   str(row.get("option_type") or ""))
+            if key not in merged_rows:
+                merged_rows[key] = dict(row)
+
+        results: List[Dict[str, Any]] = []
+        consumed_free_keys = set()
+        for row in broker_chain:
+            key = (str(row.get("expiry") or ""), round(float(row.get("strike") or 0), 6),
+                   str(row.get("option_type") or ""))
+            free_row = merged_rows.get(key)
+            if free_row is None:
+                results.append(dict(row))
+                continue
+            merged = dict(row)
+            for field in ("implied_volatility", "delta", "gamma", "theta", "vega"):
+                if not merged.get(field):
+                    merged[field] = free_row.get(field)
+            merged["open_interest"] = int(free_row.get("open_interest") or merged.get("open_interest") or 0)
+            merged["volume"] = int(merged.get("volume") or free_row.get("volume") or 0)
+            for quote_field in ("bid", "ask", "last"):
+                if not merged.get(quote_field):
+                    merged[quote_field] = free_row.get(quote_field)
+            merged["symbol"] = merged.get("symbol") or free_row.get("symbol")
+            results.append(merged)
+            consumed_free_keys.add(key)
+
+        for key, free_row in merged_rows.items():
+            if key not in consumed_free_keys:
+                results.append(dict(free_row))
+        return results
 
     def _parse_yf_option(self, row, expiry: str, opt_type: str) -> Dict[str, Any]:
         # Yahoo frequently represents unavailable option fields as NaN. A

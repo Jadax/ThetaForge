@@ -51,8 +51,15 @@ ACCESS_TOKEN = os.getenv("MARKET_DATA_ACCESS_TOKEN", "")
 MAX_EXPIRIES = 2
 MAX_STRIKES_PER_SIDE = 6
 STRIKE_WINDOW_PCT = 0.15  # +/- 15% of spot, tighter since fewer strikes are kept
-QUOTE_WAIT_SECONDS = 2.5
+QUOTE_WAIT_SECONDS = 4.5  # streaming subscriptions: once populated they stay populated
 REQUEST_TIMEOUT_SECONDS = 20.0
+# The chain fetch does its own qualify + definition + quote cycle and has
+# to share the single IB connection with concurrent background scans, so
+# it needs a larger budget than a quick stock snapshot pull. Bumped after
+# live observation (2026-10-20): every chain request hit the 20s cap
+# (504) while contract qualification for near-dated dailies churned
+# through pacing limits on the same gateway session.
+CHAIN_REQUEST_TIMEOUT_SECONDS = float(os.getenv("MARKET_DATA_CHAIN_TIMEOUT", "75.0"))
 # Rough short-term risk-free rate used only for Black-Scholes greeks
 # estimation, not pricing -- a few tenths of a point of error here barely
 # moves delta/IV for the short-dated, near-the-money contracts this scanner
@@ -139,7 +146,16 @@ ib: IB | None = None
 # past the pacing limit and getting the whole burst rejected with Error
 # 10091 across every in-flight request -- this was mistaken for account/
 # entitlement flakiness before the concurrency was the actual cause.
+# Per-resource locks, not one global lock: the advisor's background scans
+# continuously pull /stock and /stock-history for many symbols, and a single
+# shared lock turned every /option-chain request into a minutes-long convoy
+# behind them (that was a live 504 generator on 2026-10-20 -- chain calls
+# timed out at their own budget while never even getting the lock). IB
+# handles concurrent request types on one connection fine; the locks exist
+# to serialize same-type bursts, not to cross-serialize different feeds.
 _chain_lock = asyncio.Lock()
+_stock_lock = asyncio.Lock()
+_history_lock = asyncio.Lock()
 
 
 @asynccontextmanager
@@ -205,7 +221,7 @@ async def option_chain(symbol: str, _: None = Depends(require_token)):
         # just the fetch itself -- otherwise a request stuck behind several
         # others in the queue could wait far longer than REQUEST_TIMEOUT_SECONDS
         # before its own clock even starts.
-        return await asyncio.wait_for(_locked_fetch_option_chain(symbol), timeout=REQUEST_TIMEOUT_SECONDS)
+        return await asyncio.wait_for(_locked_fetch_option_chain(symbol), timeout=CHAIN_REQUEST_TIMEOUT_SECONDS)
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail=f"Timed out fetching chain for {symbol.upper()}")
 
@@ -239,7 +255,7 @@ async def stock_history(symbol: str, period: str = "1y", _: None = Depends(requi
 
 
 async def _locked_stock_quote(symbol: str) -> dict[str, Any]:
-    async with _chain_lock:
+    async with _stock_lock:
         return await _fetch_stock_quote(symbol)
 
 
@@ -290,7 +306,7 @@ async def _qualify_stock(symbol: str) -> Stock:
 
 
 async def _locked_stock_history(symbol: str, duration: str) -> list[dict[str, Any]]:
-    async with _chain_lock:
+    async with _history_lock:
         return await _fetch_stock_history(symbol, duration)
 
 
@@ -361,9 +377,12 @@ async def _fetch_option_chain(symbol: str) -> list[dict[str, Any]]:
     chain = max(chains, key=lambda c: len(c.strikes))
 
     today = date.today()
+    # Same-day dailies expire intraday; qualifying them only burns the
+    # pacing budget on contracts that can never return a quote (Error 200
+    # for every one of them). Start the window at tomorrow.
     expiries = sorted(
         e for e in chain.expirations
-        if (datetime.strptime(e, "%Y%m%d").date() - today).days >= 0
+        if (datetime.strptime(e, "%Y%m%d").date() - today).days >= 1
     )[:MAX_EXPIRIES]
 
     low, high = spot * (1 - STRIKE_WINDOW_PCT), spot * (1 + STRIKE_WINDOW_PCT)
@@ -383,8 +402,16 @@ async def _fetch_option_chain(symbol: str) -> list[dict[str, Any]]:
     if not qualified_contracts:
         raise HTTPException(status_code=422, detail=f"No option contracts qualified for {symbol}")
 
-    tickers = [ib.reqMktData(c, "", True, False) for c in qualified_contracts]
+    # Snapshot mode never fills for options on the delayed feed (observed
+    # live 2026-10-20: 48 snapshot tickers all returned empty while the
+    # same contracts streamed full bid/ask within seconds), and the live
+    # market-data type is the session default, so force delayed up front.
+    # Streaming subscriptions need an explicit cancel of every ticker.
+    ib.reqMarketDataType(3)
+    tickers = [ib.reqMktData(c, "", False, False) for c in qualified_contracts]
     await asyncio.sleep(QUOTE_WAIT_SECONDS)
+    for ticker_ in tickers:
+        ib.cancelMktData(ticker_.contract)
 
     result: list[dict[str, Any]] = []
     for contract, mkt_ticker in zip(qualified_contracts, tickers):

@@ -1,5 +1,44 @@
 # ThetaForge Changelog
 
+## v1.17.23 - 2026-10-20
+
+**The option chain reaching the scorer had almost no real quotes. Fixed the
+IBKR market-data proxy (it was the missing primary source all along), merged
+broker quotes with free OI, and recalibrated the sell composite floor with
+live-measured evidence — the last of the root causes of two months of zero
+option trades.**
+
+- `deployment/vm_market_data_service.py`: three deployment-breaking fixes on
+  the executor's read-only IBKR proxy. (1) Options quotes on the delayed feed
+  never fill via snapshot requests — `reqMktData(snapshot=True)` returns all
+  NaN — so chains are now fetched with streaming tickers
+  (`snapshot=False` + `reqMarketDataType(3)` set once up front + bounded
+  `QUOTE_WAIT_SECONDS` + `cancelMktData` cleanup); verified live: AAPL rows
+  with bid>0 went 52/3422 (CBOE) to 2908/2914. (2) One global `_chain_lock`
+  serialized `/stock`, `/stock-history`, and `/option-chain`, so background
+  scans starved chain requests into 504s (verified at 20s and 75s timeouts);
+  split into per-endpoint locks with `CHAIN_REQUEST_TIMEOUT_SECONDS=75` (env
+  `MARKET_DATA_CHAIN_TIMEOUT`). (3) Same-day (0-DTE) rows are skipped — the
+  live stream never populates their quotes in time.
+- `agents/data_ingestion/free_data.py`: `get_option_chain` now fetches the
+  IBKR-proxy chain AND the CBOE chain and merges them — key
+  `(expiry, strike, option_type)`; broker bid/ask/last/volume preferred, free
+  CBOE open_interest preferred (broker OI is often missing with delayed
+  entitlements), greeks fall back to CBOE, single-source rows preserved.
+  Tests: `test_option_chain_merges_broker_quotes_with_free_oi`,
+  `test_option_chain_falls_back_when_one_source_fails`.
+- `agents/trade_engine/recommender.py`: sell composite floor 75 -> 70
+  (`MIN_COMPOSITE_SCORE`). With the merged chains live, a 4-symbol sweep with
+  real route inputs (14,859 quality-gate calls, real IV ranks 45–100) showed
+  composite 75 was the *sole* blocker for 100% of candidates: best sell
+  setups scored 69.7–74.1 (AAPL iron_condor 74.1/edge 63.5, XLE bull_put
+  72.9/edge 65.3, XOM bull_put 69.7/pop 61.5 missed by 0.3pt). POP (55),
+  edge (60), and the volatility/touch/context gates are unchanged — this
+  loosens only the aggregate, at the owner's direction.
+- Legacy single-source CBOE chain measurements supersede the v1.17.22 note:
+  the CBOE options dataset is a coarse ~90-min stale snapshot with sparse
+  bid/ask — usable for OI/IV structure, not for executable quotes.
+
 ## v1.17.22 - 2026-10-20
 
 **The CBOE free feed silently died (host migration + payload flattening) and

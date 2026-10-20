@@ -33,3 +33,69 @@ async def test_ibkr_history_matches_yfinance_ohlcv_contract(monkeypatch):
 
     assert list(frame.columns) == ["Open", "High", "Low", "Close", "Volume"]
     assert frame["Close"].tolist() == [100.0, 101.0]
+
+
+@pytest.mark.asyncio
+async def test_option_chain_merges_broker_quotes_with_free_oi(monkeypatch):
+    provider = FreeDataProvider()
+
+    broker_chain = [
+        {"symbol": "AAPL", "strike": 350.0, "expiry": "2026-10-23", "dte": 3,
+         "option_type": "PUT", "bid": 1.10, "ask": 1.20, "last": 1.15,
+         "volume": 900, "open_interest": 0, "implied_volatility": 0.31,
+         "delta": -0.35, "gamma": None, "theta": None, "vega": None},
+    ]
+    free_chain = [
+        {"symbol": "AAPL", "strike": 350.0, "expiry": "2026-10-23", "dte": 3,
+         "option_type": "PUT", "bid": 0.0, "ask": 0.0, "last": 0.0,
+         "volume": 0, "open_interest": 4500, "implied_volatility": 0.30,
+         "delta": -0.34, "gamma": 0.01, "theta": -0.02, "vega": 0.08},
+        {"symbol": "AAPL", "strike": 345.0, "expiry": "2026-10-23", "dte": 3,
+         "option_type": "PUT", "bid": 0.5, "ask": 0.6, "last": 0.55,
+         "volume": 10, "open_interest": 1200, "implied_volatility": 0.29,
+         "delta": -0.25, "gamma": 0.01, "theta": -0.02, "vega": 0.08},
+    ]
+
+    async def fake_broker(symbol):
+        return broker_chain
+
+    async def fake_cboe(symbol):
+        return free_chain
+
+    monkeypatch.setattr(provider, "_get_ibkr_proxy_chain", fake_broker)
+    monkeypatch.setattr(provider.cboe, "get_option_chain", fake_cboe)
+
+    merged = await provider.get_option_chain("AAPL")
+    by_key = {(r["expiry"], r["strike"], r["option_type"]): r for r in merged}
+    assert len(merged) == 2
+    row = by_key[("2026-10-23", 350.0, "PUT")]
+    assert row["bid"] == 1.10 and row["ask"] == 1.20
+    assert row["open_interest"] == 4500
+    assert row["implied_volatility"] == 0.31
+    assert row["gamma"] == 0.01
+    assert row["volume"] == 900
+    assert by_key[("2026-10-23", 345.0, "PUT")]["bid"] == 0.5
+
+
+@pytest.mark.asyncio
+async def test_option_chain_falls_back_when_one_source_fails(monkeypatch):
+    provider = FreeDataProvider()
+
+    async def broken_broker(symbol):
+        return None
+
+    free_chain = [
+        {"symbol": "AAPL", "strike": 345.0, "expiry": "2026-10-23", "dte": 3,
+         "option_type": "PUT", "bid": 0.5, "ask": 0.6, "last": 0.55,
+         "volume": 10, "open_interest": 1200, "implied_volatility": 0.29,
+         "delta": -0.25, "gamma": None, "theta": None, "vega": None},
+    ]
+
+    async def fake_cboe(symbol):
+        return free_chain
+
+    monkeypatch.setattr(provider, "_get_ibkr_proxy_chain", broken_broker)
+    monkeypatch.setattr(provider.cboe, "get_option_chain", fake_cboe)
+
+    merged = await provider.get_option_chain("AAPL")
+    assert merged == free_chain

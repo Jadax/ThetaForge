@@ -342,10 +342,10 @@ def test_low_volume_filtered():
 
 def test_recommender_uses_strict_dashboard_score_floor():
     """Only strong, independently qualified setups may reach the dashboard."""
-    assert MIN_COMPOSITE_SCORE == 75.0
+    assert MIN_COMPOSITE_SCORE == 70.0
     recommender = TradeRecommender()
-    assert recommender._passes_quality_gate({"composite_score": 75, "edge_score": 60}, {"probability_of_profit": 55})
-    assert not recommender._passes_quality_gate({"composite_score": 75, "edge_score": 59}, {"probability_of_profit": 80})
+    assert recommender._passes_quality_gate({"composite_score": 70, "edge_score": 60}, {"probability_of_profit": 55})
+    assert not recommender._passes_quality_gate({"composite_score": 70, "edge_score": 59}, {"probability_of_profit": 80})
     assert not recommender._passes_quality_gate({"composite_score": 80, "edge_score": 80}, {"probability_of_profit": 54})
 
 def test_recommender_debit_composite_floor_is_scorer_baseline():
@@ -366,13 +366,14 @@ def test_recommender_debit_composite_floor_is_scorer_baseline():
         "call_debit", None,
     )
     assert not recommender._passes_quality_gate(
-        {"composite_score": 74, "edge_score": 60},
-        {"probability_of_profit": 60},
-        "put_debit", {"iv_rank": 50},
+        {"composite_score": 69, "edge_score": 60},
+        {"probability_of_profit": 45},
+        "call_debit", None,
     )
-    # Sell family keeps the strict 75 bar.
+    # Sell family shares the 70 bar since the Oct 2026 live sweep showed 75
+    # was the sole blocker for 100% of real-chain sell candidates.
     assert not recommender._passes_quality_gate(
-        {"composite_score": 70, "edge_score": 60},
+        {"composite_score": 69.9, "edge_score": 60},
         {"probability_of_profit": 55},
         "bull_put", {"iv_rank": 50, "vix": 20, "iv": 0.35, "hv_20": 0.30},
     )
