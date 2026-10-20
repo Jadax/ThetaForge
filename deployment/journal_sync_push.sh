@@ -46,14 +46,13 @@ git pull --ff-only origin main
 
 "$PYTHON_BIN" scripts/sync_journal.py "${SYNC_ARGS[@]}"
 
-if git diff --quiet -- journal/trades.json; then
-    echo "journal unchanged, nothing to publish"
-    exit 0
+if ! git diff --quiet -- journal/trades.json; then
+    git add journal/trades.json
+    git commit -m "Auto-sync journal from VM paper-order ledger ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+    git push origin main
 fi
-
-git add journal/trades.json
-git commit -m "Auto-sync journal from VM paper-order ledger ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
-git push origin main
+# The mirror below must run even when trades.json is unchanged, so that
+# journal/ frontend changes (app.js, styles.css, ...) reach the live site too.
 
 cd "$PAGES_REPO"
 git pull --ff-only origin gh-pages

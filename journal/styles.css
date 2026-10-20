@@ -656,3 +656,4 @@ footer span { color: var(--accent); }
 .journal-pnl.not-yet small { color: var(--open); }
 .journal-pnl.not-yet b { color: var(--open); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 17px; }
 .trade-row-pnl small { display: block; font-size: 9px; color: inherit; opacity: 0.75; font-variant-numeric: tabular-nums; font-weight: 700; }
+.journey-marker.live.tight small { display: none; }

@@ -33,7 +33,9 @@ TWS.**
   pass `--refresh-prices`; the event-driven fill/close path stays argument-free
   and sync-only. The executor VM now runs a systemd timer invoking
   `journal_sync_push.sh prices` hourly during market hours so open positions
-  get fresh marks even when nothing trades.
+  get fresh marks even when nothing trades. The gh-pages mirror step now runs
+  even when trades.json is unchanged, so journal/ frontend changes reach the
+  live site on their own.
 
 ## v1.17.23 - 2026-10-20
 
