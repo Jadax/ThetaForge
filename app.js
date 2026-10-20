@@ -890,7 +890,10 @@
       marker(0, geo.labels.entry, "entry") +
       (geo.tpPnl != null ? marker(geo.tpPnl, geo.labels.tp, "tp") : "") +
       marker(geo.targetPnl, geo.labels.target, "extreme target");
-    var markersHtml = mark ? markers + marker(geo.now, "now", "live") : markers;
+    var markersHtml = mark
+      ? markers + marker(geo.now, "now",
+          "live" + (Math.abs(nowX - entryX) < 7 ? " tight" : ""))
+      : markers;
     return (
       "<div class='journey-bar' role='img' aria-label='Position journey from a " +
       esc(geo.labels.low) + " to a " + esc(geo.labels.target) + ", currently " +
@@ -914,6 +917,12 @@
     var minV = Math.min.apply(null, values);
     var maxV = Math.max.apply(null, values);
     if (maxV - minV < 1e-9) { maxV += 1; minV -= 1; }
+    // Pad the range 30% each side; with only a couple of trail points the
+    // raw min/max would stretch a 0.1% move across the full chart height
+    // and read as a major trend.
+    var padV = (maxV - minV) * 0.3;
+    minV -= padV;
+    maxV += padV;
     var W = 320, H = 52, PAD = 6;
     var xAt = function (i) { return PAD + (i / (trail.length - 1)) * (W - PAD * 2); };
     var yAt = function (v) { return H - PAD - ((v - minV) / (maxV - minV)) * (H - PAD * 2); };
