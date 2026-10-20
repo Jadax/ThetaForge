@@ -625,6 +625,10 @@ def test_refresh_overlays_live_and_trail_on_open_equity(tmp_path):
     trade = json.loads(journal_path.read_text(encoding="utf-8"))["trades"][0]
     assert trade["live"]["price"] == 104.2
     assert trade["live"]["kind"] == "stock"
+    # (104.2 - 100.0) * 10 shares, against 40 of risk (100-96)*10.
+    assert trade["live"]["pnl"] == 42.0
+    assert trade["live"]["pnl_pct"] == 105.0
+    assert trade["live"]["r"] == 1.05
     # Trail is seeded from the actual entry fill, then the live point.
     prices = [point["price"] for point in trade["price_trail"]]
     assert prices[0] == 100.0
@@ -692,6 +696,10 @@ def test_option_spread_mark_is_scored_leg_mids(tmp_path):
     # sell leg mid 2.15 minus buy leg mid 0.50, netted per contract
     assert trade["live"]["price"] == 1.65
     assert trade["live"]["kind"] == "spread"
+    # entered at a 3.00 credit/contract, now worth 1.65: +1.35 * 100 * 1 qty.
+    assert trade["live"]["pnl"] == 135.0
+    assert trade["live"]["pnl_pct"] == 9.0
+    assert trade["live"]["r"] == 0.09
 
 
 def test_option_mark_requires_both_legs(tmp_path):

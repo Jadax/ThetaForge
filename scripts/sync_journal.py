@@ -387,6 +387,55 @@ def _option_mark(chain: list, legs: list) -> Optional[float]:
     return mark
 
 
+def _live_panel(entry: dict, mark: float, kind: str) -> dict:
+    """The `live` overlay: mark + unrealized P&L, all in published units.
+
+    Equity: mark is the stock price; P&L is (mark - entry) * shares.
+    Option spreads: mark is the signed credit view (SELL mids minus BUY
+    mids), which for a credit spread is the current cost to close and for a
+    debit spread its negated value; P&L is (entry credit - mark) * 100 * qty.
+    pct/R reference capital_at_risk, so both share the client's journey
+    geometry without re-deriving anything VM-side.
+    """
+    panel = {"price": round(mark, 3) if kind == "spread" else round(mark, 2),
+             "kind": kind}
+    pnl = None
+    if kind == "stock":
+        entry_price = entry.get("entry_price")
+        if entry_price and float(entry_price) > 0:
+            order = entry.get("order") or {}
+            shares = order.get("quantity") or entry.get("shares") or entry.get(
+                "quantity") or entry.get("filled")
+            try:
+                if shares and float(shares) > 0:
+                    pnl = (float(mark) - float(entry_price)) * float(shares)
+            except (TypeError, ValueError):
+                pnl = None
+    else:
+        order = entry.get("order") or {}
+        credit = order.get("net_credit")
+        if credit is None:
+            credit = entry.get("net_credit")
+        qty = order.get("quantity") or entry.get("quantity") or entry.get("filled")
+        if credit is not None and qty and float(qty) > 0:
+            # net_credit is ledger dollars already scaled by the option
+            # multiplier; the leg-mid mark is a raw per-contract premium,
+            # so scale it back up before netting.
+            entry_value = float(credit) / float(qty)
+            pnl = (entry_value - float(mark) * 100.0) * float(qty)
+    if pnl is not None:
+        panel["pnl"] = round(pnl, 2)
+        risk = entry.get("capital_at_risk")
+        try:
+            risk = float(risk) if risk else 0.0
+        except (TypeError, ValueError):
+            risk = 0.0
+        if risk > 0:
+            panel["pnl_pct"] = round(pnl / risk * 100.0, 1)
+            panel["r"] = round(pnl / risk, 3)
+    return panel
+
+
 async def _refresh_entries(entries: list) -> tuple[int, int]:
     """Overlay `live` marks and append `price_trail` points on open entries.
 
@@ -416,7 +465,8 @@ async def _refresh_entries(entries: list) -> tuple[int, int]:
             skipped += 1
             continue
         rounded = round(mark, 4)
-        entry["live"] = {"price": rounded, "at": now.isoformat(timespec="seconds"), "kind": kind}
+        entry["live"] = _live_panel(entry, rounded, kind)
+        entry["live"]["at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         trail = list(entry.get("price_trail") or [])
         if not trail:
             seed_price, seed_at = _entry_mark_reference(entry)
