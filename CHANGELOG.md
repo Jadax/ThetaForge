@@ -1,5 +1,40 @@
 # ThetaForge Changelog
 
+## v1.17.24 - 2026-10-20
+
+**The public journal now shows where an open trade actually stands: a live
+price mark, unrealized P&L, a stop→entry→target journey bar, and a mark-to-market
+sparkline — closing the loop so the position state is visible without opening
+TWS.**
+
+- `scripts/sync_journal.py`: new `--refresh-prices` pass that asks the
+  free/IBKR data providers for a current mark on every open entry and bakes
+  two overlays into the published `journal/trades.json` — `live`
+  (price/cost-to-close, unrealized P&L in dollars and as % of risk and R,
+  timestamp, kind) and `price_trail` (capped at 240 snapshots, deduped at a
+  30-minute / 0.1% move granularity, seeded from the entry fill so the
+  sparkline always has its first point even on the day of the fill). Equity
+  marks come from `get_stock_price`; option marks are scored from both
+  vertical's leg mids as the current cost to close, and never fabricated —
+  any unquotable leg (or a failed fetch) keeps the trade card on its previous
+  mark, so a provider outage degrades gracefully instead of scrubbing the
+  site.
+- `journal/app.js` + `styles.css`: open cards (and collapsed rows) render the
+  mark — current price in the CURRENT meta cell with the time it was taken
+  and the P&L since entry, an UNREALIZED block on the card head (pnl, % of
+  risk, R, mark time), a journey bar from the defined stop (−1R) through
+  entry to the target (equity: 2R; options: full credit with the 50%
+  take-profit ticked), a sparkline of the retained mark trail with the entry
+  line dotted in, "now" markers, and an aggregate unrealized figure in the
+  headline. Cards/rows re-render state-preserving on a 5-minute same-origin
+  re-fetch of `trades.json`, so an open tab is never more than ~5 minutes
+  behind the last published snapshot.
+- `deployment/journal_sync_push.sh`: accepts `prices` as first argument to
+  pass `--refresh-prices`; the event-driven fill/close path stays argument-free
+  and sync-only. The executor VM now runs a systemd timer invoking
+  `journal_sync_push.sh prices` hourly during market hours so open positions
+  get fresh marks even when nothing trades.
+
 ## v1.17.23 - 2026-10-20
 
 **The option chain reaching the scorer had almost no real quotes. Fixed the

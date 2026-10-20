@@ -22,6 +22,15 @@ paper-order ledger (data/paper_order_ledger.json). This script:
     at recommendation time when the ledger record does not carry its own,
   * keeps user-authored entries that have no `source_id` (manual trades added
     via the CLI) untouched,
+  * with `--refresh-prices`, fetches a delayed quote for every open position
+    (stock price for equity legs, leg-scored chain mark for option spreads)
+    via the same free-provider stack the scanners use, and overlays it as
+    `live` plus an appended `price_trail` snapshot history. Snapshots are
+    appended at most every 30 minutes or when the price moves >= 0.1%, and
+    the trail is capped, so the public site can render current P&L, the
+    stop/target journey, and a since-entry sparkline without any client-side
+    quote API. A failed fetch keeps the previously published values — a
+    mark is never fabricated.
   * recomputes nothing stored (metrics are computed at render time),
   * writes journal/trades.json with `as_of` set to today.
 
@@ -34,7 +43,7 @@ import argparse
 import hashlib
 import json
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -48,6 +57,27 @@ DEFAULT_JOURNAL = REPO_ROOT / "journal" / "trades.json"
 DEFAULT_LEDGER = REPO_ROOT / "data" / "paper_order_ledger.json"
 
 EXCLUDED_STATUSES = {"ApiCancelled", "Cancelled", "Inactive", "PendingCancel"}
+
+# Live-mark refresh (--refresh-prices). The trail feeds the public journal's
+# current-P&L overlay, the stop/target journey and the since-entry sparkline;
+# points are appended hourly-ish by the VM's journal timer, so dedupe to
+# market-meaningful movement only.
+PRICE_TRAIL_CAP = 240          # ~10 market days of in-session hourly points
+TRAIL_MIN_GAP_SECONDS = 1800   # append anyway after 30 min, else only on movement
+TRAIL_MIN_DELTA_PCT = 0.001    # 0.1% price movement counts as movement
+
+
+def _default_provider_factory():
+    """Builds the shared free-data provider (IBKR proxy > CBOE > yfinance).
+
+    Imported lazily so the plain journal rebuild never pays the yfinance
+    import. Tests monkeypatch `provider_factory` instead.
+    """
+    from agents.data_ingestion.free_data import FreeDataProvider
+    return FreeDataProvider()
+
+
+provider_factory = _default_provider_factory
 
 # Liquid broad-market/sector ETFs — the equity universe's rotation core
 # (agents/equity_trader/equity_universe.py LIQUID_ETF_CORE). Kept in sync so the
@@ -218,7 +248,8 @@ def build_entry(record: dict, overlay: dict) -> dict:
         "timestamp": record.get("updated_at") or submitted_at,
     }
     for key in ("entry_ivr", "expected_move_pct", "dte_at_entry", "net_pnl",
-                "net_pnl_pct", "capital_at_risk", "max_profit"):
+                "net_pnl_pct", "capital_at_risk", "max_profit",
+                "live", "price_trail"):
         if overlay.get(key) is not None:
             base[key] = overlay[key]
     for key in ("closed", "status", "reason", "research", "tags", "exit_note",
@@ -277,6 +308,124 @@ def _apply_close(entry: dict, close: dict) -> None:
     entry["exit_note"] = _exit_note(reason)
     entry["close_order"] = _order_block(close)
     entry["timestamp"] = close.get("updated_at") or close_submitted
+
+
+def _entry_mark_reference(entry: dict) -> tuple[Optional[float], Optional[str]]:
+    """The (price, timestamp) the trail should be seeded from: the actual
+    fill for an equity leg, the per-contract entry credit for a spread."""
+    if entry.get("asset_class") == "equity":
+        price = entry.get("entry_price")
+        if price:
+            return float(price), str(entry.get("opened") or "")
+        return None, None
+    order = entry.get("order") or {}
+    credit = order.get("net_credit")
+    qty = float(order.get("quantity") or 0)
+    if credit and qty > 0:
+        return abs(float(credit)) / qty, str(entry.get("opened") or "")
+    return None, None
+
+
+def _should_trail(existing: list, price: float, now: datetime) -> bool:
+    """Trail sparsely: skip a point when nothing moved and the gap is short."""
+    if not existing:
+        return True
+    last = existing[-1]
+    last_price = last.get("price")
+    try:
+        moved = abs(float(price) - float(last_price)) >= TRAIL_MIN_DELTA_PCT * abs(float(last_price))
+    except (TypeError, ValueError):
+        moved = True
+    if moved:
+        return True
+    last_at = str(last.get("at") or "")
+    try:
+        gap = (now - datetime.fromisoformat(last_at.replace("Z", "+00:00"))).total_seconds()
+        return gap >= TRAIL_MIN_GAP_SECONDS
+    except ValueError:
+        return True
+
+
+def _option_mark(chain: list, legs: list) -> Optional[float]:
+    """Per-contract mid mark of a vertical spread from the merged chain:
+    SELL legs add, BUY legs subtract. Any unquotable leg yields None —
+    a partial mark would silently misstate the position."""
+    if not chain or not legs:
+        return None
+    mark = 0.0
+    for leg in legs:
+        expiry = str(leg.get("expiry") or "")
+        try:
+            strike = float(leg.get("strike") or 0)
+        except (TypeError, ValueError):
+            return None
+        option_type = str(leg.get("type") or "").upper()
+        row = None
+        for candidate in chain:
+            if (str(candidate.get("expiry") or "") == expiry
+                    and abs(float(candidate.get("strike") or 0) - strike) < 1e-6
+                    and str(candidate.get("option_type") or "").upper() == option_type):
+                row = candidate
+                break
+        if row is None:
+            return None
+        try:
+            bid, ask = float(row.get("bid") or 0), float(row.get("ask") or 0)
+            mid = (bid + ask) / 2.0 if (bid > 0 and ask > 0) else float(row.get("last") or 0)
+        except (TypeError, ValueError):
+            return None
+        if mid <= 0:
+            return None
+        mark += mid if str(leg.get("action", "SELL")).upper() == "SELL" else -mid
+    return mark
+
+
+async def _refresh_entries(entries: list) -> tuple[int, int]:
+    """Overlay `live` marks and append `price_trail` points on open entries.
+
+    Returns (refreshed, skipped). A skipped entry keeps its previously
+    published `live`/`price_trail` overlay verbatim — never a fabricated mark.
+    """
+    now = datetime.now(timezone.utc)
+    provider = provider_factory()
+    refreshed = skipped = 0
+    for entry in entries:
+        if entry.get("status") == "closed" or not entry.get("symbol"):
+            continue
+        symbol = str(entry["symbol"]).upper()
+        try:
+            if entry.get("asset_class") == "equity":
+                price = await provider.get_stock_price(symbol)
+                mark = float(price) if price and float(price) > 0 else None
+                kind = "stock"
+            else:
+                chain = await provider.get_option_chain(symbol)
+                mark = _option_mark(chain, entry.get("legs") or [])
+                kind = "spread"
+        except Exception:
+            skipped += 1
+            continue
+        if mark is None or mark <= 0:
+            skipped += 1
+            continue
+        rounded = round(mark, 4)
+        entry["live"] = {"price": rounded, "at": now.isoformat(timespec="seconds"), "kind": kind}
+        trail = list(entry.get("price_trail") or [])
+        if not trail:
+            seed_price, seed_at = _entry_mark_reference(entry)
+            if seed_price:
+                trail.append({"at": seed_at, "price": round(seed_price, 4)})
+        if _should_trail(trail, rounded, now):
+            trail.append({"at": now.isoformat(timespec="seconds"), "price": rounded})
+        entry["price_trail"] = trail[-PRICE_TRAIL_CAP:]
+        refreshed += 1
+    return refreshed, skipped
+
+
+def _refresh_live_marks(entries: list) -> tuple[int, int]:
+    """Sync entry point for the price refresh (the generators above are async)."""
+    import asyncio
+    return asyncio.run(_refresh_entries(entries))
 
 
 def _standalone_close_entry(close: dict) -> dict:
@@ -362,6 +511,14 @@ def sync(args: argparse.Namespace) -> int:
         else:
             entries.append(_standalone_close_entry(close))
 
+    refreshed = 0
+    if args.refresh_prices:
+        try:
+            refreshed, skipped = _refresh_live_marks(entries)
+            print(f"  live marks: {refreshed} refreshed, {skipped} kept from the last snapshot")
+        except Exception as error:
+            print(f"  live mark refresh failed (kept previous overlays): {error}")
+
     entries.sort(key=lambda trade: (trade.get("opened", ""), trade.get("timestamp", "")))
     entries.reverse()
 
@@ -408,6 +565,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--journal", type=Path, default=DEFAULT_JOURNAL)
     parser.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER)
+    parser.add_argument(
+        "--refresh-prices", action="store_true",
+        help="Fetch delayed marks for open positions (stock price / leg-scored "
+             "option chain mid) and overlay live + trail price history onto the "
+             "journal. Used by the VM's hourly journal timer; a failed fetch "
+             "keeps the previously published values.")
     args = parser.parse_args(argv)
     return sync(args)
 

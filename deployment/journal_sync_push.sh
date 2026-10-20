@@ -15,11 +15,22 @@
 # mirrors the same files into a separate gh-pages checkout and pushes that
 # too, since that's what is actually served.
 #
-# Reuses the existing, already-tested scripts/sync_journal.py unchanged --
-# just points --ledger at this VM's actual Bridge ledger instead of the
-# default repo-relative path, since the Bridge runs here now, not in a
-# local checkout next to this clone.
+# Reuses the existing scripts/sync_journal.py -- just points --ledger at this
+# VM's actual Bridge ledger instead of the default repo-relative path, since
+# the Bridge runs here now, not in a local checkout next to this clone.
+#
+# Never called with arguments: sync only (event-driven, after a fill/close).
+# Called with "prices" as the first argument: also ask the free/IBKR data
+# providers for current marks on open positions (--refresh-prices). This is
+# what the journal price-refresh systemd timer invokes hourly during market
+# hours; the failed-fetch path in sync_journal.py keeps previous marks, so a
+# provider outage can never scrub the site or a trade card.
 set -euo pipefail
+
+SYNC_ARGS=(--ledger "$LEDGER")
+if [ "${1:-}" = "prices" ]; then
+    SYNC_ARGS+=(--refresh-prices)
+fi
 
 MAIN_REPO="/opt/thetaforge-bridge/ThetaForge"
 PAGES_REPO="/opt/thetaforge-bridge/ThetaForge-gh-pages"
@@ -29,7 +40,7 @@ export GIT_SSH_COMMAND="ssh -i /home/ubuntu/.ssh/thetaforge_repo_deploy_key -o I
 cd "$MAIN_REPO"
 git pull --ff-only origin main
 
-python3 scripts/sync_journal.py --ledger "$LEDGER"
+python3 scripts/sync_journal.py "${SYNC_ARGS[@]}"
 
 if git diff --quiet -- journal/trades.json; then
     echo "journal unchanged, nothing to publish"

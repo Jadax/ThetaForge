@@ -1,0 +1,15 @@
+# Journal price-mark refresh (unit half of thetaforge_journal_prices.timer).
+# Refreshes live marks on open journal positions and republishes the site.
+# One-shot: the timer owns the schedule; retries of a failed refresh fall to
+# the next timer tick (failed fetches keep previous marks, never scrub data).
+[Unit]
+Description=ThetaForge journal price-mark refresh and publish
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/thetaforge-bridge/ThetaForge
+ExecStart=/bin/bash deployment/journal_sync_push.sh prices
+TimeoutStartSec=900

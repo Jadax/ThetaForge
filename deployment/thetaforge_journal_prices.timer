@@ -1,0 +1,15 @@
+# Hourly-ish journal mark refresh. Market-hours window only (13:30–20:00 UTC
+# covers 9:30–16:00 ET; the script itself exits early when nothing to
+# publish, and stale marks on an open tab just keep the last snapshot).
+# Skews a few minutes past the hour to stay clear of the IBKR-proxy's other
+# periodic traffic.
+[Unit]
+Description=Hourly in-market journal price-mark refresh
+
+[Timer]
+OnCalendar=*-*-* 13,14,15,16,17,18,19:*:30
+RandomizedDelaySec=120
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -567,3 +567,176 @@ def test_equity_exit_notes_cover_trail_and_stop(tmp_path):
     assert sync_journal._exit_note("close_stop") == "Auto-closed at the 2x-ATR hard stop."
     assert sync_journal._exit_note("close_trail") == (
         "Auto-closed at the trailing chandelier stop after the position went +1R.")
+
+def _equity_record(rec_id, **extra):
+    record = {
+        "id": rec_id,
+        "recommendation_id": "eq-rec",
+        "asset_class": "equity",
+        "strategy": "equity_momentum",
+        "symbol": "NVDA",
+        "quantity": 10,
+        "status": "Filled",
+        "filled": 10,
+        "remaining": 0,
+        "net_credit": 0,
+        "max_loss_total": 40.0,
+        "entry_price": 100.0,
+        "average_fill_price": 100.0,
+        "stop_price": 96.0,
+        "target_price": 108.0,
+        "submitted_at": "2026-08-01T14:00:00Z",
+        "updated_at": "2026-08-01T14:00:00Z",
+    }
+    record.update(extra)
+    return record
+
+
+class _FakeProvider:
+    def __init__(self, prices=None, chains=None):
+        self.prices = prices or {}
+        self.chains = chains or {}
+
+    async def get_stock_price(self, symbol):
+        return self.prices.get(symbol)
+
+    async def get_option_chain(self, symbol):
+        return self.chains.get(symbol, [])
+
+
+def _run_refresh(tmp_path, ledger, journal_trades):
+    sync_journal.provider_factory = lambda: _FakeProvider()
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, journal_trades)
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path), "--refresh-prices"])
+    return json.loads(journal_path.read_text(encoding="utf-8"))
+
+
+def test_refresh_overlays_live_and_trail_on_open_equity(tmp_path):
+    sync_journal.provider_factory = lambda: _FakeProvider(prices={"NVDA": 104.2})
+    ledger = [_equity_record("eq-live")]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path), "--refresh-prices"])
+    trade = json.loads(journal_path.read_text(encoding="utf-8"))["trades"][0]
+    assert trade["live"]["price"] == 104.2
+    assert trade["live"]["kind"] == "stock"
+    # Trail is seeded from the actual entry fill, then the live point.
+    prices = [point["price"] for point in trade["price_trail"]]
+    assert prices[0] == 100.0
+    assert prices[-1] == 104.2
+    assert len(prices) == 2
+    # All trail points claim the entry's opened date plus one live point.
+    assert trade["price_trail"][0]["at"] == "2026-08-01"
+
+
+def test_refresh_without_flag_leaves_no_live_fields(tmp_path):
+    ledger = [_equity_record("eq-live")]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path)])
+    trade = json.loads(journal_path.read_text(encoding="utf-8"))["trades"][0]
+    assert "live" not in trade
+    assert "price_trail" not in trade
+
+
+def test_closed_and_failed_fetches_keep_previous_mark(tmp_path):
+    prior = _equity_record("eq-live")
+    prior["source"] = "ledger"
+    prior["source_id"] = "eq-live"
+    prior["ledger_ref"] = "eq-live"
+    prior["status"] = "open"
+    prior["live"] = {"price": 101.0, "at": "2026-08-02T15:00:00+00:00", "kind": "stock"}
+    prior["price_trail"] = [{"at": "2026-08-01", "price": 100.0},
+                            {"at": "2026-08-02T15:00:00+00:00", "price": 101.0}]
+    closing = _equity_record("eq-live-close", status="Filled", close_of="eq-live",
+                             realized_pnl=10.0, reason="close_trail")
+    # Provider knows nothing (failed fetch): no entry changes, close still folds.
+    data = _run_refresh(tmp_path, [_equity_record("eq-live"), closing], [prior])
+    by_id = {trade["id"]: trade for trade in data["trades"]}
+    assert by_id["eq-live"]["status"] == "closed"
+    assert by_id["eq-live"]["live"]["price"] == 101.0
+    assert by_id["eq-live"]["price_trail"] == prior["price_trail"]
+
+
+def test_refresh_entity_skips_unavailable_price(tmp_path):
+    data = _run_refresh(tmp_path, [_equity_record("eq-live")], [])
+    trade = data["trades"][0]
+    assert "live" not in trade
+
+
+def test_option_spread_mark_is_scored_leg_mids(tmp_path):
+    record = _record("opt-live")
+    for leg in record["legs"]:
+        leg["expiry"] = "2026-11-20"
+    chain = [
+        {"expiry": "2026-11-20", "strike": 595, "option_type": "PUT",
+         "bid": 2.10, "ask": 2.20, "last": 2.15},
+        {"expiry": "2026-11-20", "strike": 580, "option_type": "PUT",
+         "bid": 0.40, "ask": 0.60, "last": 0.50},
+    ]
+    sync_journal.provider_factory = lambda: _FakeProvider(chains={"SPY": chain})
+    ledger = [record]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path), "--refresh-prices"])
+    trade = json.loads(journal_path.read_text(encoding="utf-8"))["trades"][0]
+    # sell leg mid 2.15 minus buy leg mid 0.50, netted per contract
+    assert trade["live"]["price"] == 1.65
+    assert trade["live"]["kind"] == "spread"
+
+
+def test_option_mark_requires_both_legs(tmp_path):
+    record = _record("opt-live")
+    for leg in record["legs"]:
+        leg["expiry"] = "2026-11-20"
+    chain = [{"expiry": "2026-11-20", "strike": 595, "option_type": "PUT",
+              "bid": 2.10, "ask": 2.20}]
+    sync_journal.provider_factory = lambda: _FakeProvider(chains={"SPY": chain})
+    ledger = [record]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path), "--refresh-prices"])
+    trade = json.loads(journal_path.read_text(encoding="utf-8"))["trades"][0]
+    assert "live" not in trade
+
+
+def test_trail_dedupes_flat_feed_on_repeated_refresh(tmp_path):
+    prices_iter = [104.2, 104.21]  # second fetch within gap + below movement
+    provider = _FakeProvider(prices={})
+
+    class _SequenceProvider(_FakeProvider):
+        call = 0
+
+        async def get_stock_price(self, symbol):
+            _SequenceProvider.call += 1
+            return prices_iter[min(_SequenceProvider.call - 1, len(prices_iter) - 1)]
+
+    sync_journal.provider_factory = lambda: _SequenceProvider()
+    ledger = [_equity_record("eq-live")]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path), "--refresh-prices"])
+    first = json.loads(journal_path.read_text(encoding="utf-8"))["trades"][0]
+    points = first["price_trail"]
+    assert points[-1]["price"] == 104.2
+
+    # Second sync minutes later with ~identical price appends nothing new.
+    _SequenceProvider.call = 1
+    sync_journal.main(["--journal", str(journal_path),
+                       "--ledger", str(ledger_path), "--refresh-prices"])
+    second = json.loads(journal_path.read_text(encoding="utf-8"))["trades"][0]
+    assert len(second["price_trail"]) == len(points)
+    assert second["live"]["price"] == 104.21

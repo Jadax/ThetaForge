@@ -576,3 +576,83 @@ footer span { color: var(--accent); }
   .trade-row-strategy { margin-inline-start: 0; width: 100%; }
 }
 
+
+/* ---- live journey panels (VM-refreshed marks) ---- */
+
+.journey-panel {
+  border: 1px dashed var(--line-2);
+  border-radius: 10px;
+  background: var(--panel-alt);
+  padding: 13px 16px 11px;
+}
+.journey-panel > small {
+  color: var(--accent);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  font-weight: 800;
+}
+.journey-bar-wrap { margin-top: 30px; }
+.journey-bar { position: relative; }
+.journey-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  position: relative;
+}
+.journey-fill {
+  position: absolute;
+  top: -2px;
+  height: 10px;
+  border-radius: 999px;
+}
+.journey-fill.gain { background: var(--gain); }
+.journey-fill.drop { background: var(--loss); }
+.journey-now-dot {
+  position: absolute;
+  top: -5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 3px solid var(--accent);
+  transform: translateX(-50%);
+  z-index: 2;
+}
+.journey-layer { position: relative; height: 20px; margin-top: 10px; }
+.journey-marker {
+  position: absolute;
+  transform: translateX(-50%);
+  text-align: center;
+  top: -8px;
+}
+.journey-marker i {
+  display: block;
+  width: 2px;
+  height: 9px;
+  background: var(--muted);
+  margin: 0 auto 3px;
+}
+.journey-marker small {
+  font-size: 8.5px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.journey-marker.entry i { height: 13px; width: 3px; background: var(--ink-soft); }
+.journey-marker.entry small { color: var(--ink-soft); font-weight: 700; }
+.journey-marker.live i { display: none; }
+.journey-marker.live small { color: var(--accent-ink); font-weight: 800; }
+.journey-marker.target i { background: var(--gain); }
+.journey-marker.snap-left { transform: none; text-align: left; }
+.journey-marker.snap-left i { margin: 0 0 3px; }
+.journey-marker.snap-right { transform: translateX(-100%); text-align: right; }
+.journey-marker.snap-right i { margin: 0 0 3px auto; }
+.journey-spark-wrap { margin-top: 10px; }
+.journey-spark { width: 100%; height: 52px; display: block; }
+.journey-note { margin: 9px 0 0; color: var(--muted); font-size: 10px; }
+.journal-meta span span.win { color: var(--gain); }
+.journal-meta span span.loss { color: var(--loss); }
+.journal-pnl.not-yet small { color: var(--open); }
+.journal-pnl.not-yet b { color: var(--open); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 17px; }
+.trade-row-pnl small { display: block; font-size: 9px; color: inherit; opacity: 0.75; font-variant-numeric: tabular-nums; font-weight: 700; }
