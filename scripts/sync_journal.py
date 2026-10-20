@@ -71,8 +71,13 @@ def _default_provider_factory():
     """Builds the shared free-data provider (IBKR proxy > CBOE > yfinance).
 
     Imported lazily so the plain journal rebuild never pays the yfinance
-    import. Tests monkeypatch `provider_factory` instead.
+    import. `agents.*` lives at the repo root, which is NOT on sys.path when
+    the module is run as `python3 scripts/sync_journal.py` (only `scripts/`
+    is), so insert it here. Tests monkeypatch `provider_factory` instead.
     """
+    repo_root = str(Path(__file__).resolve().parent.parent)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
     from agents.data_ingestion.free_data import FreeDataProvider
     return FreeDataProvider()
 
