@@ -345,10 +345,12 @@ def _should_trail(existing: list, price: float, now: datetime) -> bool:
         return True
     last_at = str(last.get("at") or "")
     try:
-        gap = (now - datetime.fromisoformat(last_at.replace("Z", "+00:00"))).total_seconds()
-        return gap >= TRAIL_MIN_GAP_SECONDS
+        parsed = datetime.fromisoformat(last_at.replace("Z", "+00:00"))
     except ValueError:
         return True
+    if parsed.tzinfo is None:      # seeds may carry a bare date (entry day)
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return (now - parsed).total_seconds() >= TRAIL_MIN_GAP_SECONDS
 
 
 def _option_mark(chain: list, legs: list) -> Optional[float]:
