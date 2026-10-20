@@ -27,14 +27,15 @@
 # provider outage can never scrub the site or a trade card.
 set -euo pipefail
 
+MAIN_REPO="/opt/thetaforge-bridge/ThetaForge"
+PAGES_REPO="/opt/thetaforge-bridge/ThetaForge-gh-pages"
+LEDGER="/opt/thetaforge-bridge/data/paper_order_ledger.json"
+
 SYNC_ARGS=(--ledger "$LEDGER")
 if [ "${1:-}" = "prices" ]; then
     SYNC_ARGS+=(--refresh-prices)
 fi
 
-MAIN_REPO="/opt/thetaforge-bridge/ThetaForge"
-PAGES_REPO="/opt/thetaforge-bridge/ThetaForge-gh-pages"
-LEDGER="/opt/thetaforge-bridge/data/paper_order_ledger.json"
 export GIT_SSH_COMMAND="ssh -i /home/ubuntu/.ssh/thetaforge_repo_deploy_key -o IdentitiesOnly=yes"
 
 cd "$MAIN_REPO"
