@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "f220dbc58930843ffeb2f149a4c0b3051c1c7ed620104fad99cb50bc023707ab",
+    "ledger_sha": "869a0d46c9699419ebdaa38dc402de1bb0f746f4c7467beda0fade0d22bcbc9f",
     "entries_from_ledger": 7,
     "entries_manual": 0,
     "entries_carried": 14,
@@ -33,7 +33,7 @@
         "reason": null,
         "quantity": 2,
         "submitted_at": "2026-10-20T16:44:46.295770+00:00",
-        "updated_at": "2026-10-20T19:51:25.066688+00:00"
+        "updated_at": "2026-10-20T19:57:42.080944+00:00"
       },
       "symbol": "DIA",
       "asset_class": "equity",
@@ -77,7 +77,22 @@
       "research": [],
       "tags": [],
       "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-10-20T16:45:51.898006+00:00"
+      "timestamp": "2026-10-20T16:45:51.898006+00:00",
+      "live": {
+        "price": 524.17,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-10-20",
+          "price": 524.14
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 524.17
+        }
+      ]
     },
     {
       "id": "a00d582c-ac49-4ef2-86d6-3c9373b73e5a",
@@ -96,7 +111,7 @@
         "reason": null,
         "quantity": 3,
         "submitted_at": "2026-10-20T15:12:36.227430+00:00",
-        "updated_at": "2026-10-20T19:51:25.066679+00:00"
+        "updated_at": "2026-10-20T19:57:42.080936+00:00"
       },
       "symbol": "AMZN",
       "asset_class": "equity",
@@ -140,7 +155,22 @@
       "research": [],
       "tags": [],
       "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-10-20T16:45:51.897993+00:00"
+      "timestamp": "2026-10-20T16:45:51.897993+00:00",
+      "live": {
+        "price": 262.59,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-10-20",
+          "price": 264.42
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 262.59
+        }
+      ]
     },
     {
       "id": "f9bc5f86-cbb1-4066-8111-bef7ab040897",
@@ -159,7 +189,7 @@
         "reason": null,
         "quantity": 17,
         "submitted_at": "2026-10-20T13:53:14.972896+00:00",
-        "updated_at": "2026-10-20T19:51:25.066651+00:00"
+        "updated_at": "2026-10-20T19:57:42.080916+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -203,7 +233,22 @@
       "research": [],
       "tags": [],
       "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-10-20T14:21:27.424938+00:00"
+      "timestamp": "2026-10-20T14:21:27.424938+00:00",
+      "live": {
+        "price": 87.735,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-10-20",
+          "price": 87.93
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 87.735
+        }
+      ]
     },
     {
       "id": "2b1d5932-ce79-41a2-8c32-a96321dd2a36",
@@ -268,10 +313,20 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-16T19:32:59.176489+00:00",
       "live": {
-        "price": 67.995,
-        "at": "2026-10-20T19:51:41+00:00",
+        "price": 67.96,
+        "at": "2026-10-20T19:58:59+00:00",
         "kind": "stock"
-      }
+      },
+      "price_trail": [
+        {
+          "at": "2026-10-16",
+          "price": 67.98
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 67.96
+        }
+      ]
     },
     {
       "id": "e0267e3d-bd95-436d-ae4d-eefade32ad01",
@@ -334,7 +389,22 @@
       "research": [],
       "tags": [],
       "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-10-16T18:22:36.598808+00:00"
+      "timestamp": "2026-10-16T18:22:36.598808+00:00",
+      "live": {
+        "price": 339.43,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-10-16",
+          "price": 342.6
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 339.43
+        }
+      ]
     },
     {
       "id": "df39a659-18d5-4221-9211-6dc31dbca0e4",
@@ -397,7 +467,22 @@
       "research": [],
       "tags": [],
       "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-10-16T18:16:11.360385+00:00"
+      "timestamp": "2026-10-16T18:16:11.360385+00:00",
+      "live": {
+        "price": 7.62,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-10-16",
+          "price": 7.63
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 7.62
+        }
+      ]
     },
     {
       "id": "1d454fcd-f5b4-45e9-bb6d-aa0097745baf",
@@ -460,7 +545,22 @@
       "research": [],
       "tags": [],
       "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-10-16T18:16:11.360379+00:00"
+      "timestamp": "2026-10-16T18:16:11.360379+00:00",
+      "live": {
+        "price": 179.755,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-10-16",
+          "price": 176.56
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 179.755
+        }
+      ]
     },
     {
       "id": "0224057e-44bb-4281-b5af-49f1f86162f5",
@@ -528,7 +628,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 179.755,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 170.51
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 179.755
+        }
+      ]
     },
     {
       "id": "dc3c3ea2-87d2-47e5-bc42-f3a5c5dbd0a4",
@@ -596,7 +711,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 768.6,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 764.42
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 768.6
+        }
+      ]
     },
     {
       "id": "82ed07ee-c5e4-452e-b82b-36e417e8a915",
@@ -664,7 +794,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 179.755,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 170.46
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 179.755
+        }
+      ]
     },
     {
       "id": "34b1c0f3-a74d-485c-9029-70d6a6eb0ca3",
@@ -732,7 +877,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 768.6,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 763.94
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 768.6
+        }
+      ]
     },
     {
       "id": "9e9789a8-d0fb-4503-88ef-030626c0fef4",
@@ -800,7 +960,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 9.02,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 10.38
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 9.02
+        }
+      ]
     },
     {
       "id": "18c5b3ae-4226-48c8-81b5-0fe2b325f0b4",
@@ -868,7 +1043,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 7.475,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 12.19
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 7.475
+        }
+      ]
     },
     {
       "id": "0282450e-6c96-4fd0-b43e-ec320c4086c3",
@@ -936,7 +1126,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 57.01,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 78.94
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 57.01
+        }
+      ]
     },
     {
       "id": "c3484efc-c3b4-4531-9629-67abe0acb0c8",
@@ -1004,7 +1209,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 61.93,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 104.22
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 61.93
+        }
+      ]
     },
     {
       "id": "80f99cc2-d763-486e-8e25-326b2afe8a92",
@@ -1072,7 +1292,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 91.61,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 116.84
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 91.61
+        }
+      ]
     },
     {
       "id": "5a6b5b34-214a-4b33-ac7c-69d51348a2c7",
@@ -1140,7 +1375,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 216.285,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 231.05
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 216.285
+        }
+      ]
     },
     {
       "id": "8e73b9a3-bfbb-44c4-9c06-49bbfbfc08da",
@@ -1208,7 +1458,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 179.755,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 171.39
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 179.755
+        }
+      ]
     },
     {
       "id": "d774aa85-ceef-42f8-a0a0-b1352ec16837",
@@ -1276,7 +1541,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 185.38,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 196.0
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 185.38
+        }
+      ]
     },
     {
       "id": "64421085-a32e-4427-84ed-13cae0f073af",
@@ -1344,7 +1624,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 717.13,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 739.93
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 717.13
+        }
+      ]
     },
     {
       "id": "f7d9c1b7-b9a4-44d1-8e83-f03ffddeb8fe",
@@ -1412,7 +1707,22 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true
+      "carried": true,
+      "live": {
+        "price": 768.6,
+        "at": "2026-10-20T19:58:59+00:00",
+        "kind": "stock"
+      },
+      "price_trail": [
+        {
+          "at": "2026-09-29",
+          "price": 766.85
+        },
+        {
+          "at": "2026-10-20T19:58:59+00:00",
+          "price": 768.6
+        }
+      ]
     }
   ]
 }
