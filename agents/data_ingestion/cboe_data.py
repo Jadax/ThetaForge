@@ -19,6 +19,16 @@ returned 403 AccessDenied on the new host, so the VIX term-structure and PCR
 files are effectively retired at the source (free_data's yfinance primary
 for the term structure covers the former; the PCR history simply fails open).
 
+Refresh behaviour observed 2026-10-20 (pre-market UTC, AAPL): the options
+chain payload is a coarse periodic snapshot (~90 min stale in that
+observation, rows still listed a contract that expired the prior session)
+and `bid`/`ask` were populated on only 52 of 3422 rows. Treat this feed as
+a chain-STRUCTURE + open-interest source for quote fields, not live NBBO —
+prefer the IBKR market-data proxy (`free_data.IBKR_MARKET_DATA_URL`) for
+executable bid/ask whenever the Gateway is up, with yfinance as the last
+resort. The underlying-quote endpoint and scheduled VIX indices are
+separate datasets and stay independently fresh.
+
 This module is intentionally dependency-free apart from httpx and the standard
 library, so it can also be copied into other projects verbatim.
 """
