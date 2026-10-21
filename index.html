@@ -9,7 +9,11 @@
       content="ThetaForge public trade journal: every position was recommended by ThetaForge and executed on the TWS terminal, with the thesis, the structure, and the actual outcome."
     />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <link rel="stylesheet" href="./styles.css" />
+    <!-- Version-stamped assets: a cached index.html and a mid-republish CDN
+         would otherwise pair new trades.json data with stale JS (the source
+         of the 2026-10-21 render errors while the malformed timer spam-published). -->
+    <link rel="stylesheet" href="./styles.css?v=1.17.24" />
+
   </head>
   <body>
     <main>
@@ -80,6 +84,12 @@
             <button role="tab" aria-selected="false" data-filter="stocks">Stocks</button>
             <button role="tab" aria-selected="false" data-filter="etfs">ETFs</button>
           </div>
+          <div class="journal-status-filters" id="journal-status-filters" role="tablist" aria-label="Filter trades by outcome">
+            <button role="tab" aria-selected="true" data-status="all">any outcome</button>
+            <button role="tab" aria-selected="false" data-status="open">Open</button>
+            <button role="tab" aria-selected="false" data-status="winners">Winners</button>
+            <button role="tab" aria-selected="false" data-status="losers">Losers</button>
+          </div>
           <span class="sub-filter" id="sub-filter" hidden></span>
           <button class="toggle-cards" id="toggle-cards" aria-pressed="false">Expand all</button>
         </div>
@@ -97,6 +107,6 @@
         <div class="verify-note" id="verify-note"></div>
       </footer>
     </main>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=1.17.24"></script>
   </body>
 </html>
