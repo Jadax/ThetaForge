@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "c1fa07aba625cdaf54325aba44d3aa90bf3448d5930099f9370c61763a12b216",
+    "ledger_sha": "1803721dcc34083a50c54161fcf1cb343740e237eeb68751a1f5951d8d8dad77",
     "entries_from_ledger": 8,
     "entries_manual": 0,
     "entries_carried": 14,
@@ -33,7 +33,7 @@
         "reason": null,
         "quantity": 76,
         "submitted_at": "2026-10-21T13:36:07.739853+00:00",
-        "updated_at": "2026-10-21T14:29:37.109671+00:00"
+        "updated_at": "2026-10-21T14:33:35.881513+00:00"
       },
       "symbol": "ITUB",
       "asset_class": "equity",
