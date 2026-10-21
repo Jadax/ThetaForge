@@ -107,6 +107,7 @@
   var allTrades = [];
   var allTradesAccountEquity = 0;
   var engineFilter = "all";
+  var statusFilter = "all";
   var subFilter = null;          // { kind: "instrument"|"symbol"|"strategy"|"month", value, label }
   var expandedCards = {};        // trade id -> true while expanded
 
@@ -151,6 +152,14 @@
       else break;
     }
     var lastClosedWon = closed.length ? closed[closed.length - 1].net_pnl > 0 : null;
+    var holds = closed.map(function (t) {
+      var opened = Date.parse(String(t.opened || ""));
+      var closedAt = Date.parse(String(t.closed || ""));
+      if (!isFinite(opened) || !isFinite(closedAt) || closedAt < opened) return null;
+      return (closedAt - opened) / 86400000;
+    }).filter(function (d) { return d != null; });
+    var avgHoldDays = holds.length
+      ? holds.reduce(function (sum, d) { return sum + d; }, 0) / holds.length : null;
     var rValues = closed.map(rMultiple).filter(function (value) { return value != null; });
     var avgR = rValues.length
       ? rValues.reduce(function (sum, value) { return sum + value; }, 0) / rValues.length : null;
@@ -173,6 +182,8 @@
       streak: streak,
       lastClosedWon: lastClosedWon,
       winners: winners.length,
+      losers: losers.length,
+      avgHoldDays: avgHoldDays,
       closed: closed.length,
       open: open.length,
       cumulative: cumulative,
@@ -206,7 +217,11 @@
       parts.push(
         "<b class='" + cls + "'>" + esc(usd(metrics.netPnl)) + "</b> realized across " +
         plural(metrics.closed, "closed trade") +
-        (metrics.winRate != null ? " (" + metrics.winRate.toFixed(0) + "% win rate)" : "")
+        (metrics.winRate != null
+          ? " (" + metrics.winRate.toFixed(0) + "% win rate · " + metrics.winners + " winners vs " +
+            metrics.losers + " losers" +
+            (metrics.avgHoldDays != null ? " · avg hold " + metrics.avgHoldDays.toFixed(1) + " days" : "") + ")"
+          : "")
       );
     } else {
       parts.push("No exits yet, so realized P&amp;L stands at <b>$0</b>");
@@ -1212,6 +1227,14 @@
     });
   }
 
+  function setStatusFilter(filter) {
+    statusFilter = filter;
+    var bar = document.getElementById("journal-status-filters");
+    Array.prototype.forEach.call(bar.querySelectorAll("[data-status]"), function (tab) {
+      tab.setAttribute("aria-selected", tab.getAttribute("data-status") === filter ? "true" : "false");
+    });
+  }
+
   function renderSubFilter() {
     var el = document.getElementById("sub-filter");
     if (!subFilter) {
@@ -1247,6 +1270,12 @@
       setEngineTab(button.getAttribute("data-filter"));
       subFilter = null;
       renderSubFilter();
+      renderList();
+    });
+    document.getElementById("journal-status-filters").addEventListener("click", function (event) {
+      var chip = event.target.closest("[data-status]");
+      if (!chip) return;
+      setStatusFilter(chip.getAttribute("data-status"));
       renderList();
     });
     document.getElementById("sub-filter").addEventListener("click", function (event) {
@@ -1341,19 +1370,26 @@
 
   function renderFilterCounts() {
     var counts = { "all": allTrades.length, "options": 0, "stocks": 0, "etfs": 0 };
+    var statusCounts = { "all": allTrades.length, "open": 0, "winners": 0, "losers": 0 };
     allTrades.forEach(function (t) {
       var inst = instrumentOf(t);
       if (inst === "option") counts.options += 1;
       else if (inst === "etf") counts.etfs += 1;
       else counts.stocks += 1;
+      if (t.status !== "closed") statusCounts.open += 1;
+      else if ((Number(t.net_pnl) || 0) > 0) statusCounts.winners += 1;
+      else statusCounts.losers += 1;
     });
-    var bar = document.getElementById("journal-filters");
-    Array.prototype.forEach.call(bar.querySelectorAll("[data-filter]"), function (tab) {
-      var engine = tab.getAttribute("data-filter");
-      var count = tab.querySelector(".count");
-      if (count) count.remove();
-      tab.insertAdjacentHTML("beforeend", "<span class='count'>" + counts[engine] + "</span>");
-    });
+    Array.prototype.forEach.call(
+      document.querySelectorAll("#journal-filters [data-filter], #journal-status-filters [data-status]"),
+      function (tab) {
+        var group = tab.getAttribute("data-filter") != null ? counts : statusCounts;
+        var key = tab.getAttribute("data-filter") != null ? tab.getAttribute("data-filter") : tab.getAttribute("data-status");
+        var count = tab.querySelector(".count");
+        if (count) count.remove();
+        tab.insertAdjacentHTML("beforeend", "<span class='count'>" + group[key] + "</span>");
+      }
+    );
   }
 
   function tradeMonth(trade) {
@@ -1380,6 +1416,17 @@
     }
     if (subFilter && subFilter.kind === "month") {
       filtered = filtered.filter(function (trade) { return tradeMonth(trade) === subFilter.value; });
+    }
+    if (statusFilter === "open") {
+      filtered = filtered.filter(function (trade) { return trade.status !== "closed"; });
+    } else if (statusFilter === "winners") {
+      filtered = filtered.filter(function (trade) {
+        return trade.status === "closed" && (Number(trade.net_pnl) || 0) > 0;
+      });
+    } else if (statusFilter === "losers") {
+      filtered = filtered.filter(function (trade) {
+        return trade.status === "closed" && (Number(trade.net_pnl) || 0) <= 0;
+      });
     }
     var instCounts = { option: 0, stock: 0, etf: 0 };
     filtered.forEach(function (trade) { instCounts[instrumentOf(trade)] += 1; });
