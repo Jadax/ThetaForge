@@ -9,7 +9,11 @@
       content="ThetaForge public trade journal: every position was recommended by ThetaForge and executed on the TWS terminal, with the thesis, the structure, and the actual outcome."
     />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <link rel="stylesheet" href="./styles.css" />
+    <!-- Version-stamped assets: a cached index.html and a mid-republish CDN
+         would otherwise pair new trades.json data with stale JS (the source
+         of the 2026-10-21 render errors while the malformed timer spam-published). -->
+    <link rel="stylesheet" href="./styles.css?v=1.17.24" />
+
   </head>
   <body>
     <main>
@@ -97,6 +101,6 @@
         <div class="verify-note" id="verify-note"></div>
       </footer>
     </main>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=1.17.24"></script>
   </body>
 </html>
