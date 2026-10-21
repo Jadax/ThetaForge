@@ -1,5 +1,21 @@
 # ThetaForge Changelog
 
+## v1.17.25 - 2026-10-21
+
+**The journal list gains outcome quick-filters and richer headline stats,
+borrowed from the beta analytics mockups: Open / Winners / Losers chips next to
+the instrument tabs, plus winners-vs-losers counts and average hold time in the
+headline line.**
+
+- `journal/index.html`: new `#journal-status-filters` chip row under the
+  instrument tabs; asset URLs stamped `?v=1.17.25`.
+- `journal/app.js`: `statusFilter` state + `setStatusFilter`, counts in
+  `renderFilterCounts` generalized to fill both chip groups, list filtering by
+  open/winners/losers, and the headline parenthetical now reads
+  "N% win rate · X winners vs Y losers · avg hold N.N days".
+- `journal/styles.css`: `.journal-status-filters` mirrors the existing pill
+  styles (wraps on small screens).
+
 ## v1.17.24 - 2026-10-20
 
 **The public journal now shows where an open trade actually stands: a live
