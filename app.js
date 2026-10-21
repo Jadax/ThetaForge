@@ -1434,10 +1434,15 @@
       "Newest first · " + filtered.length + " entries · " +
       instCounts.option + " options / " + instCounts.stock + " stocks / " + instCounts.etf + " ETFs";
     if (!filtered.length) {
-      var engineName = { stocks: "Stocks", etfs: "ETFs", options: "Options" }[engineFilter] || "Trades";
+      var engineName = { stocks: "Stocks", etfs: "ETFs", options: "Options" }[engineFilter] || null;
+      var statusName = { open: "open", winners: "winners", losers: "losers" }[statusFilter] || null;
       var scope = subFilter ? " for " + subFilter.label : "";
+      var base;
+      if (engineName && statusName) base = "No " + statusName + " among " + engineName.toLowerCase();
+      else if (statusName) base = "No " + statusName;
+      else base = "No " + (engineName || "Trades").toLowerCase();
       list.innerHTML =
-        "<div class='journal-empty'><b>No " + esc(engineName.toLowerCase()) + esc(scope) + " yet.</b><br/>" +
+        "<div class='journal-empty'><b>" + esc(base + scope + " yet.") + "</b><br/>" +
         "Clear the filter above, or wait for the next recommendation to be placed on paper. " +
         "Every trade lands here with its thesis, structure, and receipt.</div>";
       syncToggleButton();
