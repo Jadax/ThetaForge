@@ -1,13 +1,14 @@
-# Hourly-ish journal mark refresh. Market-hours window only (13:30–20:00 UTC
-# covers 9:30–16:00 ET; the script itself exits early when nothing to
-# publish, and stale marks on an open tab just keep the last snapshot).
-# Skews a few minutes past the hour to stay clear of the IBKR-proxy's other
-# periodic traffic.
+# Hourly-ish journal mark refresh. Market-hours window only: fires at :30
+# past the hour between 13:30 and 19:30 UTC (covers 9:30–16:00 ET plus a
+# buffer). Do NOT write this as `13,14,...:*:30` — with the date fields
+# missing, systemd reads the numbers as hour:minute:second and fires every
+# 60 seconds, which floods the journal with auto-sync commits every minute
+# and thrashes the GitHub Pages CDN (seen 2026-10-21).
 [Unit]
 Description=Hourly in-market journal price-mark refresh
 
 [Timer]
-OnCalendar=*-*-* 13,14,15,16,17,18,19:*:30
+OnCalendar=*-*-* 13..19:30:00
 RandomizedDelaySec=120
 Persistent=false
 
