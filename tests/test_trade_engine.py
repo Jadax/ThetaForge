@@ -342,17 +342,19 @@ def test_low_volume_filtered():
 
 def test_recommender_uses_strict_dashboard_score_floor():
     """Only strong, independently qualified setups may reach the dashboard."""
-    assert MIN_COMPOSITE_SCORE == 70.0
+    assert MIN_COMPOSITE_SCORE == 65.0
     recommender = TradeRecommender()
     assert recommender._passes_quality_gate({"composite_score": 70, "edge_score": 60}, {"probability_of_profit": 55})
-    assert not recommender._passes_quality_gate({"composite_score": 70, "edge_score": 59}, {"probability_of_profit": 80})
+    assert recommender._passes_quality_gate({"composite_score": 66, "edge_score": 61}, {"probability_of_profit": 58})
+    assert not recommender._passes_quality_gate({"composite_score": 65, "edge_score": 59}, {"probability_of_profit": 80})
     assert not recommender._passes_quality_gate({"composite_score": 80, "edge_score": 80}, {"probability_of_profit": 54})
 
 def test_recommender_debit_composite_floor_is_scorer_baseline():
     """Debit spreads buy premium only when the IV-Rank ceiling authorizes it,
-    so their composite floor is the scorer's baseline (70), not baseline+5.
-    A 75 floor made every buy structure structurally unreachable over the
-    Oct 2026 live chain sweep (best measured 69.9)."""
+    so their composite floor stays at the scorer's baseline (70) even as the
+    sell-side aggregate was loosened to 65. A 75 floor made every buy
+    structure structurally unreachable over the Oct 2026 live chain sweep
+    (best measured 69.9)."""
     recommender = TradeRecommender()
     # Debit floor: 70 with edge/POP for the debit path passes.
     assert recommender._passes_quality_gate(
@@ -370,10 +372,16 @@ def test_recommender_debit_composite_floor_is_scorer_baseline():
         {"probability_of_profit": 45},
         "call_debit", None,
     )
-    # Sell family shares the 70 bar since the Oct 2026 live sweep showed 75
-    # was the sole blocker for 100% of real-chain sell candidates.
-    assert not recommender._passes_quality_gate(
+    # Sell-family bar was loosened to 65 (Oct 2026 executor trail: 42 option
+    # attempts, zero qualified — 70 still gated out every neutral-regime
+    # setup), while the debit floor above stays at the 70 baseline.
+    assert recommender._passes_quality_gate(
         {"composite_score": 69.9, "edge_score": 60},
+        {"probability_of_profit": 55},
+        "bull_put", {"iv_rank": 50, "vix": 20, "iv": 0.35, "hv_20": 0.30},
+    )
+    assert not recommender._passes_quality_gate(
+        {"composite_score": 64, "edge_score": 60},
         {"probability_of_profit": 55},
         "bull_put", {"iv_rank": 50, "vix": 20, "iv": 0.35, "hv_20": 0.30},
     )

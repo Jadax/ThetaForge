@@ -566,8 +566,11 @@ const gexHeatBucket = (value: number) => {
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
-const ALERT_SCORE_FLOOR = 75;
-const VERSION = "v1.17.25";
+// Aligned with the recommender's MIN_COMPOSITE_SCORE (65, Oct 2026): a higher
+// floor here silently hid from this queue the very signals the executor was
+// still fetching chains for, which read as "the scanner finds nothing".
+const ALERT_SCORE_FLOOR = 65;
+const VERSION = "v1.17.26";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -1551,7 +1554,9 @@ export default function Home() {
 
   const scanEntries = Object.entries(scannerStatus?.last_results?.symbols || {})
     .map(([symbol, entry]) => ({ symbol, ...entry }))
-    .sort((a, b) => b.score - a.score);
+    // Ranked by signal strength, not sign: the Wheel-screener-style "top by
+    // score" listing. A -82 bear_call read is as actionable as a +82 bull read.
+    .sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
 
   return (
     <main>
@@ -1768,7 +1773,7 @@ export default function Home() {
             <span>{signalLabel(entry.signal)}</span>
             <span>{signalLabel(entry.strategy)}</span>
             <span>{entry.regime ? signalLabel(entry.regime) : "—"}</span>
-            <span>{typeof entry.iv_rank === "number" ? entry.iv_rank.toFixed(0) : "—"}</span>
+            <span>{typeof entry.eff_iv_rank === "number" ? entry.eff_iv_rank.toFixed(0) : typeof entry.iv_rank === "number" ? entry.iv_rank.toFixed(0) : "—"}{typeof entry.iv_percentile === "number" && typeof entry.eff_iv_rank !== "number" ? "*" : ""}</span>
             <span>{entry.term_structure ? signalLabel(entry.term_structure) : "—"}</span>
             <span>{entry.flow_bias ? signalLabel(entry.flow_bias) : "—"}</span>
             <span>{typeof entry.expected_move_pct === "number" ? `±${entry.expected_move_pct.toFixed(1)}%` : "—"}</span>

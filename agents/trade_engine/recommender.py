@@ -86,7 +86,14 @@ SYMBOL_SECTOR = {
 # setups scored 69.7–74.1 (AAPL iron_condor 74.1/edge 63.5, XLE bull_put
 # 72.9/edge 65.3) and never once reached 75. POP, edge, and volatility
 # sub-gates keep their own thresholds, so this loosens only the aggregate.
-MIN_COMPOSITE_SCORE = 70.0
+# Lowered again 70 -> 65 (Oct 22 2026): the autonomous executor's first
+# 42 option attempts produced zero qualified recommendations (40 of them
+# `no_qualified_recommendation`, the rest fetch errors), i.e. 70 still gates
+# out every sell setup in a neutral regime in practice. Structure-level
+# floors (POP>=55, edge>=60, credit/width>=0.25, per-strategy leg OI,
+# probability-of-touch<=70, IV>HV, trend/expected-move/earnings vetoes)
+# still decide eligibility — the composite floor only stops the aggregate.
+MIN_COMPOSITE_SCORE = 65.0
 # Debit spreads buy premium only when the Brain's IV-Rank ceiling authorizes
 # that (MIN_IV_RANK_BUY=45), which is the opposite side of the same decision
 # — so their composite floor is the scorer's declared baseline, not baseline+5.

@@ -1,5 +1,28 @@
 # ThetaForge Changelog
 
+## v1.17.26 - 2026-10-22
+
+**Diagnosed the zero-option-funnel and calibrated the sell gates to it. The
+autonomous executor's first 42 option attempts (Oct 17–22) produced zero
+qualified recommendations: ~52% died to market-data 429/timeouts, and every
+surviving attempt hit `no_qualified_recommendation`.**
+
+- `orchestrator/routes/advisor.py` — `/recommend` rank parity: the sell-side
+  volatility gate now sees the eff-IV-rank theBrain uses (HV-history rank,
+  per-symbol real-IV store rank, and percentile — max of the three; store
+  lookup via `asyncio.to_thread` to keep the event-loop rule).
+- `agents/trade_engine/recommender.py` — `MIN_COMPOSITE_SCORE` 70 → 65
+  (sell family only; debit stays 70). Same loosening rationale as the
+  measured 75→70 sweep: the score floor was the sole blocker and real
+  best-setups scored 69.7–74.1. All structure-level floors unchanged
+  (POP ≥ 55, edge ≥ 60, credit/width ≥ 0.25, per-strategy leg OI, PoT ≤ 70,
+  IV > HV, trend/expected-move/earnings/macro vetoes).
+- `dashboard/app/page.tsx` — notification-queue floor aligned 75 → 65 so the
+  terminal shows exactly what the executor can act on; scan sheet ranks by
+  signal strength (`|score|`) and shows the eff-IV-rank (percentile marked
+  `*` when rank is unavailable).
+- Tests updated for the 65 sell floor (397 passing).
+
 ## v1.17.25 - 2026-10-21
 
 **The journal list gains outcome quick-filters and richer headline stats,

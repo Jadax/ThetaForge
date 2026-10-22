@@ -1234,13 +1234,40 @@ async def get_recommendations(request: AdvisoryRequest):
             # produced its notification.
             if snapshot.get("flow_data"):
                 flow_data[symbol] = snapshot["flow_data"]
+            # Rank parity with the Brain's scan path (ai_brain.eff_iv_rank):
+            # the HV-history rank above collapses toward 0 in a calm tape, so
+            # take the max of it and the per-symbol real-IV store's rank and
+            # percentile when available — the recommender's sell gate must not
+            # veto structures the Brain itself authorized as sell_premium.
+            snapshot_rank = max(
+                0.0, min(100.0, (snapshot["current_iv"] - snapshot["iv_52w_low"]) /
+                         max(snapshot["iv_52w_high"] - snapshot["iv_52w_low"], 0.0001) * 100)
+            )
+            snapshot_flow_iv_pct = None
+            try:
+                from agents.volatility.iv_history import IVHistoryStore
+
+                def _store_lookup():
+                    store = IVHistoryStore()
+                    return store.iv_rank(symbol, snapshot["current_iv"]), \
+                        store.iv_percentile(symbol, snapshot["current_iv"])
+
+                _rank, _pct = await asyncio.to_thread(_store_lookup)
+                if _rank is not None:
+                    snapshot_rank = max(snapshot_rank, float(_rank))
+                if _pct is not None:
+                    snapshot_flow_iv_pct = float(_pct)
+                    snapshot_rank = max(snapshot_rank, float(_pct))
+            except Exception:
+                logger.debug("IV-store rank enrichment unavailable for %s", symbol)
             volatility_data[symbol] = {
                 "iv": snapshot["current_iv"],
                 "hv_20": snapshot["hv_20"],
-                "iv_rank": max(0, min(100, (snapshot["current_iv"] - snapshot["iv_52w_low"]) /
-                                  max(snapshot["iv_52w_high"] - snapshot["iv_52w_low"], 0.0001) * 100)),
+                "iv_rank": snapshot_rank,
                 "dte": 30,
             }
+            if snapshot_flow_iv_pct:
+                volatility_data[symbol]["iv_percentile"] = snapshot_flow_iv_pct
             if snapshot["gex_data"]:
                 market_data[f"{symbol}_gex"] = snapshot["gex_data"]
         except HTTPException:
