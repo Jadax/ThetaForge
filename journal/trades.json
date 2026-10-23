@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "37615d1c61bad84973042a209873a927bf43b03db27f008789d1b5edf7209ebe",
+    "ledger_sha": "e1b65f25ae4b5a987d0a79e643a13ea86b480fc10b86b04bd906c2e7ec547688",
     "entries_from_ledger": 9,
     "entries_manual": 0,
     "entries_carried": 14,
@@ -1109,7 +1109,7 @@
         "reason": null,
         "quantity": 17,
         "submitted_at": "2026-10-20T13:53:14.972896+00:00",
-        "updated_at": "2026-10-22T15:47:54.033599+00:00"
+        "updated_at": "2026-10-23T13:54:36.344791+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -1523,7 +1523,7 @@
         "reason": null,
         "quantity": 3,
         "submitted_at": "2026-10-16T18:15:43.462247+00:00",
-        "updated_at": "2026-10-22T14:09:35.219119+00:00"
+        "updated_at": "2026-10-23T13:48:26.761675+00:00"
       },
       "symbol": "AAPL",
       "asset_class": "equity",
