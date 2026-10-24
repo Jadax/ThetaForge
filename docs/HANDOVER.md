@@ -9,7 +9,7 @@
 ## Runtime Facts
 
 - `orchestrator/main.py` starts the FastAPI Advisor plus two background
-  scanners (options brain + equity), each on a 300-second cadence. Only
+  scanners (options brain + equity), each on a 600-second cadence. Only
   `/health` is public; `/api/advisor/*` requires `ADVISOR_API_TOKEN`.
 - Both scanners gate scans to NYSE market hours, wait out a post-boot grace
   period before their first tick (deploy-time health probes must pass before
@@ -18,7 +18,7 @@
   worker threads so the event loop always services `/health`. Do not move any
   of that back onto the loop — see the health-check starvation history in
   `CHANGELOG.md` (v1.17.2–v1.17.7).
-- `SCAN_CONCURRENCY` is **3** in both scanners. It is a rate-limit ceiling,
+- `SCAN_CONCURRENCY` is **1** in both scanners. It is a rate-limit ceiling,
   not just a speed choice — higher values got CBOE-429'd from Render's
   outbound IP (confirmed via Render logs; a local test will not reproduce
   it). Lowering is safe; raising requires re-verifying against Render logs.
@@ -26,7 +26,11 @@
   live-order path. The Dockerfile exists because Render builds the single
   Advisor service from it directly (`render.yaml`).
 
-## Render Free Tier
+## Render Free Tier (legacy host)
+
+The Advisor now runs on the GCP e2-micro VM (`docs/GCP_ADVISOR_DEPLOYMENT.md`);
+the notes below apply only if it is ever moved back to Render.
+
 
 - No persistent disk; sleeps after 15 minutes without HTTP traffic, wiping
   in-process state (including IV history accumulated since boot).

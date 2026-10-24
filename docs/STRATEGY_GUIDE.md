@@ -163,14 +163,22 @@
 - CSP → Assignment → Covered Call → Repeat
 - Default allocation: SPY 40%, QQQ 30%, TLT 20%, individual 10%
 
-### Entry Rules (CSP Phase)
-- IV Rank > 75 (sell when IV is expensive)
-- 25 delta (~75% probability of profit)
-- 30-45 DTE
-- Stock must be one you want to own
+### Entry Rules (CSP Phase) — as enforced by the Advisor
+- Effective IV rank >= 50 on a neutral read (Brain `neutral_premium`), or a
+  bullish credit setup at IV rank >= 40; IV must exceed 20-day realized vol
+- Short strike >= 0.5x the 1-SD expected move (~25-30 delta), delta <= 0.35,
+  probability of touch <= 70%
+- 21-60 DTE (30-45 preferred by the theta score)
+- Credit >= $0.20 and >= 12% annualized on the cash backing
+- No downtrend, no laggard (6-month RS vs SPY > -10%), no earnings within 7
+  days, no FOMC/CPI/NFP blackout, VIX <= 30, VIX curve not inverted
+- One option position per underlying; the cash backing may use up to 50% of
+  the options book (`MAX_CASH_SECURED_ALLOCATION_PCT`)
 
 ### Entry Rules (Covered Call Phase)
-- After assignment, sell ATM or slightly OTM call
+- After assignment, sell an OTM call (same 0.5x expected-move band). Only
+  shares NOT held by the equity momentum engine back a call, so a stop-loss
+  sale of engine shares can never leave a call naked
 - 30 DTE
 - Close at 50% profit
 
@@ -297,11 +305,16 @@ Typical pipeline: 7000 symbols → ~200 flow signals → ~80 dark pool confirmed
 
 ## Position Sizing Framework
 
-1. **Max risk per trade**: 2% of portfolio
-2. **Half-Kelly sizing**: f = (p * b - q) / (2 * b)
-3. **Max portfolio delta**: 20% net
-4. **Max portfolio vega**: 5% net
-5. **Correlation limit**: Max 20% in any single sector
+1. **Defined-risk spreads/condors**: max loss per trade <= 2% of the options
+   book (moderate profile)
+2. **Cash-secured puts / covered calls**: sized by backing, not max loss —
+   one CSP may tie up <= 50% of the options book (a CSP's "max loss" is the
+   whole strike, so a 2% max-loss rule would ban the strategy outright); the
+   Bridge's weekly capital ledger caps the total
+3. **Half-Kelly sizing**: f = (p * b - q) / (2 * b)
+4. **Net Greeks per recommendation set** (all legs, bought legs offset sold
+   legs): <= 100 share-delta, <= $50 vega per vol point
+5. **Correlation limit**: <= 3 positions per sector bucket (`SYMBOL_SECTOR`)
 
 ---
 

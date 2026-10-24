@@ -1,5 +1,65 @@
 # ThetaForge Changelog
 
+## v1.17.27 - 2026-10-24
+
+**Full review: the options advisor could not produce the strategies it was
+built for, exits never executed, and ten positions sat unmanaged. Four
+independent blockers each stopped every cash-secured put; the core
+Tastytrade setup (rich IV, neutral read) had no Brain branch; and CSPs
+silently bypassed every context veto, masked only because sizing killed
+them first.**
+
+Options advisor
+- `strategy_scorer._score_edge` — the IV-over-HV premium was added in
+  decimals (a 15-vol-point premium scored +0.45 instead of +25), pinning every
+  seller's edge near 50; now scored in vol points (both directions clamped).
+- `recommender` — CSPs/CCs are sized by their backing
+  (`MAX_CASH_SECURED_ALLOCATION_PCT` 0.50), not the 2%-max-loss rule that
+  rejected every CSP; covered calls tie up no new capital; CSP quality floors
+  (`MIN_CSP_CREDIT` $0.20, 12% annualized, |delta| <= 0.35); net-leg Greeks
+  (hedge legs offset) against caps rescaled to real units (100 share-delta,
+  $50/vol-pt) — the old sold-leg-only 20/5.0 caps rejected a single ordinary
+  CSP; the high-win-rate gate now reads a CSP/CC strike; sell composite floor
+  restored 65 -> 70 (the loosening compensated for the edge bug).
+- `high_winrate` — `csp`/`cc` codes are premium-selling (bull bias), so trend,
+  DTE, expected-move and RS vetoes apply to them; CSP/CC use the wheel
+  expected-move band (0.5x 1-SD ~ 25-30 delta) instead of 1.0x.
+- `ai_brain` — new `neutral_premium` branch: IV rank >= 50, neutral signal,
+  not downtrend, not laggard -> `cash_secured_put`; iron-condor and neutral
+  premium branches run before the directional-agreement gate.
+- `background_scanner` — premium-selling picks notify on effective IV rank
+  (>= 40) instead of |directional score| >= 75 (no premium sale had ever
+  reached the executor); the floor that existed in four places is now one
+  helper (`_passes_notification_floor`); notification signatures bucket the
+  score; universe re-prioritized (index ETFs, a CSP-affordable wheel tier,
+  then large caps) and `SYMBOL_SECTOR` extended to it.
+- `dashboard` — dropped its own (fifth) score floor; trusts the API's gate.
+
+Execution and position management
+- `bridge` — `_reconcile_lapsed_orders`: DAY orders frozen as working from an
+  earlier session resolve to Inactive/Filled (freed $82 of phantom reserved
+  capital live), and an unfilled closing order un-links its parent so the
+  exit is retried; stock limits get a 0.5% marketable buffer on non-live
+  quotes (entries expired unfilled 24/48 times; stop sells at a stale bid
+  would not fill); equity close P&L booked from the fill; closes sell the
+  filled quantity.
+- `vm_auto_executor` — working orders count as held (DIA was bought 3x on
+  Oct 20); one option position per underlying; covered-call inventory sent to
+  /recommend (IBKR shares minus equity-engine shares, so a call can never be
+  written against stop-managed shares).
+- `vm_auto_manager` — `len(None)` crash on an unreadable ledger; one journal
+  sync per cycle.
+- `scripts/adopt_orphan_positions.py` — reconciles carried journal receipts
+  against IBKR positions; applied: 14 Sept-29 entries (AEHR, AXTI, INTC,
+  MARA, NOK, NVDA, QQQ, SPY, XLK, XLV) re-adopted, every IBKR share tracked.
+
+Ops
+- Journal price timer weekdays only; market-data uvicorn graceful shutdown
+  (no nightly SIGKILL/failed state); provider memo temp files cleaned up.
+- Docs: SCAN_CONCURRENCY/cadence/host drift fixed; strategy guide sizing and
+  wheel rules match enforcement; stale market-data limitation replaced.
+- Tests: 397 -> 422.
+
 ## v1.17.26 - 2026-10-22
 
 **Diagnosed the zero-option-funnel and calibrated the sell gates to it. The

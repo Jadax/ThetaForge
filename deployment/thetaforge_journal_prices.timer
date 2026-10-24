@@ -4,11 +4,13 @@
 # missing, systemd reads the numbers as hour:minute:second and fires every
 # 60 seconds, which floods the journal with auto-sync commits every minute
 # and thrashes the GitHub Pages CDN (seen 2026-10-21).
+# Weekdays only: without the day-of-week field it also fired all weekend,
+# re-publishing unchanged marks to the live site seven times a day.
 [Unit]
 Description=Hourly in-market journal price-mark refresh
 
 [Timer]
-OnCalendar=*-*-* 13..19:30:00
+OnCalendar=Mon..Fri *-*-* 13..19:30:00
 RandomizedDelaySec=120
 Persistent=false
 

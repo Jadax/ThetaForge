@@ -224,17 +224,40 @@ available on the VM.
   auto-executor's notification polling can occasionally see a quiet cycle
   even during market hours — the background scan itself may have degraded
   some symbols to `option_chain_unavailable` for that pass.
-- **The IBKR market-data proxy is deployed and wired in as the priority-1
-  source, but as of 2026-08-13 has not been confirmed delivering real quotes
-  reliably**, despite the account having an active OPRA subscription. A
-  methodical debugging pass ruled out batch size, stale client IDs, request
-  concurrency (a lock now serializes all requests through the one shared IB
-  connection), and streaming vs. snapshot request mode — an isolated,
-  uncontended snapshot request still returned zero data with zero errors.
-  This currently looks like an IBKR account/platform-side issue (possibly
-  the paper account not fully inheriting entitlements from its linked live
-  account) rather than a code bug. Nothing is broken in the meantime: every
-  call falls through to CBOE then yfinance automatically on any proxy
-  failure. Re-verify with a clean request (`curl -H "X-Market-Data-Token:
-  <token>" http://10.138.0.3:8003/option-chain/SPY`) before assuming this
-  is fixed.
+- The paper account has delayed (15-minute) stock quotes only. The Bridge
+  therefore places stock DAY limits with a small marketable buffer when the
+  snapshot isn't live (`STALE_QUOTE_LIMIT_BUFFER_PCT`, 0.5%: buys above the
+  ask, sells below the bid) so entries and especially stop-loss exits fill;
+  risk is reserved against the buffered price. (The IBKR option-chain proxy
+  delivers OPRA quotes and has been the scanner's priority-1 chain source
+  since 2026-08-13; CBOE then yfinance remain the automatic fallbacks.)
+
+## Order-state reconciliation
+
+IBKR stops reporting a DAY order once its session ends, so the Bridge's
+`_reconcile_lapsed_orders` (run on every ledger sync) resolves what IBKR will
+never report again:
+
+- a working (`Submitted`/`PreSubmitted`/…) record from an earlier New York
+  session has lapsed → `Inactive` (or `Filled` at the filled quantity if it
+  partially filled), so it stops reserving capital and blocking the
+  executor's same-name guard;
+- a closing order that ended with no fill un-links its parent
+  (`closed_by` is set at submission), so the exit manager retries the exit
+  instead of treating an unfilled stop-loss as done.
+
+### Re-adopting positions after a ledger migration
+
+If the executor ever moves to a fresh Bridge ledger again, the journal keeps
+the old receipts as `carried`, but the exit manager can't see them. Reconcile
+against IBKR itself (read-only; dry run unless `--apply`, which backs the
+ledger up first). Stop the Bridge, start the Gateway, then:
+
+```bash
+sudo -u ubuntu /opt/thetaforge-bridge/venv/bin/python   /opt/thetaforge-bridge/ThetaForge/scripts/adopt_orphan_positions.py   --ledger /opt/thetaforge-bridge/data/paper_order_ledger.json   --journal /opt/thetaforge-bridge/ThetaForge/journal/trades.json [--apply]
+```
+
+It adopts carried entries (oldest first, original ids) only up to the shares
+IBKR holds that no live ledger record accounts for. Done once on
+2026-10-24: 14 Sept-29 entries (AEHR, AXTI, INTC, MARA, NOK, NVDA, QQQ, SPY,
+XLK, XLV) re-adopted; every IBKR share is now tracked.

@@ -17,7 +17,7 @@ before touching anything volatility-, CBOE-, or scanner-related — several
 
 ```
 Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
-  -> Advisor (GCP free e2-micro VM, orchestrator/main.py, 5-min background scan)
+  -> Advisor (GCP free e2-micro VM, orchestrator/main.py, 10-min background scans)
      -> Paper Bridge (bridge/main.py) -> IB Gateway (TWS API)
         The Bridge is OUR FastAPI service — it is NOT TWS, and it is
         never reachable from the public internet (VPC firewall + token). It
@@ -48,11 +48,11 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | `agents/equity_trader/equity_signals.py` | Equity indicator helpers reusing `SignalEngine` (RSI/ADX/MACD): trend, 6m momentum, relative strength vs SPY |
 | `agents/equity_trader/equity_brain.py` | Fail-closed equity gates: risk_off regime, macro ≤2d, earnings ≤3d, SMA200/SMA50 trend, momentum, ADX ≥20, RSI ≤80, relative strength ≥ −5% vs SPY; `BUY_SCORE_FLOOR=62` |
 | `agents/equity_trader/equity_universe.py` | Free-data active-stock/ETF universe discovery for the equity scanner |
-| `agents/equity_trader/equity_scanner.py` | Background stock/ETF scan (`SCAN_CONCURRENCY=3`, market-hours only, boot-grace + stagger vs the options scanner); writes `data/equity_scan_results.json` + `equity_notifications.json`; singleton `get_background_equity_scanner()` |
+| `agents/equity_trader/equity_scanner.py` | Background stock/ETF scan (`SCAN_CONCURRENCY=1`, market-hours only, boot-grace + stagger vs the options scanner); writes `data/equity_scan_results.json` + `equity_notifications.json`; singleton `get_background_equity_scanner()` |
 | `agents/equity_trader/equity_recommender.py` | Equity candidate scoring: 1% risk, 2× ATR stop, 2R target, 30% notional cap, sector cap (`MAX_CORRELATED_EQUITY_POSITIONS` + `SYMBOL_SECTOR`) |
 | `agents/equity_trader/equity_manager.py` | Open equity position rules (2× ATR stop, 2R profit, chandelier trail after +1R, pre-earnings, pre-macro, 60d time) + trailing-stop anchor ratchet |
 | `agents/backtest/advanced_backtest.py` | Retained `SignalEngine` (macd/rsi/adx/bollinger) imported by `ai_brain.py`, `tv_indicators.py`, and the equity brain — NOT dead code |
-| `agents/trade_engine/background_scanner.py` | Universe discovery + `_analyze_one` (feeds all vol inputs to Brain); bounded-concurrency scan (`SCAN_CONCURRENCY`) |
+| `agents/trade_engine/background_scanner.py` | Universe discovery + `_analyze_one` (feeds all vol inputs to Brain); bounded-concurrency scan (`SCAN_CONCURRENCY=1`); `LIQUID_OPTIONS_UNIVERSE` is priority-ordered (index ETFs, then the CSP-affordable wheel tier, then sector ETFs/large caps) and truncated to `SCAN_UNIVERSE_MAX`; premium-selling picks notify on effective IV rank, directional picks on |score| (`_passes_notification_floor`, the single notification gate) |
 | `agents/trade_engine/ai_brain.py` | Regime, signal aggregation, `iv_signal` (rank/percentile/term-structure/iv_skew/short_interest/earnings_move), strategy selection gates incl. the `macro_proximity` veto |
 | `agents/trade_engine/macro_calendar.py` | Offline scheduled FOMC/CPI/NFP calendar (`macro_days_until`, `macro_blackout`); 2027 CPI absent by design → missing schedule fails open, never fabricates a veto |
 | `agents/trade_engine/recommender.py` | Authoritative candidate scoring and quality gates; sector correlation cap (`MAX_CORRELATED_POSITIONS` + `SYMBOL_SECTOR`) and empirical outcome gate over published journal trades |
@@ -115,7 +115,7 @@ Inside any `async def` in `orchestrator/` or the scanners:
 - Do not add paid data dependencies; every feed is free (see SIGNAL_POLICY).
 - Do not add a second scoring or order path.
 - Do not reintroduce removed fake/backtest/live-toggle routes or Celery.
-- Do not raise `SCAN_CONCURRENCY` (3 in both scanners) back toward 20
+- Do not raise `SCAN_CONCURRENCY` (1 in both scanners) back toward 20
   without re-verifying against Render's actual logs first. It was lowered
   after confirming live (not just locally) that 20-way fan-out got
   CBOE-429'd on nearly every request from Render's outbound IP and appeared

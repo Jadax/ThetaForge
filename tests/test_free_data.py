@@ -99,3 +99,28 @@ async def test_option_chain_falls_back_when_one_source_fails(monkeypatch):
 
     merged = await provider.get_option_chain("AAPL")
     assert merged == free_chain
+
+
+def test_memo_persist_never_leaks_temp_files(tmp_path, monkeypatch):
+    """53 orphaned provider_daily_memo.json.*.tmp files piled up on the
+    Advisor VM: a failed dump left its temp behind, and killed workers'
+    temps were never swept."""
+    import os
+    import time
+    from datetime import date
+    from agents.data_ingestion.free_data import FreeDataProvider
+
+    memo = tmp_path / "provider_daily_memo.json"
+    monkeypatch.setattr(FreeDataProvider, "MEMO_FILE", str(memo))
+    provider = FreeDataProvider()
+    provider._daily_memo = {"bad": (date.today(), object())}   # not JSON-serializable
+    provider._persist_memo()                                    # must not raise
+    assert list(tmp_path.glob("*.tmp")) == []
+
+    stale = tmp_path / "provider_daily_memo.json.12345.tmp"
+    fresh = tmp_path / "provider_daily_memo.json.67890.tmp"
+    stale.write_text("{}"); fresh.write_text("{}")
+    old = time.time() - 3600
+    os.utime(stale, (old, old))
+    FreeDataProvider()._load_memo()
+    assert not stale.exists() and fresh.exists()   # only dead workers' temps go

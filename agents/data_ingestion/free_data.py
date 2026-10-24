@@ -6,10 +6,12 @@ proxy when configured), CBOE delayed quotes (no key), and yfinance
 at all.
 """
 import asyncio
+import glob
 import json
 import logging
 import math
 import os
+import time
 from typing import Dict, Any, List, Optional, Tuple, Sequence
 from datetime import datetime, timedelta, date
 
@@ -175,6 +177,7 @@ class FreeDataProvider:
         if self._memo_loaded:
             return
         self._memo_loaded = True
+        self._sweep_stale_memo_tmp()
         try:
             with open(self.MEMO_FILE, "r", encoding="utf-8") as handle:
                 raw = json.load(handle)
@@ -190,19 +193,37 @@ class FreeDataProvider:
         except (OSError, ValueError):
             pass
 
+    # Recycled scan workers can be killed mid-write, and a failed dump used to
+    # leave its temp file behind (53 orphans on the Advisor VM, Oct 2026).
+    MEMO_TMP_MAX_AGE_SECONDS = 600
+
+    def _sweep_stale_memo_tmp(self) -> None:
+        cutoff = time.time() - self.MEMO_TMP_MAX_AGE_SECONDS
+        for path in glob.glob(f"{glob.escape(self.MEMO_FILE)}.*.tmp"):
+            try:
+                if os.path.getmtime(path) < cutoff:
+                    os.remove(path)
+            except OSError:
+                continue
+
     def _persist_memo(self) -> None:
+        tmp = f"{self.MEMO_FILE}.{os.getpid()}.tmp"
         try:
             os.makedirs(os.path.dirname(self.MEMO_FILE), exist_ok=True)
             payload = {
                 key: [day.isoformat(), value]
                 for key, (day, value) in self._daily_memo.items()
             }
-            tmp = f"{self.MEMO_FILE}.{os.getpid()}.tmp"
             with open(tmp, "w", encoding="utf-8") as handle:
                 json.dump(payload, handle, separators=(",", ":"))
             os.replace(tmp, self.MEMO_FILE)
-        except OSError:
-            pass
+        except Exception:
+            # A memo is a cache: never let persisting it fail a scan, and
+            # never leave the half-written temp behind.
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
     def _daily_cached(self, key: str) -> Any:
         self._load_memo()
