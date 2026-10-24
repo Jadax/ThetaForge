@@ -79,5 +79,11 @@ class RateLimiter:
 # A full scan takes minutes and saturates the free data sources; the background
 # scanner already refreshes results every five minutes without being asked.
 scan_rate_limit = RateLimiter(max_calls=6, window_seconds=300, name="market scan")
+# The VM executor/manager are the Advisor's primary clients. Sharing the 6/5min
+# scan bucket with them meant the exit manager's once-a-minute management poll
+# alone nearly exhausted it, and executor /recommend calls were 429'd (Oct
+# 2026). Their routes get their own buckets sized to automation cadence.
+recommend_rate_limit = RateLimiter(max_calls=20, window_seconds=300, name="recommend")
+management_rate_limit = RateLimiter(max_calls=12, window_seconds=300, name="position management")
 # Per-symbol analysis is cheaper but still fans out to several network calls.
 analysis_rate_limit = RateLimiter(max_calls=60, window_seconds=60, name="analysis")

@@ -13,6 +13,8 @@ from datetime import date
 
 from orchestrator.security import (
     analysis_rate_limit,
+    management_rate_limit,
+    recommend_rate_limit,
     require_advisor_token,
     scan_rate_limit,
 )
@@ -53,6 +55,8 @@ router = APIRouter(
 )
 
 provider = FreeDataProvider()
+# Bounded fan-out for per-symbol context in equity position management.
+EQUITY_MANAGEMENT_FETCH_CONCURRENCY = 4
 recommender = TradeRecommender()
 tech_analyzer = TechAnalyzer()
 gex_engine = GEXEngine()
@@ -887,7 +891,7 @@ def _find_short_leg_mid(chain: List[Dict], position: PositionInput) -> Optional[
     return max(mids) if mids else None
 
 
-@router.post("/positions/management", dependencies=[Depends(scan_rate_limit)])
+@router.post("/positions/management", dependencies=[Depends(management_rate_limit)])
 async def positions_management(request: ManagementRequest):
     """Evaluate open short-premium positions against the exit framework.
 
@@ -1196,7 +1200,7 @@ async def get_playbook(playbook_id: str):
 
 # === Legacy Endpoints ===
 
-@router.post("/recommend", dependencies=[Depends(scan_rate_limit)])
+@router.post("/recommend", dependencies=[Depends(recommend_rate_limit)])
 async def get_recommendations(request: AdvisoryRequest):
     """
     MAIN ENDPOINT: Capital In -> Specific Trade Recommendations Out.
@@ -1520,7 +1524,7 @@ def _equity_recommendation_payload(recommendation, data: Optional[Dict[str, Any]
     }
 
 
-@router.post("/equity/recommend", dependencies=[Depends(scan_rate_limit)])
+@router.post("/equity/recommend", dependencies=[Depends(recommend_rate_limit)])
 async def equity_recommend(request: EquityRecommendRequest):
     """Recommend a sized, gated long for one stock/ETF.
 
@@ -1599,7 +1603,7 @@ async def get_executor_decisions(limit: int = 50):
     return {"decisions": await recent_executor_decisions(limit)}
 
 
-@router.post("/equity/positions/management", dependencies=[Depends(scan_rate_limit)])
+@router.post("/equity/positions/management", dependencies=[Depends(management_rate_limit)])
 async def equity_positions_management(request: EquityManagementRequest):
     """Evaluate open long equity positions against the exit framework.
 
@@ -1616,35 +1620,49 @@ async def equity_positions_management(request: EquityManagementRequest):
     except Exception:
         days_to_macro = None
 
-    actions = []
-    for pos in request.positions:
-        current_price = pos.current_price
-        if not current_price or current_price <= 0:
-            try:
-                fetched = await provider.get_stock_price(pos.symbol)
-                current_price = float(fetched) if isinstance(fetched, (int, float)) and fetched > 0 else None
-            except Exception:
-                current_price = None
+    # Market context once per UNIQUE symbol, bounded-concurrently. Fetching
+    # price + 6mo history + earnings serially per position (~72 sequential
+    # calls for 24 positions, repeated for each lot of the same symbol) blew
+    # the exit manager's 120s timeout on about half its cycles (Oct 2026), so
+    # stop-loss decisions were silently skipped.
+    semaphore = asyncio.Semaphore(EQUITY_MANAGEMENT_FETCH_CONCURRENCY)
 
-        atr_value = None
-        if current_price:
+    async def symbol_context(symbol: str) -> Dict[str, Any]:
+        async with semaphore:
+            price = None
             try:
-                hist = await provider.get_historical_prices(pos.symbol, period="6mo")
-                if hist is not None and len(hist) >= 15:
-                    closes = hist["Close"].tolist() if hasattr(hist, "tolist") else list(hist["Close"])
-                    highs = hist["High"].tolist() if "High" in hist.columns else closes
-                    lows = hist["Low"].tolist() if "Low" in hist.columns else closes
-                    atr_value = equity_atr(highs, lows, closes)
+                fetched = await provider.get_stock_price(symbol)
+                price = float(fetched) if isinstance(fetched, (int, float)) and fetched > 0 else None
             except Exception:
-                atr_value = None
-
-        days_to_earnings = pos.days_to_earnings
-        if days_to_earnings is None:
+                price = None
+            atr_value = None
+            if price:
+                try:
+                    hist = await provider.get_historical_prices(symbol, period="6mo")
+                    if hist is not None and len(hist) >= 15:
+                        closes = hist["Close"].tolist() if hasattr(hist, "tolist") else list(hist["Close"])
+                        highs = hist["High"].tolist() if "High" in hist.columns else closes
+                        lows = hist["Low"].tolist() if "Low" in hist.columns else closes
+                        atr_value = equity_atr(highs, lows, closes)
+                except Exception:
+                    atr_value = None
+            days_to_earnings = None
             try:
-                next_earnings = await provider.get_next_earnings_date(pos.symbol)
+                next_earnings = await provider.get_next_earnings_date(symbol)
                 days_to_earnings = (next_earnings - date.today()).days if next_earnings else None
             except Exception:
                 days_to_earnings = None
+            return {"price": price, "atr": atr_value, "days_to_earnings": days_to_earnings}
+
+    symbols = list(dict.fromkeys(pos.symbol for pos in request.positions))
+    contexts = dict(zip(symbols, await asyncio.gather(*(symbol_context(s) for s in symbols))))
+
+    actions = []
+    for pos in request.positions:
+        context = contexts[pos.symbol]
+        current_price = pos.current_price if pos.current_price and pos.current_price > 0 else context["price"]
+        atr_value = context["atr"] if current_price else None
+        days_to_earnings = pos.days_to_earnings if pos.days_to_earnings is not None else context["days_to_earnings"]
 
         days_held = 0
         if pos.opened_at:
