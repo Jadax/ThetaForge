@@ -566,11 +566,11 @@ const gexHeatBucket = (value: number) => {
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
 const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
-// Aligned with the recommender's MIN_COMPOSITE_SCORE (65, Oct 2026): a higher
-// floor here silently hid from this queue the very signals the executor was
-// still fetching chains for, which read as "the scanner finds nothing".
-const ALERT_SCORE_FLOOR = 65;
-const VERSION = "v1.17.26";
+// No score floor here: the Advisor's notifications endpoint already applies
+// the one authoritative gate (BackgroundBrainScanner._passes_notification_floor
+// — IV rank for premium sales, |score| for directional picks). A second floor
+// here drifted from it twice and hid exactly the signals the executor acts on.
+const VERSION = "v1.17.27";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -718,8 +718,7 @@ export default function Home() {
           const data = await res.json() as { notifications: BrainNotification[] };
           setNotifications(
             (data.notifications || []).filter(
-              (notification) => !NON_ACTIONABLE_STRATEGIES.has(notification.best_strategy)
-                && Math.abs(notification.score) >= ALERT_SCORE_FLOOR,
+              (notification) => !NON_ACTIONABLE_STRATEGIES.has(notification.best_strategy),
             ),
           );
         }

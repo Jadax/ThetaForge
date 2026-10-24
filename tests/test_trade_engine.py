@@ -342,17 +342,17 @@ def test_low_volume_filtered():
 
 def test_recommender_uses_strict_dashboard_score_floor():
     """Only strong, independently qualified setups may reach the dashboard."""
-    assert MIN_COMPOSITE_SCORE == 65.0
+    assert MIN_COMPOSITE_SCORE == 70.0
     recommender = TradeRecommender()
     assert recommender._passes_quality_gate({"composite_score": 70, "edge_score": 60}, {"probability_of_profit": 55})
-    assert recommender._passes_quality_gate({"composite_score": 66, "edge_score": 61}, {"probability_of_profit": 58})
-    assert not recommender._passes_quality_gate({"composite_score": 65, "edge_score": 59}, {"probability_of_profit": 80})
+    assert not recommender._passes_quality_gate({"composite_score": 66, "edge_score": 61}, {"probability_of_profit": 58})
+    assert not recommender._passes_quality_gate({"composite_score": 75, "edge_score": 59}, {"probability_of_profit": 80})
     assert not recommender._passes_quality_gate({"composite_score": 80, "edge_score": 80}, {"probability_of_profit": 54})
 
 def test_recommender_debit_composite_floor_is_scorer_baseline():
     """Debit spreads buy premium only when the IV-Rank ceiling authorizes it,
     so their composite floor stays at the scorer's baseline (70) even as the
-    sell-side aggregate was loosened to 65. A 75 floor made every buy
+    sell-side aggregate was briefly loosened to 65. A 75 floor made every buy
     structure structurally unreachable over the Oct 2026 live chain sweep
     (best measured 69.9)."""
     recommender = TradeRecommender()
@@ -372,16 +372,15 @@ def test_recommender_debit_composite_floor_is_scorer_baseline():
         {"probability_of_profit": 45},
         "call_debit", None,
     )
-    # Sell-family bar was loosened to 65 (Oct 2026 executor trail: 42 option
-    # attempts, zero qualified — 70 still gated out every neutral-regime
-    # setup), while the debit floor above stays at the 70 baseline.
+    # Sell-family bar restored to 70 (Oct 24 2026): the 65 loosening was
+    # compensating for the decimal-vs-points edge bug, now fixed.
     assert recommender._passes_quality_gate(
-        {"composite_score": 69.9, "edge_score": 60},
+        {"composite_score": 70, "edge_score": 60},
         {"probability_of_profit": 55},
         "bull_put", {"iv_rank": 50, "vix": 20, "iv": 0.35, "hv_20": 0.30},
     )
     assert not recommender._passes_quality_gate(
-        {"composite_score": 64, "edge_score": 60},
+        {"composite_score": 69.9, "edge_score": 60},
         {"probability_of_profit": 55},
         "bull_put", {"iv_rank": 50, "vix": 20, "iv": 0.35, "hv_20": 0.30},
     )
@@ -630,20 +629,39 @@ def test_kelly_uses_payoff_ratio_not_win_rate():
 
 
 def test_selection_respects_leg_greeks():
-    """The portfolio Greeks gate uses short-leg delta/vega, not zeros."""
+    """The portfolio Greeks gate uses real leg delta/vega, not zeros."""
     recommender = TradeRecommender()
     account = AccountInfo(
         total_equity=100000, buying_power=200000, cash_available=100000,
         risk_tolerance=RiskTolerance.MODERATE, max_positions=3,
     )
-    near_atm = {"symbol": "AAPL", "capital_required": 500,
-                "legs": [{"action": "SELL", "delta": -0.60, "vega": -0.05}]}
+    # $80/vol-pt of short vega on one contract exceeds the $50 cap.
+    heavy_vega = {"symbol": "AAPL", "capital_required": 500,
+                  "legs": [{"action": "SELL", "delta": -0.60, "vega": 0.80}]}
     far_otm = {"symbol": "MSFT", "capital_required": 500,
-               "legs": [{"action": "SELL", "delta": -0.15, "vega": -0.02}]}
+               "legs": [{"action": "SELL", "delta": -0.15, "vega": 0.02}]}
     portfolio = {"net_delta": 0, "net_vega": 0}
-    selected = recommender._select_recommendations([near_atm, far_otm], account, portfolio, 2000)
+    selected = recommender._select_recommendations([heavy_vega, far_otm], account, portfolio, 2000)
     assert len(selected) == 1
     assert selected[0]["symbol"] == "MSFT"
+
+
+def test_selection_nets_hedge_leg_greeks():
+    """A spread's bought leg offsets its sold leg. Counting only the sold leg
+    scored this put spread at $60 of vega (over the cap) instead of its true
+    net $5, rejecting an ordinary defined-risk spread."""
+    recommender = TradeRecommender()
+    account = AccountInfo(
+        total_equity=100000, buying_power=200000, cash_available=100000,
+        risk_tolerance=RiskTolerance.MODERATE, max_positions=3,
+    )
+    spread = {"symbol": "SPY", "capital_required": 300, "max_loss": 300,
+              "legs": [{"action": "SELL", "delta": -0.30, "vega": 0.60},
+                       {"action": "BUY", "delta": -0.15, "vega": 0.55}]}
+    selected = recommender._select_recommendations([spread], account, {"net_delta": 0, "net_vega": 0}, 2000)
+    assert [c["symbol"] for c in selected] == ["SPY"]
+    assert recommender._net_leg_greek(spread["legs"], "delta") == pytest.approx(15.0)
+    assert recommender._net_leg_greek(spread["legs"], "vega") == pytest.approx(-5.0)
 
 
 def test_risk_budget_binds_max_loss_not_capital_outlay():
@@ -1027,3 +1045,96 @@ if __name__ == "__main__":
             traceback.print_exc()
             failed += 1
     print(f"\n{passed} passed, {failed} failed out of {len(tests)} tests")
+
+
+# ── Wheel / CSP path on a small ($5k) options book ─────────────────────────
+
+def _wheel_chain(spot, iv=0.50, dte=45, symbol="XYZ"):
+    """Black-Scholes-priced put chain with realistic bid/ask and deltas."""
+    from math import erf, exp, log, sqrt
+
+    def norm_cdf(x):
+        return 0.5 * (1 + erf(x / sqrt(2)))
+
+    expiry = (datetime.now(timezone.utc).date() + timedelta(days=dte)).isoformat()
+    years = dte / 365
+    chain = []
+    for fraction in (0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.0):
+        strike = round(spot * fraction, 1)
+        d1 = (log(spot / strike) + (0.045 + 0.5 * iv * iv) * years) / (iv * sqrt(years))
+        d2 = d1 - iv * sqrt(years)
+        price = strike * exp(-0.045 * years) * norm_cdf(-d2) - spot * norm_cdf(-d1)
+        chain.append({
+            "strike": strike, "option_type": "PUT", "expiry": expiry, "dte": dte,
+            "volume": 800, "open_interest": 3000, "symbol": symbol, "iv": iv,
+            "bid": round(max(price - 0.03, 0.01), 2), "ask": round(price + 0.03, 2),
+            "last": round(price, 2), "delta": round(norm_cdf(d1) - 1, 3), "vega": 0.02,
+        })
+    return chain
+
+
+def _wheel_recommend(spot, trend="neutral", iv=0.50, hv=0.35, iv_rank=70):
+    recommender = TradeRecommender()
+    account = AccountInfo(
+        total_equity=5000, buying_power=5000, cash_available=5000,
+        risk_tolerance=RiskTolerance.MODERATE, max_positions=3,
+    )
+    output = recommender.generate_recommendations(
+        account=account,
+        market_data={"vix": 19, "XYZ_price": spot},
+        option_chains={"XYZ": _wheel_chain(spot, iv=iv)},
+        technical_data={"XYZ": {"trend": trend}},
+        flow_data={},
+        volatility_data={"XYZ": {"iv": iv, "hv_20": hv, "iv_rank": iv_rank, "dte": 45}},
+        diversify_underlyings=False,
+    )
+    return output.recommendations
+
+
+def test_small_book_recommends_wheel_entry_csp():
+    """A rich-IV, neutral, affordable name yields a ~25-delta CSP on $5k.
+
+    Before the Oct 2026 fixes this returned nothing: the 2%-of-equity max-loss
+    rule, unit-mismatched Greeks caps, a decimal-vs-points edge bug, and the
+    1-SD expected-move rule each independently blocked every CSP.
+    """
+    recs = _wheel_recommend(20.0)
+    assert recs, "expected a cash-secured put on a textbook wheel setup"
+    best = recs[0]
+    assert best.strategy_type == StrategyType.CASH_SECURED_PUT
+    strike = best.legs[0].contract.strike
+    assert 17.0 <= strike <= 18.0          # ~15-25 delta, off the money
+    assert best.capital_required <= 5000 * 0.50
+
+
+def test_csp_respects_trend_veto():
+    assert _wheel_recommend(20.0, trend="bearish") == []
+
+
+def test_csp_needs_volatility_edge():
+    assert _wheel_recommend(20.0, iv=0.30, hv=0.35) == []
+
+
+def test_csp_backing_capped_by_allocation():
+    # $60 stock: an off-the-money CSP needs ~$5,000 of cash vs a $2,500 cap.
+    assert _wheel_recommend(60.0) == []
+
+
+def test_csp_refuses_penny_premium():
+    """Far-OTM puts paying pennies never tie up the cash backing."""
+    recommender = TradeRecommender()
+    nvrp = {"iv": 0.50, "hv_20": 0.35, "iv_rank": 70, "vix": 19, "trend": "neutral"}
+    penny = next(p for p in _wheel_chain(20.0) if p["strike"] == 15.0)
+    assert penny["bid"] < 0.20
+    assert recommender._score_csp("XYZ", 20.0, penny, 45, None, {"trend": "neutral"},
+                                  {}, nvrp, 100, 2500) is None
+
+
+def test_edge_score_counts_volatility_premium_in_points():
+    """IV 50% vs HV 35% is a 15-point premium, not 0.15 of a point."""
+    scorer = StrategyScorer()
+    rich = scorer._score_edge(StrategyType.CASH_SECURED_PUT, {"iv_rank": 50, "hv_20": 0.35}, {"iv": 0.50}, {})
+    flat = scorer._score_edge(StrategyType.CASH_SECURED_PUT, {"iv_rank": 50, "hv_20": 0.50}, {"iv": 0.50}, {})
+    assert rich - flat == pytest.approx(25.0)   # capped premium-selling bonus
+    debit = scorer._score_edge(StrategyType.CALL_DEBIT_SPREAD, {"iv_rank": 50, "hv_20": 0.35}, {"iv": 0.50}, {})
+    assert debit < flat                           # buying rich vol is penalised

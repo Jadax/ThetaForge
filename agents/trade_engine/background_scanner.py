@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from agents.data_ingestion.free_data import FreeDataProvider
+from agents.trade_engine.high_winrate import is_premium_selling
 from agents.trade_engine.macro_calendar import macro_days_until
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,17 @@ PCR_HISTORY_FILE = os.path.join(DATA_DIR, "pcr_history.json")
 # same high-conviction floor used by the detailed Advisor recommendation path.
 NOTIFICATION_SCORE_FLOOR = 75
 NON_ACTIONABLE_STRATEGIES = {"no_trade", "avoid_new_positions", "roll_or_close"}
+# Premium-selling picks are notified on volatility richness, not directional
+# conviction. The Brain's score is a directional signal; requiring |score| >=
+# 75 for a premium sale meant none ever reached the executor (Oct 2026 scans:
+# every bull put / bear call / CSP pick scored between -50 and +48 even at IV
+# rank 60-85). The Recommender still re-applies every structure gate (IV rank,
+# IV > HV, POP/edge/composite floors, touch, expected move) at /recommend time.
+PREMIUM_NOTIFICATION_MIN_IVR = 40
+# Signature granularity for re-notifying an unchanged pick. A 0.1-point score
+# wobble between passes used to re-notify (and re-run /recommend for) the
+# same symbol every pass; bucketing keeps a stable pick quiet.
+NOTIFICATION_SCORE_BUCKET = 5
 
 # Bounded fan-out for per-symbol analysis in scan_once(). This is a rate-limit
 # tradeoff, not just a speed one: at concurrency=20, Render's outbound IP got
@@ -667,17 +679,32 @@ def _enrich_and_analyze(
     )
 
 
-# Liquid options underlyings — most actively traded US ETFs and large-caps.
-# These are the first-pass scan targets; the screener discovers additional names.
+# Liquid options underlyings, in scan-priority order (build_scan_universe keeps
+# this order and SCAN_UNIVERSE_MAX truncates the tail).
+#
+# 1. Core index ETFs — market context and the iron-condor/put-spread book.
+# 2. Wheel tier — deep-option-market names that usually trade low enough for a
+#    small options book to cash-secure a put (r/thetagang and Tastytrade
+#    staples). Previously the list was mega-caps first and the 50-name cap cut
+#    every name under ~$50 except a handful, so a CSP was almost never even
+#    affordable. Affordability itself is still decided per scan by the
+#    Recommender (MAX_CASH_SECURED_ALLOCATION_PCT), never assumed here.
+# 3. Sector ETFs and large caps for credit spreads and condors.
 LIQUID_OPTIONS_UNIVERSE = [
-    "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "XLV", "XLI", "XLY",
-    "XLP", "XLB", "XLC", "XLU", "AAPL", "MSFT", "NVDA", "AMZN", "META",
-    "GOOGL", "TSLA", "AVGO", "AMD", "NFLX", "CRM", "ORCL", "ADBE", "INTC",
-    "QCOM", "CSCO", "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP",
-    "COIN", "HOOD", "LLY", "UNH", "JNJ", "MRK", "ABBV", "PFE", "AMGN",
-    "TMO", "ISRG", "XOM", "CVX", "OXY", "SLB", "CAT", "DE", "GE", "BA",
-    "LMT", "NKE", "COST", "WMT", "HD", "MCD", "SBUX", "DIS", "UBER",
-    "PLTR", "SMCI",
+    # 1. core index ETFs
+    "SPY", "QQQ", "IWM",
+    # 2. wheel tier
+    "F", "SOFI", "T", "PFE", "AAL", "CCL", "NCLH", "NIO", "SNAP", "RIVN",
+    "LYFT", "MARA", "RIOT", "CLF", "VALE", "ITUB", "NU", "GRAB", "KMI",
+    "WBD", "HPE", "KHC", "VZ", "PATH", "CHWY", "JD", "EWZ", "SLV",
+    # 3. sector ETFs and large caps
+    "DIA", "XLF", "XLE", "XLK", "XLV", "XLI", "XLY", "XLP", "XLB", "XLC",
+    "XLU", "BAC", "INTC", "PLTR", "HOOD", "UBER", "SMCI", "AAPL", "MSFT",
+    "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "AMD", "NFLX", "CRM",
+    "ORCL", "ADBE", "QCOM", "CSCO", "JPM", "WFC", "GS", "MS", "V", "MA",
+    "AXP", "COIN", "LLY", "UNH", "JNJ", "MRK", "ABBV", "AMGN", "TMO",
+    "ISRG", "XOM", "CVX", "OXY", "SLB", "CAT", "DE", "GE", "BA", "LMT",
+    "NKE", "COST", "WMT", "HD", "MCD", "SBUX", "DIS",
 ]
 
 
@@ -851,11 +878,29 @@ class BackgroundBrainScanner:
         await asyncio.to_thread(self._write_json, path, data)
 
     def _result_signature(self, score: float, signal: str, strategy: str, regime: str) -> str:
-        return f"{signal}|{round(score, 1)}|{strategy}|{regime}"
+        bucket = int(round(score / NOTIFICATION_SCORE_BUCKET)) * NOTIFICATION_SCORE_BUCKET
+        return f"{signal}|{bucket}|{strategy}|{regime}"
+
+    @staticmethod
+    def _passes_notification_floor(score: float, strategy: str,
+                                   eff_iv_rank: Optional[float] = None) -> bool:
+        if strategy in NON_ACTIONABLE_STRATEGIES:
+            return False
+        if is_premium_selling(strategy):
+            return eff_iv_rank is not None and eff_iv_rank >= PREMIUM_NOTIFICATION_MIN_IVR
+        return abs(score) >= NOTIFICATION_SCORE_FLOOR
+
+    @classmethod
+    def _notification_is_actionable(cls, notification: Dict) -> bool:
+        return cls._passes_notification_floor(
+            float(notification.get("score", 0) or 0),
+            notification.get("best_strategy"),
+            notification.get("eff_iv_rank"),
+        )
 
     def _is_new_trade(self, symbol: str, score: float, signal: str, strategy: str,
-                       regime: str) -> bool:
-        if strategy in NON_ACTIONABLE_STRATEGIES or abs(score) < NOTIFICATION_SCORE_FLOOR:
+                       regime: str, eff_iv_rank: Optional[float] = None) -> bool:
+        if not self._passes_notification_floor(score, strategy, eff_iv_rank):
             return False
         sig = self._result_signature(score, signal, strategy, regime)
         return self._last_results.get(symbol) != sig
@@ -1071,8 +1116,7 @@ class BackgroundBrainScanner:
         old_notifs = await self._read_json_async(SCAN_NOTIFICATIONS_FILE)
         notifs = [
             notification for notification in old_notifs
-            if notification.get("best_strategy") not in NON_ACTIONABLE_STRATEGIES
-            and abs(float(notification.get("score", 0) or 0)) >= NOTIFICATION_SCORE_FLOOR
+            if self._notification_is_actionable(notification)
         ]
 
         # VIX and its term structure are market-wide — fetch once per scan
@@ -1218,7 +1262,8 @@ class BackgroundBrainScanner:
                     continue
 
                 if self._is_new_trade(symbol, data["score"], data["signal"],
-                                       data["strategy"], data["regime"]):
+                                       data["strategy"], data["regime"],
+                                       data.get("eff_iv_rank")):
                     notif = {
                         "id": f"NTF-{symbol}-{int(datetime.now(timezone.utc).timestamp())}",
                         "symbol": symbol,
@@ -1228,6 +1273,7 @@ class BackgroundBrainScanner:
                         "best_strategy": data["strategy"],
                         "strategy_reasoning": data.get("strategy_reasoning", ""),
                         "iv_rank": data.get("iv_rank"),
+                        "eff_iv_rank": data.get("eff_iv_rank"),
                         "iv_hv_ratio": data.get("iv_hv_ratio"),
                         "iv_hv_signal": data.get("iv_hv_signal"),
                         "iv_skew": data.get("iv_skew"),
@@ -1307,8 +1353,9 @@ class BackgroundBrainScanner:
         state["symbols_scanned"] = len(results)
         state["symbols_with_trades"] = sum(
             1 for result in results.values()
-            if result.get("strategy") not in NON_ACTIONABLE_STRATEGIES
-            and abs(result["score"]) >= NOTIFICATION_SCORE_FLOOR
+            if self._passes_notification_floor(
+                result["score"], result.get("strategy"), result.get("eff_iv_rank")
+            )
         )
         state["scan_diagnostics"] = {
             "input_symbols": len(symbols),
@@ -1422,8 +1469,7 @@ class BackgroundBrainScanner:
         # older deployments without waiting for the next five-minute scan.
         notifs = [
             notification for notification in notifs
-            if notification.get("best_strategy") not in NON_ACTIONABLE_STRATEGIES
-            and abs(float(notification.get("score", 0) or 0)) >= NOTIFICATION_SCORE_FLOOR
+            if self._notification_is_actionable(notification)
         ]
         if unacknowledged_only:
             notifs = [n for n in notifs if not n.get("acknowledged")]

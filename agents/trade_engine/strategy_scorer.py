@@ -113,6 +113,12 @@ class StrategyScorer:
             reverse=True,
         )
 
+    @staticmethod
+    def _vol_points(value: float) -> float:
+        """Volatility in percentage points; decimals (<= 3.0, i.e. 300%) scale x100."""
+        value = float(value or 0)
+        return value * 100 if value <= 3.0 else value
+
     def _score_edge(
         self,
         strategy_type: StrategyType,
@@ -126,19 +132,25 @@ class StrategyScorer:
         iv_rank = market_data.get("iv_rank", 50)
         iv = option_data.get("iv", 0.20)
         hv = market_data.get("hv_20", iv)
-        nvrp = iv - hv if hv > 0 else 0
+        # Volatility risk premium in VOL POINTS. IV/HV arrive as decimals
+        # (0.50 = 50%); the previous decimal difference (0.15) x 3 added 0.45
+        # points, so the IV-over-realized premium -- the core premium-selling
+        # edge -- was effectively ignored and a seller could only clear the 60
+        # edge floor at IV rank >= 84. Values already in percent pass through.
+        nvrp_points = (self._vol_points(iv) - self._vol_points(hv)) if hv > 0 else 0.0
+        nvrp_edge = max(-25.0, min(nvrp_points * 3, 25.0))
 
         # NVRP edge
         if strategy_type in [StrategyType.IRON_CONDOR, StrategyType.BULL_PUT_CREDIT,
                              StrategyType.BEAR_CALL_CREDIT, StrategyType.CASH_SECURED_PUT,
                              StrategyType.COVERED_CALL]:
             # Premium selling: positive NVRP = edge
-            score += min(nvrp * 3, 25)
+            score += nvrp_edge
             # High IV rank = more premium = more edge
             score += min((iv_rank - 50) * 0.3, 15)
         else:
             # Premium buying: negative NVRP = edge
-            score -= min(nvrp * 3, 25)
+            score -= nvrp_edge
             score -= min((iv_rank - 50) * 0.3, 15)
 
         # Flow confirmation

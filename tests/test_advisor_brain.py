@@ -332,3 +332,51 @@ def test_brain_allows_bull_credit_spread_for_a_market_leader():
         relative_strength=0.05, **_credit_spread_base()
     )
     assert result["strategy"] == "bull_put_credit"
+
+
+# ── Neutral high-IV premium (the wheel entry) ──────────────────────────────
+
+def _neutral_premium_inputs(**overrides):
+    args = dict(
+        signal=SignalStrength.NEUTRAL,
+        regime="neutral",
+        iv_signal={"eff_iv_rank": 78},
+        sideways={"is_sideways": False},
+        vix=20,
+        days_to_earnings=None,
+        symbol="XLK",
+        existing_positions=[],
+        confidence=20,           # a neutral read has little directional agreement
+        trend="neutral",
+        relative_strength=0.02,
+        days_to_macro=None,
+    )
+    args.update(overrides)
+    return args
+
+
+def test_brain_sells_premium_on_neutral_rich_iv():
+    """IVR 78 with no directional lean used to fall through to no_edge."""
+    result = AIBrain()._select_best_strategy(**_neutral_premium_inputs())
+    assert result["strategy"] == "cash_secured_put"
+    assert result["reason_code"] == "neutral_premium"
+
+
+def test_neutral_premium_needs_rich_iv():
+    result = AIBrain()._select_best_strategy(**_neutral_premium_inputs(iv_signal={"eff_iv_rank": 45}))
+    assert result["strategy"] != "cash_secured_put"
+
+
+def test_neutral_premium_refuses_downtrend_and_laggards():
+    brain = AIBrain()
+    assert brain._select_best_strategy(**_neutral_premium_inputs(trend="bearish"))["strategy"] != "cash_secured_put"
+    laggard = brain._select_best_strategy(**_neutral_premium_inputs(relative_strength=-0.30))
+    assert laggard["reason_code"] == "laggard"
+
+
+def test_neutral_premium_still_respects_market_vetoes():
+    brain = AIBrain()
+    assert brain._select_best_strategy(**_neutral_premium_inputs(days_to_earnings=3))["strategy"] == "avoid_new_positions"
+    assert brain._select_best_strategy(**_neutral_premium_inputs(vix=32))["reason_code"] == "high_vix"
+    inverted = brain._select_best_strategy(**_neutral_premium_inputs(iv_signal={"eff_iv_rank": 78, "term_structure": "inverted"}))
+    assert inverted["reason_code"] == "inverted_term_structure"

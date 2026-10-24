@@ -39,6 +39,16 @@ MIN_BUY_DTE = 14
 # a new credit structure. 1.0 x expected move ≈ the 68% expiry-probability
 # boundary, the minimum POP the community treats as a "high-win-rate" trade.
 EXPECTED_MOVE_MIN_MULTIPLE = 1.0
+# Cash-secured puts and covered calls use the standard wheel entry instead
+# (~25-30 delta at 30-45 DTE ≈ 0.5x the 1-SD move; the Cboe study cited above
+# puts that band at a ~70-75% hold-to-expiry win rate). At 1.0x a CSP is a
+# ~16-delta put whose premium is ~0.7% of the cash per 45 days even on a
+# 50%-IV name -- too little to justify locking the backing, so the rule
+# effectively banned the strategy. Assignment on a CSP means owning a stock
+# the trade chose to own (the wheel's next leg), not a max-loss event, and the
+# touch-probability gate plus MAX_CSP_DELTA still keep strikes off the money.
+CASH_SECURED_EXPECTED_MOVE_MULTIPLE = 0.5
+_CASH_SECURED_TYPES = {"csp", "cc", "cash_secured_put", "covered_call", "wheel"}
 
 # No NEW short-premium entries with earnings within this many days. The
 # earnings move is binary; IV crush makes the credit look rich without being
@@ -58,6 +68,10 @@ _SELL_PREMIUM_TYPES = {
     "iron_butterfly", "jade_lizard", "bull_put_credit",
     "bear_call_credit", "iron_condor_weekly", "credit_spread_weekly",
     "wheel",
+    # The recommender's own candidate-type codes. Without these, CSP and CC
+    # candidates silently skipped every context veto in evaluate_entry()
+    # (trend, expected-move buffer, DTE band, relative strength).
+    "csp", "cc",
 }
 # This is the single source of truth for "is this a premium-selling
 # strategy" across the whole system -- trade_manager.py and ai_brain.py both
@@ -69,6 +83,7 @@ _SELL_PREMIUM_TYPES = {
 # keep that mirror in sync if this set ever changes.
 _BULL_TYPES = {
     "bull_put", "bull_put_credit", "cash_secured_put", "covered_call",
+    "csp", "cc",
     "bull_call", "call_debit", "call_debit_spread", "bull_call_spread",
 }
 _BEAR_TYPES = {
@@ -126,13 +141,21 @@ def expected_move_buffer_ok(
         return True, ""  # no strike data → not our gate to veto on
     distance = abs(spot - short_strike)
     multiple = distance / expected_move_1sd
-    if multiple < EXPECTED_MOVE_MIN_MULTIPLE:
+    floor = expected_move_multiple_for(strategy)
+    if multiple < floor:
         return (
             False,
-            f"short strike {distance:.2f} from spot is inside the 1-SD expected move "
-            f"({expected_move_1sd:.2f}) → POP below ~68%",
+            f"short strike {distance:.2f} from spot is only {multiple:.2f}x the 1-SD "
+            f"expected move ({expected_move_1sd:.2f}); {strategy} needs >= {floor:.2f}x",
         )
     return True, ""
+
+
+def expected_move_multiple_for(strategy: str) -> float:
+    key = (strategy or "").lower()
+    if key in _CASH_SECURED_TYPES:
+        return CASH_SECURED_EXPECTED_MOVE_MULTIPLE
+    return EXPECTED_MOVE_MIN_MULTIPLE
 
 
 def entry_dte_ok(strategy: str, dte: Optional[int]) -> Tuple[bool, str]:

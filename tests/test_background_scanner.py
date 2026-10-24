@@ -447,3 +447,27 @@ async def test_analyze_one_feeds_flow_pcr_gex_to_the_brain(scanner, monkeypatch)
     assert data["gex_regime"] == "NEUTRAL"
     # The scan feeds the feedback loop with the price it already fetched.
     assert outcomes == [("SPY", 100.0)]
+
+
+def test_premium_picks_notify_on_iv_rank_not_directional_score(scanner):
+    """A bull put at score 45 / IVR 66 never reached the executor under the
+    |score| >= 75 floor; premium picks are now gated on volatility richness."""
+    assert scanner._is_new_trade("WFC", 44.9, "weak_buy", "bull_put_credit", "neutral", 65.6)
+    assert scanner._is_new_trade("XLK", 5.6, "neutral", "cash_secured_put", "neutral", 78.1)
+    assert not scanner._is_new_trade("PFE", 20.3, "neutral", "cash_secured_put", "neutral", 25.0)
+    assert not scanner._is_new_trade("XYZ", 50.0, "neutral", "bull_put_credit", "neutral", None)
+    # Directional (debit) picks keep the conviction floor.
+    assert not scanner._is_new_trade("AAPL", 67.0, "buy", "call_debit_spread", "bullish", 12.5)
+
+
+def test_notification_signature_ignores_small_score_wobble(scanner):
+    assert scanner._is_new_trade("XLK", 5.6, "neutral", "cash_secured_put", "neutral", 78.1)
+    scanner._last_results["XLK"] = scanner._result_signature(5.6, "neutral", "cash_secured_put", "neutral")
+    assert not scanner._is_new_trade("XLK", 6.4, "neutral", "cash_secured_put", "neutral", 79.0)
+
+
+def test_read_time_filter_keeps_premium_notifications(scanner):
+    keep = {"best_strategy": "cash_secured_put", "score": 5, "eff_iv_rank": 70}
+    drop = {"best_strategy": "cash_secured_put", "score": 5, "eff_iv_rank": 20}
+    assert scanner._notification_is_actionable(keep)
+    assert not scanner._notification_is_actionable(drop)

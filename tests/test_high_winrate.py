@@ -157,3 +157,18 @@ def test_evaluate_entry_first_failure_wins_and_is_specific():
         dte=35,
     )
     assert not ok and "trend_mismatch" in reason
+
+
+def test_recommender_cash_secured_codes_get_every_context_gate():
+    """The recommender's 'csp'/'cc' codes used to skip all of evaluate_entry()."""
+    assert is_premium_selling("csp") and is_premium_selling("cc")
+    assert strategy_bias("csp") == "bull"
+    assert not trend_alignment_ok("csp", "bearish")[0]
+    assert not entry_dte_ok("csp", 10)[0]
+
+
+def test_cash_secured_uses_wheel_expected_move_band():
+    # Spot 20, 1-SD move 3.5: a strike 2.0 away is 0.57x the move.
+    assert expected_move_buffer_ok("csp", 18.0, 20.0, 3.5)[0]
+    assert not expected_move_buffer_ok("bull_put", 18.0, 20.0, 3.5)[0]   # spreads keep 1.0x
+    assert not expected_move_buffer_ok("csp", 19.0, 20.0, 3.5)[0]        # 0.29x: too close

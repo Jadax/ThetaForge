@@ -118,6 +118,10 @@ class AIBrain:
     # engines now report neutral (strength ~0) and are excluded from the
     # agreement average, so the floor reflects real directional agreement.
     MIN_STRATEGY_CONFIDENCE = 45
+    # IV-rank floor for selling premium on a NEUTRAL read. Higher than the 40
+    # used for directional credit spreads: without a directional tailwind the
+    # volatility premium has to carry the whole edge (Tastytrade: IVR > 50).
+    NEUTRAL_PREMIUM_MIN_IVR = 50
     # Neutral signals (no directional read) that would dilute a mean of all
     # confidences are excluded from the agreement average below this strength.
     INFORMATIVE_STRENGTH_EPS = 0.05
@@ -966,23 +970,25 @@ class AIBrain:
                 "reasoning": "VIX term structure inverted → pause new premium selling until curve re-steepens",
             }
 
-        if confidence < self.MIN_STRATEGY_CONFIDENCE:
-            return {
-                "strategy": "no_trade",
-                "reason_code": "low_confidence",
-                "reasoning": f"Signal agreement is only {confidence:.0f}% — insufficient confirmation",
-            }
-
         # Extreme VIX fires before any strategy branch (docstring contract).
         # A VIX spike does not itself authorize selling puts; premium selling
         # is only safe in a defined moderate-VIX window.  This veto must sit
-        # BEFORE the directional branches so it cannot be skipped.
+        # BEFORE every strategy branch so it cannot be skipped.
         if vix > 30:
             return {
                 "strategy": "no_trade",
                 "reason_code": "high_vix",
                 "reasoning": f"VIX {vix:.0f} is extreme; wait for a directional and volatility confirmation",
             }
+
+        # --- Non-directional premium selling --------------------------------
+        # These two branches sit BEFORE the signal-agreement gate on purpose:
+        # their edge is rich implied volatility, not a directional call, so
+        # requiring directional agreement filtered out exactly the setups the
+        # Tastytrade playbook sells (high IV rank, no strong lean). Every
+        # structure they lead to is still re-gated downstream (IV > HV, IV
+        # rank floor, POP/edge/composite floors, expected-move buffer, trend,
+        # touch probability) before an order can exist.
 
         # High IV + Sideways = sell premium. Iron condors are deliberately
         # limited to their documented moderate-volatility range (OptionsPilot
@@ -992,6 +998,39 @@ class AIBrain:
                 "strategy": "iron_condor",
                 "reason_code": "iron_condor",
                 "reasoning": f"IVR {ivr:.0f} + sideways market → iron condor captures theta from both sides",
+            }
+
+        # High IV + no directional lean + not in a downtrend = the wheel entry:
+        # sell a cash-secured put (or, where the cash backing doesn't fit, a
+        # bull put spread — the Recommender picks the structure) below the
+        # expected move. Before this branch a neutral read on a rich-IV name
+        # (e.g. IVR 78 with a +5 signal) fell through to "no_edge".
+        if (
+            ivr >= self.NEUTRAL_PREMIUM_MIN_IVR
+            and signal == SignalStrength.NEUTRAL
+            and trend != "bearish"
+        ):
+            rs_ok, rs_reason = hw_relative_strength_ok("cash_secured_put", relative_strength)
+            if not rs_ok:
+                return {
+                    "strategy": "no_trade",
+                    "reason_code": "laggard",
+                    "reasoning": f"{symbol}: {rs_reason}",
+                }
+            return {
+                "strategy": "cash_secured_put",
+                "reason_code": "neutral_premium",
+                "reasoning": (
+                    f"IVR {ivr:.0f} with no directional lean → sell a cash-secured put "
+                    "(or put spread) below the expected move; rich IV is the edge"
+                ),
+            }
+
+        if confidence < self.MIN_STRATEGY_CONFIDENCE:
+            return {
+                "strategy": "no_trade",
+                "reason_code": "low_confidence",
+                "reasoning": f"Signal agreement is only {confidence:.0f}% — insufficient confirmation",
             }
 
         # Moderate-to-high IV + Trending = directional credit spread. The 40

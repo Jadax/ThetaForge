@@ -38,8 +38,32 @@ MAX_RISK_PCT = {
     RiskTolerance.MODERATE: 0.02,
     RiskTolerance.AGGRESSIVE: 0.03,
 }
-MAX_PORTFOLIO_DELTA = 20
-MAX_PORTFOLIO_VEGA = 5.0
+# Net position Greeks per recommendation set, in share-equivalent delta and
+# dollars-per-vol-point vega (chain Greeks are per share; x100 per contract).
+# The previous 20 / 5.0 caps were below a single ordinary position: one
+# 25-30-delta CSP is 25-30 share-delta, and a 30-DTE put on any stock over
+# ~$45 carries more than $5 of vega -- so no CSP and almost no spread could
+# ever pass. 100 delta ~ one 100-share lot; $50/vol-pt means a 10-point IV
+# spike costs at most $500 (10% of a $5k options book).
+MAX_PORTFOLIO_DELTA = 100
+MAX_PORTFOLIO_VEGA = 50.0
+# Cash-secured structures (CSP, covered call) are sized by the cash/shares
+# backing them, not by the 1-3% max-loss budget used for defined-risk
+# spreads: a CSP's "max loss" is the full strike, so under the max-loss rule
+# no CSP could ever be recommended (2% of $5k = $100 vs $1,000+ of backing).
+# The wheel's real risk control is how much of the book one name may tie up.
+# 0.50 lets a $5k book hold up to two concurrent CSPs on strikes <= $25; the
+# Bridge's weekly capital ledger stays the hard ceiling on the total.
+MAX_CASH_SECURED_ALLOCATION_PCT = 0.50
+CASH_SECURED_TYPES = ("csp", "cc")
+# Premium-quality floors for a CSP: the cash backing is locked for the whole
+# trade, so a far-OTM put paying pennies (e.g. $0.03 against $1,500 of cash)
+# is refused even when every probability gate likes it. ~1%/month on the
+# backing is the conventional wheel hurdle; $0.20 keeps the credit clear of
+# round-trip commissions. MAX_CSP_DELTA keeps strikes off the money.
+MIN_CSP_CREDIT = 0.20
+MIN_CSP_ANNUALIZED_RETURN_PCT = 12.0
+MAX_CSP_DELTA = 0.35
 # Concentration cap: no more than this many selected positions may share one
 # sector bucket (see SYMBOL_SECTOR). Correlated names trade together, so the
 # cap keeps a single macro/sector shock from hitting the whole book at once.
@@ -77,6 +101,18 @@ SYMBOL_SECTOR = {
     "SPY": "broad_index", "QQQ": "broad_index", "IWM": "broad_index", "DIA": "broad_index",
     # Remaining sector ETFs
     "XLC": "communications", "XLU": "utilities", "XLB": "materials",
+    # Wheel tier (background_scanner.LIQUID_OPTIONS_UNIVERSE) — grouped so the
+    # cap catches names that trade together (cruise lines, crypto miners, EVs,
+    # Brazil) instead of treating each as an uncorrelated singleton.
+    "F": "autos", "RIVN": "autos", "NIO": "autos",
+    "SOFI": "fintech", "NU": "fintech", "GRAB": "fintech",
+    "T": "telecom", "VZ": "telecom",
+    "AAL": "travel", "CCL": "travel", "NCLH": "travel", "LYFT": "travel",
+    "MARA": "crypto", "RIOT": "crypto",
+    "CLF": "materials", "VALE": "brazil", "ITUB": "brazil", "EWZ": "brazil",
+    "KMI": "energy", "WBD": "communications", "SNAP": "communications",
+    "HPE": "tech", "PATH": "tech", "KHC": "consumer", "CHWY": "consumer",
+    "JD": "china", "SLV": "metals",
 }
 # A candidate must demonstrate strong agreement across the strategy scorer's
 # inputs before it is eligible for the dashboard. Ranking alone is never enough.
@@ -93,7 +129,14 @@ SYMBOL_SECTOR = {
 # floors (POP>=55, edge>=60, credit/width>=0.25, per-strategy leg OI,
 # probability-of-touch<=70, IV>HV, trend/expected-move/earnings vetoes)
 # still decide eligibility — the composite floor only stops the aggregate.
-MIN_COMPOSITE_SCORE = 65.0
+# Restored 65 -> 70 (Oct 24 2026): both loosenings above were measured while
+# StrategyScorer._score_edge added the IV-over-HV premium in decimals (a
+# 15-vol-point premium contributed 0.45 instead of 25), so every seller's edge
+# term — 25-35% of the composite weight — was pinned near its 50 baseline.
+# With edge scored in vol points, real sell setups land ~4-9 points higher and
+# the 70 floor is no longer a de facto ban; keeping 65 would have stacked a
+# workaround on top of the fix.
+MIN_COMPOSITE_SCORE = 70.0
 # Debit spreads buy premium only when the Brain's IV-Rank ceiling authorizes
 # that (MIN_IV_RANK_BUY=45), which is the opposite side of the same decision
 # — so their composite floor is the scorer's declared baseline, not baseline+5.
@@ -209,6 +252,7 @@ class TradeRecommender:
         # Step 2: Calculate available capital
         risk_per_trade = self._calculate_risk_per_trade(account)
         max_capital_per_trade = risk_per_trade * 5  # Max 5x risk as capital
+        cash_secured_cap = account.total_equity * MAX_CASH_SECURED_ALLOCATION_PCT
 
         # Step 3: Analyze existing positions
         portfolio_greeks = self._analyze_portfolio_greeks(account.current_positions)
@@ -240,6 +284,7 @@ class TradeRecommender:
                 risk_per_trade=risk_per_trade,
                 max_capital=max_capital_per_trade,
                 shares_owned=shares_owned,
+                cash_secured_cap=cash_secured_cap,
             )
             all_candidates.extend(candidates)
 
@@ -329,9 +374,12 @@ class TradeRecommender:
         risk_per_trade: float,
         max_capital: float,
         shares_owned: float = 0,
+        cash_secured_cap: Optional[float] = None,
     ) -> List[Dict]:
         """Scan a single symbol for strategy opportunities."""
         candidates = []
+        if cash_secured_cap is None:
+            cash_secured_cap = max_capital
 
         # Calculate analytics
         max_pain = self.analytics.max_pain(chain)
@@ -392,7 +440,7 @@ class TradeRecommender:
             for put in puts:
                 cand = self._score_csp(
                     symbol, stock_price, put, dte, regime, technical_data,
-                    flow_data, nvrp, risk_per_trade, max_capital
+                    flow_data, nvrp, risk_per_trade, cash_secured_cap
                 )
                 if cand:
                     candidates.append(cand)
@@ -402,7 +450,7 @@ class TradeRecommender:
                 for call in calls:
                     cand = self._score_cc(
                         symbol, stock_price, call, dte, regime, technical_data,
-                        flow_data, nvrp, risk_per_trade, max_capital
+                        flow_data, nvrp, risk_per_trade, cash_secured_cap
                     )
                     if cand:
                         candidates.append(cand)
@@ -459,6 +507,15 @@ class TradeRecommender:
                         candidates.append(cand)
 
         return candidates
+
+    @staticmethod
+    def _net_leg_greek(legs: List[Dict[str, Any]], greek: str) -> float:
+        """Net position greek per contract: -x100 for sold legs, +x100 bought."""
+        total = 0.0
+        for leg in legs:
+            value = float(leg.get(greek, 0) or 0) * 100
+            total += -value if leg.get("action") == "SELL" else value
+        return total
 
     @staticmethod
     def _strategy_market_context(nvrp: Dict[str, Any], tech: Dict[str, Any]) -> Dict[str, Any]:
@@ -631,6 +688,11 @@ class TradeRecommender:
         short_strikes = [candidate.get("short_strike")]
         if strategy == "iron_condor":
             short_strikes = [candidate.get("put_short"), candidate.get("call_short")]
+        elif strategy in ("csp", "cc"):
+            # Single-leg candidates carry their (short) strike as "strike";
+            # reading short_strike left it None and skipped the expected-move
+            # buffer entirely for every CSP and covered call.
+            short_strikes = [candidate.get("strike")]
 
         for strike in short_strikes:
             ok, _ = hw_evaluate_entry(
@@ -777,6 +839,11 @@ class TradeRecommender:
         premium = put.get("bid", 0)
         if premium <= 0 or strike <= 0 or strike >= stock_price:
             return None
+        if premium < MIN_CSP_CREDIT:
+            return None
+        delta = put.get("delta")
+        if delta is not None and abs(float(delta or 0)) > MAX_CSP_DELTA:
+            return None
 
         # Liquidity check
         if not self._has_minimum_open_interest(put, MIN_SINGLE_LEG_OI):
@@ -786,6 +853,8 @@ class TradeRecommender:
         capital_needed = strike * 100
 
         if capital_needed > max_cap:
+            return None
+        if float(roi.get("annualized_return_pct", 0) or 0) < MIN_CSP_ANNUALIZED_RETURN_PCT:
             return None
 
         # Score
@@ -830,10 +899,12 @@ class TradeRecommender:
             return None
 
         roi = self.roi_calc.covered_call_roi(strike, premium, dte, stock_price, iv=nvrp.get("iv", 0.20))
-        capital_needed = stock_price * 100
-
-        if capital_needed > max_cap:
-            return None
+        # The call is written against shares already owned (the caller only
+        # scores CCs when shares_owned >= 100, and the Bridge re-checks
+        # ownership), so it ties up no NEW capital. Gating it on the shares'
+        # market value blocked the wheel's second leg -- calls against shares
+        # assigned from a CSP -- whenever that value exceeded the allocation.
+        capital_needed = 0.0
 
         market_ctx = self._strategy_market_context(nvrp, tech)
         opt_ctx = {
@@ -1305,31 +1376,29 @@ class TradeRecommender:
 
             # The risk budget binds the maximum amount this position can LOSE,
             # not its capital outlay (which is reserved by buying power above).
+            # Cash-secured structures are the exception: their "max loss" is
+            # the full backing (assignment of shares the trade is willing to
+            # own), so they are bounded by MAX_CASH_SECURED_ALLOCATION_PCT at
+            # scoring time and by buying power above instead.
             max_loss = (
                 cand.get("max_loss")
                 or cand.get("roi", {}).get("max_loss")
                 or capital_needed
             )
-            if max_loss > risk_per_trade:
+            if cand.get("type") not in CASH_SECURED_TYPES and max_loss > risk_per_trade:
                 continue
 
-            # Check Greeks limits. Position delta/vega come from the short
-            # leg(s) when the provider supplied them; a candidate that carries
-            # explicit impacts (e.g. from a caller) keeps those values.
+            # Check Greeks limits on the NET position: sold legs contribute
+            # -greek, bought legs +greek (x100 per contract). Counting only the
+            # sold legs scored a 25/10-delta put spread as 25 delta instead of
+            # its true ~15, ignoring the hedge the spread exists for. A
+            # candidate that carries explicit impacts keeps those values.
             est_delta = cand.get("delta_impact")
             est_vega = cand.get("vega_impact")
             if est_delta is None:
-                est_delta = sum(
-                    -float(leg.get("delta", 0) or 0) * 100
-                    for leg in cand.get("legs", [])
-                    if leg.get("action") == "SELL"
-                )
+                est_delta = self._net_leg_greek(cand.get("legs", []), "delta")
             if est_vega is None:
-                est_vega = sum(
-                    -float(leg.get("vega", 0) or 0) * 100
-                    for leg in cand.get("legs", [])
-                    if leg.get("action") == "SELL"
-                )
+                est_vega = self._net_leg_greek(cand.get("legs", []), "vega")
             if abs(current_delta + est_delta) > MAX_PORTFOLIO_DELTA:
                 continue
             if abs(current_vega + est_vega) > MAX_PORTFOLIO_VEGA:
@@ -1607,7 +1676,10 @@ class TradeRecommender:
         if total_deployed > account.buying_power * 0.5:
             warnings.append(f"⚠ Would deploy {total_deployed:.0f} ({total_deployed/account.buying_power*100:.0f}%) of buying power")
 
-        new_delta = sum(r.legs[0].contract.delta * (1 if r.legs[0].action == "BUY" else -1) for r in recommendations if r.legs)
+        new_delta = sum(
+            leg.contract.delta * 100 * (1 if leg.action == "BUY" else -1)
+            for r in recommendations for leg in (r.legs or [])
+        )
         if abs(portfolio_greeks.get("net_delta", 0) + new_delta) > MAX_PORTFOLIO_DELTA:
             warnings.append(f"⚠ Net delta would approach limit ({MAX_PORTFOLIO_DELTA})")
 
