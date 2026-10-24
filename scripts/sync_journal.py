@@ -556,6 +556,10 @@ def sync(args: argparse.Namespace) -> int:
             # Published entry whose ledger record is absent from this ledger
             # file — the executor VM migrated to a fresh Bridge ledger. Keep the
             # receipt; a ledger that starts over must not erase real trades.
+            # Do NOT drop a carried entry for showing zero filled: the old
+            # ledger froze working DAY orders at their last-seen "Submitted"
+            # status, and IBKR position reconciliation (Oct 24 2026) proved all
+            # three such Sept 29 entries had in fact filled.
             trade = dict(trade)
             trade["carried"] = True
             entries.append(trade)

@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -150,6 +151,75 @@ RESERVING_ORDER_STATUSES = {
     "PendingCancel", "Filled", "Unknown",
 }
 TERMINAL_ORDER_STATUSES = {"ApiCancelled", "Cancelled", "Inactive"}
+WORKING_ORDER_STATUSES = {"ApiPending", "PendingSubmit", "PreSubmitted", "Submitted"}
+NEW_YORK = ZoneInfo("America/New_York")
+
+# Every order this Bridge places is a DAY limit. The paper account only has
+# delayed (15-min) stock quotes, so a limit pinned to the snapshot ask/bid
+# often sat on the wrong side of the real market and expired unfilled (24 of
+# 48 Oct-2026 entries) — and a stop-loss SELL in a falling market almost never
+# fills at a 15-minute-old bid. A small marketable buffer on non-live quotes
+# makes fills near-certain while still capping the price paid/received.
+STALE_QUOTE_LIMIT_BUFFER_PCT = 0.005
+
+
+def _marketable_limit(price: float, side: str, quote_quality: str) -> float:
+    """Limit price for a DAY order: the quote itself when live, otherwise a
+    buffer through it (BUY above the ask, SELL below the bid)."""
+    if quote_quality == "live":
+        return round(price, 2)
+    factor = 1 + STALE_QUOTE_LIMIT_BUFFER_PCT if side == "BUY" else 1 - STALE_QUOTE_LIMIT_BUFFER_PCT
+    return round(price * factor, 2)
+
+
+def _new_york_date(iso_timestamp: str | None):
+    try:
+        moment = datetime.fromisoformat(str(iso_timestamp).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(NEW_YORK).date()
+
+
+def _reconcile_lapsed_orders(records: list[dict[str, Any]], today_ny) -> bool:
+    """Resolve ledger states IBKR will never report again. Returns changed.
+
+    1. A DAY order still recorded as working from an EARLIER New York session
+       has expired: IBKR stops reporting it after the session, so its last-seen
+       "Submitted" froze in the ledger forever, reserving capital and (before
+       the executor fix) hiding the name from the duplicate guard. Unfilled ->
+       Inactive; partially filled -> Filled at the filled quantity.
+    2. A closing order that ended without a fill must not keep its parent
+       marked closed: both close endpoints set closed_by at submission, so a
+       stop-loss sell that expired unfilled left the position held at IBKR but
+       invisible to the exit manager, with a phantom realized P&L in the journal.
+    """
+    changed = False
+    by_id = {str(record.get("id")): record for record in records}
+    for record in records:
+        status = str(record.get("status", ""))
+        submitted_day = _new_york_date(record.get("submitted_at"))
+        if status in WORKING_ORDER_STATUSES and submitted_day and submitted_day < today_ny:
+            filled = float(record.get("filled", 0) or 0)
+            if filled > 0:
+                record.update({"status": "Filled", "quantity": filled, "remaining": 0.0})
+            else:
+                record["status"] = "Inactive"
+            record["error_message"] = "DAY order lapsed at the session close (resolved by the Bridge)"
+            record["updated_at"] = datetime.now(timezone.utc).isoformat()
+            status = record["status"]
+            changed = True
+        if record.get("close_of") and status in TERMINAL_ORDER_STATUSES \
+                and float(record.get("filled", 0) or 0) <= 0 and not record.get("unlinked"):
+            parent = by_id.get(str(record.get("close_of")))
+            if parent is not None and parent.get("closed_by") == record.get("id"):
+                parent.pop("closed_by", None)
+                parent.pop("closed_at", None)
+                parent["updated_at"] = datetime.now(timezone.utc).isoformat()
+            record["unlinked"] = True
+            changed = True
+    return changed
 
 
 def _ensure_order_ledger() -> None:
@@ -274,9 +344,19 @@ def _sync_order_ledger() -> list[dict[str, Any]]:
         }
         if perm_now and perm_now != int(record.get("ibkr_perm_id", 0) or 0):
             update["ibkr_perm_id"] = perm_now
+        # Book an equity close's realized P&L from its actual fill, not the
+        # (buffered) limit it was submitted at.
+        if record.get("close_of") and record.get("asset_class") == "equity" \
+                and update["filled"] > 0 and update["average_fill_price"] > 0:
+            parent = next((item for item in records if item.get("id") == record.get("close_of")), None)
+            basis = float((parent or {}).get("average_fill_price") or (parent or {}).get("entry_price") or 0)
+            if basis > 0:
+                update["realized_pnl"] = round((update["average_fill_price"] - basis) * update["filled"], 2)
         if any(record.get(key) != value for key, value in update.items()):
             record.update(update)
             changed = True
+    if _reconcile_lapsed_orders(records, datetime.now(NEW_YORK).date()):
+        changed = True
     if changed:
         _write_order_ledger(records)
     return records
@@ -886,7 +966,10 @@ async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_a
     ask = _quote_number(ticker.ask)
     if ask is None:
         raise HTTPException(status_code=422, detail="Executable IBKR ask data is required before a paper stock order can be submitted")
-    entry_price = ask
+    quote_quality = _snapshot_quality([ticker])
+    limit_price = _marketable_limit(ask, "BUY", quote_quality)
+    # Risk is reserved against the worst price this order may pay.
+    entry_price = limit_price
     if order.stop_price >= entry_price:
         raise HTTPException(status_code=422, detail="Stop price must be below the entry price")
     stop_distance = entry_price - order.stop_price
@@ -906,7 +989,6 @@ async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_a
         )
 
     assert ib is not None
-    limit_price = round(ask, 2)
     ib_order = LimitOrder("BUY", order.shares, limit_price, tif="DAY")
     ledger_id = str(uuid4())
     ib_order.orderRef = ledger_id
@@ -927,7 +1009,7 @@ async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_a
         "remaining": float(trade.orderStatus.remaining or order.shares),
         "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
         "limit_price": limit_price,
-        "quote_quality": _snapshot_quality([ticker]),
+        "quote_quality": quote_quality,
         "entry_price": round(entry_price, 2),
         "stop_price": round(order.stop_price, 2),
         "target_price": round(order.target_price, 2) if order.target_price else None,
@@ -984,7 +1066,9 @@ async def close_paper_stock(request: CloseStockRequest, _: None = Depends(requir
     if float(parent.get("filled", 0) or 0) <= 0:
         raise HTTPException(status_code=409, detail="Cannot close a paper position that has not filled")
 
-    shares = int(parent.get("quantity", 0) or 0)
+    # Sell what actually filled; a partially filled entry holds fewer shares
+    # than it ordered, and selling the ordered quantity would go short.
+    shares = int(float(parent.get("filled", 0) or 0)) or int(parent.get("quantity", 0) or 0)
     if shares <= 0:
         raise HTTPException(status_code=422, detail="Parent equity record has no quantity")
     cost_basis = float(parent.get("average_fill_price") or 0) or float(parent.get("entry_price") or 0)
@@ -996,7 +1080,8 @@ async def close_paper_stock(request: CloseStockRequest, _: None = Depends(requir
     if bid is None:
         raise HTTPException(status_code=422, detail="Executable IBKR bid data is required before a closing order can be submitted")
 
-    limit_price = round(bid, 2)
+    quote_quality = _snapshot_quality([ticker])
+    limit_price = _marketable_limit(bid, "SELL", quote_quality)
     ib_order = LimitOrder("SELL", shares, limit_price, tif="DAY")
     ledger_id = str(uuid4())
     ib_order.orderRef = ledger_id
@@ -1018,7 +1103,7 @@ async def close_paper_stock(request: CloseStockRequest, _: None = Depends(requir
         "remaining": float(trade.orderStatus.remaining or shares),
         "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
         "limit_price": limit_price,
-        "quote_quality": _snapshot_quality([ticker]),
+        "quote_quality": quote_quality,
         "cost_to_close": round(limit_price * shares, 2),
         "realized_pnl": round(realized_pnl, 2),
         "week_key": _current_week_key(),

@@ -74,7 +74,7 @@ MANAGED_STRATEGIES = {
     "covered_call", "short_straddle", "short_strangle",
     "iron_butterfly", "jade_lizard", "bull_put_credit",
     "bear_call_credit", "iron_condor_weekly", "credit_spread_weekly",
-    "wheel",
+    "wheel", "csp", "cc",
 }
 
 
@@ -376,17 +376,16 @@ def run_once(client: httpx.Client) -> int:
         else:
             logger.info("%s: hold (%s)", symbol, reason)
 
-    if closes_submitted:
-        run_journal_sync()
     logger.info(
         "cycle done: %d open, %.2f realized, %.2f reserved, %d close(s) submitted (auto_close=%s)",
-        len(entries), realized_pnl, reserved, closes_submitted, AUTO_CLOSE_ENABLED,
+        len(entries or []), realized_pnl, reserved, closes_submitted, AUTO_CLOSE_ENABLED,
     )
 
     try:
         closes_submitted += run_equity_once(client)
     except Exception:
         logger.exception("Equity management cycle failed; continuing")
+    # One journal sync per cycle, covering option and equity closes alike.
     if closes_submitted:
         run_journal_sync()
 

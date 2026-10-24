@@ -131,7 +131,9 @@ def fetch_actionable_notifications(client: httpx.Client) -> list[dict[str, Any]]
     return response.json().get("notifications", [])
 
 
-def fetch_recommendation(client: httpx.Client, symbol: str) -> tuple[dict[str, Any] | None, str]:
+def fetch_recommendation(
+    client: httpx.Client, symbol: str, current_positions: list[dict[str, Any]] | None = None
+) -> tuple[dict[str, Any] | None, str]:
     """Fetch a fully-specified recommendation for one symbol.
 
     Returns (trade, detail): detail is empty on success and otherwise a short
@@ -147,7 +149,9 @@ def fetch_recommendation(client: httpx.Client, symbol: str) -> tuple[dict[str, A
             "buying_power": CAPITAL_LIMIT,
             "risk_tolerance": "moderate",
             "watchlist": [symbol],
-            "current_positions": [],
+            # Covered-call inventory (shares not owned by the equity engine);
+            # the Recommender only scores CCs against >= 100 owned shares.
+            "current_positions": current_positions or [],
             "max_positions": 3,
             "diversify_underlyings": False,
         },
@@ -215,25 +219,78 @@ def acknowledge(client: httpx.Client, notification_id: str) -> None:
 # ── Equity engine (stock/ETF longs) ──────────────────────────────────────
 
 
-def fetch_open_equity_symbols(client: httpx.Client) -> list[str]:
-    """Symbols of open, filled, non-closed positions from the Bridge ledger,
-    so the equity recommender can enforce its sector correlation cap."""
+# A DAY order still working at IBKR holds the name just as a fill does: the
+# duplicate guard used to count only filled records, so a pending DIA entry
+# was invisible and DIA was bought again 30 minutes later (Oct 20 2026: three
+# DIA entries in one session).
+PENDING_ORDER_STATUSES = {"ApiPending", "PendingSubmit", "PreSubmitted", "Submitted"}
+
+
+def fetch_ledger_orders(client: httpx.Client) -> list[dict[str, Any]] | None:
+    """The Bridge ledger records, or None when it can't be read (callers then
+    fail closed rather than treat an unreadable ledger as an empty book)."""
     try:
-        ledger = client.get(f"{BRIDGE_URL}/orders", headers=BRIDGE_HEADERS, timeout=15)
-        ledger.raise_for_status()
-        symbols = []
-        for record in ledger.json().get("orders", []):
-            if record.get("close_of") or record.get("closed_by"):
-                continue
-            if float(record.get("filled", 0) or 0) <= 0:
-                continue
-            if record.get("asset_class") != "equity":
-                continue
-            symbols.append(record["symbol"])
-        return symbols
+        response = client.get(f"{BRIDGE_URL}/orders", headers=BRIDGE_HEADERS, timeout=15)
+        response.raise_for_status()
+        return response.json().get("orders", [])
     except Exception:
-        logger.exception("Could not read the Bridge ledger for open equity symbols")
+        logger.exception("Could not read the Bridge ledger")
+        return None
+
+
+def held_symbols(records: list[dict[str, Any]], asset_class: str) -> list[str]:
+    """Symbols with an open (filled, not closed) or still-working entry."""
+    symbols: list[str] = []
+    for record in records:
+        if record.get("close_of") or record.get("closed_by"):
+            continue
+        is_equity = record.get("asset_class") == "equity"
+        if is_equity != (asset_class == "equity"):
+            continue
+        filled = float(record.get("filled", 0) or 0) > 0
+        working = record.get("status") in PENDING_ORDER_STATUSES
+        if (filled or working) and record.get("symbol") and record["symbol"] not in symbols:
+            symbols.append(record["symbol"])
+    return symbols
+
+
+def fetch_open_equity_symbols(client: httpx.Client) -> list[str]:
+    """Symbols of open or still-working equity entries from the Bridge ledger,
+    so the equity recommender can enforce its same-name and sector caps."""
+    records = fetch_ledger_orders(client)
+    return held_symbols(records, "equity") if records is not None else []
+
+
+def fetch_wheel_share_positions(client: httpx.Client, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Stock positions available to back a covered call: IBKR share holdings
+    minus shares the equity engine holds for its own (stop-managed) entries.
+
+    Shares assigned from a CSP are the wheel's covered-call inventory. Equity-
+    engine shares must never back a call: the equity manager can sell them on
+    a stop at any moment, which would leave the call naked.
+    """
+    try:
+        response = client.get(f"{BRIDGE_URL}/positions", headers=BRIDGE_HEADERS, timeout=15)
+        response.raise_for_status()
+        positions = response.json()
+    except Exception:
+        logger.exception("Could not read Bridge positions for covered-call inventory")
         return []
+    engine_shares: dict[str, float] = {}
+    for record in records:
+        if record.get("asset_class") != "equity" or record.get("close_of") or record.get("closed_by"):
+            continue
+        symbol = str(record.get("symbol", "")).upper()
+        engine_shares[symbol] = engine_shares.get(symbol, 0.0) + float(record.get("filled", 0) or 0)
+    wheel = []
+    for position in positions:
+        if position.get("contract_type") != "STK":
+            continue
+        symbol = str(position.get("symbol", "")).upper()
+        free_shares = float(position.get("position", 0) or 0) - engine_shares.get(symbol, 0.0)
+        if free_shares >= 100:
+            wheel.append({"symbol": symbol, "position": free_shares})
+    return wheel
 
 
 def fetch_equity_notifications(client: httpx.Client) -> list[dict[str, Any]]:
@@ -397,16 +454,27 @@ def run_once(client: httpx.Client) -> int:
 
     notifications = fetch_actionable_notifications(client)
     if notifications:
+        records = fetch_ledger_orders(client)
+        open_option_symbols = held_symbols(records, "options") if records is not None else []
+        wheel_shares = fetch_wheel_share_positions(client, records) if records is not None else []
         for notification in notifications:
             symbol = notification["symbol"]
             detail = ""
             action = "skipped"
-            try:
-                trade, detail = fetch_recommendation(client, symbol)
-            except Exception as error:
-                logger.exception("Failed to fetch a recommendation for %s", symbol)
-                trade = None
-                detail = f"fetch_error: {error}"
+            trade = None
+            if records is None:
+                # Fail closed: without the ledger the same-name guard can't run.
+                detail = "ledger_unreadable"
+            elif symbol in open_option_symbols:
+                # One option position per underlying (the wheel never stacks a
+                # second CSP on a name it's already short premium on).
+                detail = "already_open: an option position on this underlying is open or working"
+            else:
+                try:
+                    trade, detail = fetch_recommendation(client, symbol, wheel_shares)
+                except Exception as error:
+                    logger.exception("Failed to fetch a recommendation for %s", symbol)
+                    detail = f"fetch_error: {error}"
 
             if trade is None:
                 logger.info("%s: no qualifying structure at fetch time (%s)", symbol, detail)
@@ -417,6 +485,7 @@ def run_once(client: httpx.Client) -> int:
                 detail = message
                 if ok:
                     placed += 1
+                    open_option_symbols.append(symbol)
 
             decisions.append({
                 "engine": "options",

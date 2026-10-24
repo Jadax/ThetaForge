@@ -92,3 +92,46 @@ def test_equity_close_releases_reservation_and_ignores_close_order():
          "max_loss_total": 999.0, "close_of": "entry-1"},
     ]
     assert _reserved_capital(records, week) == 80
+
+
+# ── Order-state reconciliation and marketable limits (v1.17.27) ────────────
+
+from datetime import date  # noqa: E402
+
+from bridge.main import _marketable_limit, _reconcile_lapsed_orders  # noqa: E402
+
+
+def test_marketable_limit_buffers_only_stale_quotes():
+    assert _marketable_limit(100.0, "BUY", "live") == 100.0
+    assert _marketable_limit(100.0, "BUY", "delayed") == 100.5
+    assert _marketable_limit(100.0, "SELL", "delayed") == 99.5   # a stop sell must fill
+
+
+def test_lapsed_day_orders_resolve_instead_of_freezing():
+    today = date(2026, 10, 23)
+    records = [
+        {"id": "a", "status": "Submitted", "filled": 0, "submitted_at": "2026-10-20T13:51:48+00:00"},
+        {"id": "b", "status": "Submitted", "filled": 3, "quantity": 5, "submitted_at": "2026-10-20T14:00:00+00:00"},
+        {"id": "c", "status": "Submitted", "filled": 0, "submitted_at": "2026-10-23T14:00:00+00:00"},
+    ]
+    assert _reconcile_lapsed_orders(records, today)
+    assert records[0]["status"] == "Inactive"                      # stops reserving capital
+    assert records[1]["status"] == "Filled" and records[1]["quantity"] == 3
+    assert records[2]["status"] == "Submitted"                     # today's order still working
+
+
+def test_unfilled_close_unlinks_parent_so_exit_is_retried():
+    """A stop-loss sell that expired unfilled must not leave the position
+    marked closed (held at IBKR, invisible to the exit manager)."""
+    parent = {"id": "p", "status": "Filled", "filled": 10, "closed_by": "x", "closed_at": "t",
+              "submitted_at": "2026-10-20T14:00:00+00:00"}
+    close = {"id": "x", "close_of": "p", "status": "Cancelled", "filled": 0,
+             "submitted_at": "2026-10-22T19:00:00+00:00"}
+    assert _reconcile_lapsed_orders([parent, close], date(2026, 10, 23))
+    assert "closed_by" not in parent
+    assert close["unlinked"] is True
+    # A filled close keeps its parent closed.
+    filled_parent = {"id": "q", "closed_by": "y"}
+    filled_close = {"id": "y", "close_of": "q", "status": "Filled", "filled": 10}
+    _reconcile_lapsed_orders([filled_parent, filled_close], date(2026, 10, 23))
+    assert filled_parent["closed_by"] == "y"

@@ -748,3 +748,4 @@ def test_trail_dedupes_flat_feed_on_repeated_refresh(tmp_path):
     second = json.loads(journal_path.read_text(encoding="utf-8"))["trades"][0]
     assert len(second["price_trail"]) == len(points)
     assert second["live"]["price"] == 104.21
+
