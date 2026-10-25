@@ -132,7 +132,8 @@ def fetch_actionable_notifications(client: httpx.Client) -> list[dict[str, Any]]
 
 
 def fetch_recommendation(
-    client: httpx.Client, symbol: str, current_positions: list[dict[str, Any]] | None = None
+    client: httpx.Client, symbol: str, current_positions: list[dict[str, Any]] | None = None,
+    notification: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any] | None, str]:
     """Fetch a fully-specified recommendation for one symbol.
 
@@ -152,6 +153,10 @@ def fetch_recommendation(
             # Covered-call inventory (shares not owned by the equity engine);
             # the Recommender only scores CCs against >= 100 owned shares.
             "current_positions": current_positions or [],
+            # Futures-option picks (MES/MNQ) and the earnings IV-crush play
+            # need the Advisor's matching path, named by the notification.
+            "instrument": (notification or {}).get("instrument") or "options",
+            "strategy_hint": (notification or {}).get("best_strategy"),
             "max_positions": 3,
             "diversify_underlyings": False,
         },
@@ -180,6 +185,8 @@ def submit_to_bridge(client: httpx.Client, trade: dict[str, Any]) -> tuple[bool,
             "strike": leg["strike"],
             "right": "C" if leg["type"] == "CALL" else "P",
             "action": leg["action"],
+            "sec_type": leg.get("sec_type") or "OPT",
+            "trading_class": leg.get("trading_class"),
         }
         for leg in trade["legs"]
     ]
@@ -203,6 +210,39 @@ def submit_to_bridge(client: httpx.Client, trade: dict[str, Any]) -> tuple[bool,
         return False, f"bridge rejected ({response.status_code}): {body.get('detail')}"
     except Exception as error:
         return False, f"bridge call failed: {error}"
+
+
+# Transient fetch failures (Advisor rate limit, timeouts, connection errors,
+# 5xx) used to be acknowledged like any other outcome, so a rate-limited
+# signal was silently discarded. They now stay unacknowledged and are retried
+# next cycle, up to MAX_FETCH_ATTEMPTS, and a 429 ends the cycle's loop rather
+# than hammering the limiter with the rest of the queue.
+MAX_FETCH_ATTEMPTS = 3
+_fetch_attempts: dict[str, int] = {}
+
+
+def is_transient(error: Exception) -> bool:
+    if isinstance(error, httpx.HTTPStatusError):
+        return error.response.status_code in (429, 500, 502, 503, 504)
+    return isinstance(error, (httpx.TimeoutException, httpx.TransportError))
+
+
+def is_rate_limited(error: Exception) -> bool:
+    return isinstance(error, httpx.HTTPStatusError) and error.response.status_code == 429
+
+
+def should_retry(notification_id: str, error: Exception) -> bool:
+    """Record a failed fetch; True when the notification should be left for
+    the next cycle instead of acknowledged."""
+    if not is_transient(error):
+        _fetch_attempts.pop(notification_id, None)
+        return False
+    attempts = _fetch_attempts.get(notification_id, 0) + 1
+    if attempts >= MAX_FETCH_ATTEMPTS:
+        _fetch_attempts.pop(notification_id, None)
+        return False
+    _fetch_attempts[notification_id] = attempts
+    return True
 
 
 def acknowledge(client: httpx.Client, notification_id: str) -> None:
@@ -408,12 +448,15 @@ def run_equity_once(client: httpx.Client) -> int:
         symbol = notification["symbol"]
         detail = ""
         action = "skipped"
+        retry = rate_limited = False
         try:
             trade, detail = fetch_equity_recommendation(client, symbol, open_symbols)
         except Exception as error:
             logger.exception("Failed to fetch an equity recommendation for %s", symbol)
             trade = None
             detail = f"fetch_error: {error}"
+            retry = should_retry(str(notification["id"]), error)
+            rate_limited = is_rate_limited(error)
 
         if trade is None:
             logger.info("%s: no qualifying equity structure at fetch time (%s)", symbol, detail)
@@ -430,10 +473,14 @@ def run_equity_once(client: httpx.Client) -> int:
             "engine": "equity",
             "symbol": symbol,
             "notification_id": notification.get("id"),
-            "action": action,
+            "action": "deferred" if retry else action,
             "detail": detail,
         })
-        acknowledge_equity(client, notification["id"])
+        if not retry:
+            acknowledge_equity(client, notification["id"])
+        if rate_limited:
+            logger.info("Advisor rate limit hit; deferring the rest of the equity queue")
+            break
         if RECOMMEND_DELAY_SECONDS > 0 and notification != notifications[-1]:
             time.sleep(RECOMMEND_DELAY_SECONDS)
     post_decisions(client, decisions)
@@ -462,6 +509,7 @@ def run_once(client: httpx.Client) -> int:
             detail = ""
             action = "skipped"
             trade = None
+            retry = rate_limited = False
             if records is None:
                 # Fail closed: without the ledger the same-name guard can't run.
                 detail = "ledger_unreadable"
@@ -471,10 +519,12 @@ def run_once(client: httpx.Client) -> int:
                 detail = "already_open: an option position on this underlying is open or working"
             else:
                 try:
-                    trade, detail = fetch_recommendation(client, symbol, wheel_shares)
+                    trade, detail = fetch_recommendation(client, symbol, wheel_shares, notification)
                 except Exception as error:
                     logger.exception("Failed to fetch a recommendation for %s", symbol)
                     detail = f"fetch_error: {error}"
+                    retry = should_retry(str(notification["id"]), error)
+                    rate_limited = is_rate_limited(error)
 
             if trade is None:
                 logger.info("%s: no qualifying structure at fetch time (%s)", symbol, detail)
@@ -491,10 +541,14 @@ def run_once(client: httpx.Client) -> int:
                 "engine": "options",
                 "symbol": symbol,
                 "notification_id": notification.get("id"),
-                "action": action,
+                "action": "deferred" if retry else action,
                 "detail": detail,
             })
-            acknowledge(client, notification["id"])
+            if not retry:
+                acknowledge(client, notification["id"])
+            if rate_limited:
+                logger.info("Advisor rate limit hit; deferring the rest of the options queue")
+                break
             if RECOMMEND_DELAY_SECONDS > 0 and notification != notifications[-1]:
                 time.sleep(RECOMMEND_DELAY_SECONDS)
         post_decisions(client, decisions)

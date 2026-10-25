@@ -10,6 +10,39 @@ from typing import Any, Dict, List, Optional
 RIGHT_TO_TYPE = {"C": "CALL", "P": "PUT"}
 
 
+def contract_multiplier(record: Dict[str, Any]) -> float:
+    """Dollars per 1.00 of option price per contract: the qualified
+    contract's multiplier the Bridge recorded (MES 5, MNQ 2), else the equity
+    option standard 100 (records predating the field are all equity options)."""
+    try:
+        return float(record.get("multiplier") or 100)
+    except (TypeError, ValueError):
+        return 100.0
+
+
+def ledger_contracts(record: Dict[str, Any]) -> float:
+    """Contracts actually held: the filled count, else the ordered quantity."""
+    try:
+        return float(record.get("filled") or record.get("quantity") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def ledger_max_profit(record: Dict[str, Any]) -> float:
+    """Max profit in dollars for an option entry. Ledger prices are per unit
+    of the underlying, so dollars need multiplier x contracts -- the journal
+    used to publish the raw per-unit credit (0.50) as the max profit."""
+    credit = float(record.get("net_credit") or 0)
+    contracts = ledger_contracts(record)
+    if credit > 0:
+        return round(credit * contract_multiplier(record) * contracts, 2)
+    legs = record.get("legs") or []
+    if credit < 0 and len(legs) == 2:   # debit vertical: width minus the debit paid
+        width = abs(float(legs[0].get("strike") or 0) - float(legs[1].get("strike") or 0))
+        return round(max(width + credit, 0.0) * contract_multiplier(record) * contracts, 2)
+    return 0.0
+
+
 def ledger_capital_at_risk(record: Dict[str, Any]) -> Optional[float]:
     """Maximum capital at risk carried on a ledger order."""
     capital = record.get("max_loss_total") or record.get("max_loss_per_combo")

@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union
 import asyncio
+import json
+import logging
 import math
 import statistics
 from datetime import date
@@ -33,7 +35,16 @@ from agents.technical.indicators import TechnicalEngine as TechAnalyzer
 from agents.flow_analysis.gex_engine import GEXEngine
 from agents.trade_engine.alerts import AlertEngine, AlertPriority, AlertType
 from agents.trade_engine.signal_tracker import SignalTracker
-from agents.trade_engine.background_scanner import get_background_scanner, LIQUID_OPTIONS_UNIVERSE
+from agents.trade_engine.background_scanner import (
+    get_background_scanner, LIQUID_OPTIONS_UNIVERSE, SCAN_RESULTS_FILE,
+)
+from agents.trade_engine.futures_options import (
+    FUTURES_ALLOWED_TYPES, FUTURES_OPTION_ROOTS, atm_implied_vol, index_iv_rank,
+    is_futures_root, restore_legs, scale_chain,
+)
+from agents.trade_engine.position_marks import net_mark
+from agents.volatility.desk_analytics import implied_earnings_move
+from agents.volatility.iv_metrics import realized_volatility
 from agents.trade_engine.trade_manager import (
     OpenPosition,
     evaluate_position,
@@ -54,6 +65,7 @@ router = APIRouter(
     dependencies=[Depends(require_advisor_token)],
 )
 
+logger = logging.getLogger(__name__)
 provider = FreeDataProvider()
 # Bounded fan-out for per-symbol context in equity position management.
 EQUITY_MANAGEMENT_FETCH_CONCURRENCY = 4
@@ -241,6 +253,11 @@ class AdvisoryRequest(BaseModel):
         description="Keep the headline scan to one trade per underlying; false permits qualified alternatives for one requested stock",
     )
     current_positions: List[Dict[str, Any]] = Field(default_factory=list)
+    # "futures_options" = CME micro futures options (MES/MNQ watchlist).
+    instrument: str = Field("options", pattern="^(options|futures_options)$")
+    # The notification's Brain strategy; "earnings_iron_condor" switches the
+    # Recommender to the earnings IV-crush play for these symbols.
+    strategy_hint: Optional[str] = Field(None, max_length=40)
 
 
 class BrainAnalysisRequest(BaseModel):
@@ -769,6 +786,11 @@ class PositionInput(BaseModel):
     days_to_earnings: Optional[int] = Field(None, ge=0, le=365)
     days_to_macro: Optional[int] = Field(None, ge=0, le=90)
     capital_required: Optional[float] = Field(None, ge=0)
+    # Every leg of the position (strike, right|type, expiry, action): marks
+    # the WHOLE position (cost to close). Without legs, only the short leg's
+    # mid is available, which misreads spreads against their net credit.
+    legs: List[Dict[str, Any]] = Field(default_factory=list, max_length=4)
+    sec_type: str = Field("OPT", pattern="^(OPT|FOP)$")
 
 
 class ManagementRequest(BaseModel):
@@ -918,20 +940,28 @@ async def positions_management(request: ManagementRequest):
     for pos in request.positions:
         spot = pos.spot
         short_leg_value = pos.short_leg_value
+        futures = pos.sec_type == "FOP"
+        chain: List[Dict[str, Any]] = []
+        if futures or short_leg_value is None or short_leg_value < 0:
+            try:
+                chain = (await provider.get_futures_option_chain(pos.symbol) if futures
+                         else await provider.get_option_chain(pos.symbol)) or []
+            except Exception:
+                chain = []
         if not spot or spot <= 0:
-            try:
-                fetched = await provider.get_stock_price(pos.symbol)
-                spot = float(fetched) if isinstance(fetched, (int, float)) and fetched > 0 else None
-            except Exception:
-                spot = None
+            if futures:
+                spot = float(chain[0].get("underlying_price") or 0) or None if chain else None
+            else:
+                try:
+                    fetched = await provider.get_stock_price(pos.symbol)
+                    spot = float(fetched) if isinstance(fetched, (int, float)) and fetched > 0 else None
+                except Exception:
+                    spot = None
         if short_leg_value is None or short_leg_value < 0:
-            try:
-                chain = await provider.get_option_chain(pos.symbol) or []
-                short_leg_value = _find_short_leg_mid(chain, pos)
-            except Exception:
-                short_leg_value = None
+            short_leg_value = net_mark(chain, pos.legs) if pos.legs else _find_short_leg_mid(chain, pos)
         days_to_earnings = pos.days_to_earnings
-        if days_to_earnings is None:
+        # Index futures have no earnings; never look one up for a root symbol.
+        if days_to_earnings is None and not futures:
             try:
                 next_earnings = await provider.get_next_earnings_date(pos.symbol)
                 if next_earnings is not None:
@@ -1219,6 +1249,10 @@ async def get_recommendations(request: AdvisoryRequest):
         max_positions=request.max_positions,
     )
 
+    if request.instrument == "futures_options":
+        return await _futures_recommendations(request, account)
+
+    earnings_mode = request.strategy_hint == "earnings_iron_condor"
     market_data = {}
     option_chains = {}
     technical_data = {}
@@ -1272,6 +1306,17 @@ async def get_recommendations(request: AdvisoryRequest):
             }
             if snapshot_flow_iv_pct:
                 volatility_data[symbol]["iv_percentile"] = snapshot_flow_iv_pct
+            if earnings_mode:
+                volatility_data[symbol]["earnings_implied_move_pct"] = implied_earnings_move(
+                    snapshot["option_chain"], snapshot["stock_price"]
+                )
+                try:
+                    next_earnings = await provider.get_next_earnings_date(symbol)
+                    volatility_data[symbol]["days_to_earnings"] = (
+                        (next_earnings - date.today()).days if next_earnings else None
+                    )
+                except Exception:
+                    volatility_data[symbol]["days_to_earnings"] = None
             if snapshot["gex_data"]:
                 market_data[f"{symbol}_gex"] = snapshot["gex_data"]
         except HTTPException:
@@ -1290,8 +1335,99 @@ async def get_recommendations(request: AdvisoryRequest):
         flow_data=flow_data,
         volatility_data=volatility_data,
         diversify_underlyings=request.diversify_underlyings,
+        mode="earnings" if earnings_mode else "standard",
     )
+    return _recommendations_response(output)
 
+
+async def _latest_scan_results() -> Dict[str, Any]:
+    def _read() -> Dict[str, Any]:
+        try:
+            with open(SCAN_RESULTS_FILE, "r", encoding="utf-8") as handle:
+                return json.load(handle)
+        except (OSError, ValueError):
+            return {}
+    return await asyncio.to_thread(_read)
+
+
+async def _futures_recommendations(request: "AdvisoryRequest", account: AccountInfo) -> Dict[str, Any]:
+    """Defined-risk recommendations on CME micro futures options.
+
+    Vol context fails closed: without the chain's ATM IV, the proxy ETF's
+    realized vol, and the vol index's 52-week rank, a root is skipped rather
+    than scored on placeholders. Direction comes from the options scanner's
+    latest read of the proxy ETF (same index exposure, no second Brain).
+    """
+    market_data: Dict[str, Any] = {}
+    option_chains: Dict[str, List[Dict[str, Any]]] = {}
+    technical_data: Dict[str, Dict[str, Any]] = {}
+    volatility_data: Dict[str, Dict[str, Any]] = {}
+    originals: Dict[str, Any] = {}
+    scan_symbols = (await _latest_scan_results()).get("symbols") or {}
+
+    for raw_root in request.watchlist:
+        root = raw_root.upper()
+        config = FUTURES_OPTION_ROOTS.get(root)
+        if not config:
+            continue
+        try:
+            chain = await provider.get_futures_option_chain(root)
+            scaled, factor, scaled_spot = scale_chain(chain)
+            if not scaled:
+                continue
+            real_spot = scaled_spot / factor
+            iv = atm_implied_vol(chain, real_spot)
+            proxy_hist = await provider.get_historical_prices(config["proxy_etf"], period="3mo")
+            hv = realized_volatility(list(proxy_hist["Close"])) if proxy_hist is not None and len(proxy_hist) else None
+            index_hist = await provider.get_historical_prices(config["vol_index"], period="1y")
+            iv_rank = index_iv_rank(list(index_hist["Close"])) if index_hist is not None and len(index_hist) else None
+        except Exception:
+            logger.exception("Futures option context unavailable for %s", root)
+            continue
+        if not iv or hv is None or iv_rank is None:
+            continue
+        regime = (scan_symbols.get(config["proxy_etf"]) or {}).get("regime")
+        market_data[f"{root}_price"] = scaled_spot
+        option_chains[root] = scaled
+        technical_data[root] = {"trend": regime if regime in ("bullish", "bearish") else "neutral"}
+        volatility_data[root] = {"iv": iv, "hv_20": hv, "iv_rank": iv_rank, "dte": 45}
+        originals[root] = (chain, factor)
+
+    try:
+        market_data["vix"] = float(await provider.get_vix() or 20)
+    except Exception:
+        market_data["vix"] = 20
+
+    output = recommender.generate_recommendations(
+        account=account,
+        market_data=market_data,
+        option_chains=option_chains,
+        technical_data=technical_data,
+        flow_data={},
+        volatility_data=volatility_data,
+        diversify_underlyings=request.diversify_underlyings,
+        allowed_types=FUTURES_ALLOWED_TYPES,
+    )
+    body = _recommendations_response(output)
+    restored = []
+    for rec in body["recommendations"]:
+        chain, factor = originals[rec["symbol"]]
+        try:
+            rec["legs"] = restore_legs(rec["legs"], chain, factor)
+        except ValueError:
+            logger.exception("Dropping futures recommendation with an unmatched leg")
+            continue
+        rec["instrument"] = "futures_options"
+        rec["underlying_price"] = round(float(rec.get("underlying_price") or 0) / factor, 2)
+        if isinstance(rec.get("net_credit"), (int, float)):
+            rec["net_credit"] = round(rec["net_credit"] / factor, 2)   # in index points
+        restored.append(rec)
+    body["recommendations"] = restored
+    return body
+
+
+def _recommendations_response(output) -> Dict[str, Any]:
+    """Serialize an AdvisoryOutput (shared by the options and futures paths)."""
     return {
         "account_summary": {
             "total_equity": output.account_summary.total_equity,
@@ -1317,6 +1453,9 @@ async def get_recommendations(request: AdvisoryRequest):
                         "type": leg.contract.option_type,
                         "bid": leg.contract.bid,
                         "ask": leg.contract.ask,
+                        "sec_type": leg.contract.sec_type,
+                        "trading_class": leg.contract.trading_class,
+                        "multiplier": leg.contract.multiplier,
                     }
                     for leg in r.legs
                 ],

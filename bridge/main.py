@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from ib_insync import IB, Bag, ComboLeg, LimitOrder, Option, ScannerSubscription, Stock
+from ib_insync import IB, Bag, ComboLeg, FuturesOption, LimitOrder, Option, ScannerSubscription, Stock
 import ib_insync.connection as ib_connection
 
 
@@ -82,6 +82,10 @@ class OptionQuoteLeg(BaseModel):
     expiry: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     strike: float = Field(gt=0)
     right: Literal["C", "P"]
+    # "FOP" = CME micro futures option (MES/MNQ only, see
+    # ALLOWED_FUTURES_OPTION_ROOTS); the trading class names the series.
+    sec_type: Literal["OPT", "FOP"] = "OPT"
+    trading_class: str | None = Field(default=None, max_length=12)
 
 
 class OptionQuoteRequest(BaseModel):
@@ -144,6 +148,45 @@ class PositionMetaUpdate(BaseModel):
     """Metadata-only update on an equity entry: the trailing-stop anchor."""
     ledger_id: str = Field(min_length=1, max_length=80)
     highest_high: float = Field(gt=0)
+
+
+# CME micro equity-index futures whose options the Bridge will trade -- as
+# defined-risk spreads and condors only. A single short futures option is a
+# margined naked position, never cash-secured, so single-leg FOP orders are
+# refused outright. The contract multiplier always comes from IBKR's own
+# qualified contract (MES 5, MNQ 2), never from the caller.
+ALLOWED_FUTURES_OPTION_ROOTS = {"MES": "CME", "MNQ": "CME"}
+
+
+def _option_contract(leg: "OptionQuoteLeg"):
+    expiry = leg.expiry.replace("-", "")
+    if leg.sec_type == "FOP":
+        exchange = ALLOWED_FUTURES_OPTION_ROOTS.get(leg.symbol.upper())
+        if exchange is None:
+            raise HTTPException(status_code=422, detail="Futures options are limited to MES and MNQ")
+        return FuturesOption(leg.symbol.upper(), expiry, leg.strike, leg.right, exchange,
+                             tradingClass=leg.trading_class or "")
+    return Option(leg.symbol.upper(), expiry, leg.strike, leg.right, "SMART")
+
+
+def _contract_multiplier(qualified) -> int:
+    """The one multiplier for a structure, from IBKR's qualified contracts."""
+    multipliers = {int(float(getattr(contract, "multiplier", 0) or 100)) for contract in qualified}
+    if len(multipliers) != 1:
+        raise HTTPException(status_code=422, detail="Legs carry different contract multipliers")
+    return multipliers.pop()
+
+
+def _combo_exchange(legs) -> str:
+    sec_types = {leg.sec_type for leg in legs}
+    if len(sec_types) != 1:
+        raise HTTPException(status_code=422, detail="Cannot mix equity options and futures options in one order")
+    if sec_types.pop() == "FOP":
+        roots = {leg.symbol.upper() for leg in legs}
+        if len(roots) != 1 or not roots <= ALLOWED_FUTURES_OPTION_ROOTS.keys():
+            raise HTTPException(status_code=422, detail="Futures options are limited to MES and MNQ, one root per order")
+        return ALLOWED_FUTURES_OPTION_ROOTS[roots.pop()]
+    return "SMART"
 
 
 RESERVING_ORDER_STATUSES = {
@@ -572,7 +615,8 @@ async def _live_option_tickers(legs: list[OptionQuoteLeg]):
     """Qualify legs and fetch snapshots, live-first with a delayed fallback."""
     await ensure_connected()
     assert ib is not None
-    contracts = [Option(leg.symbol.upper(), leg.expiry.replace("-", ""), leg.strike, leg.right, "SMART") for leg in legs]
+    _combo_exchange(legs)  # refuses mixed OPT/FOP legs before anything is qualified
+    contracts = [_option_contract(leg) for leg in legs]
     qualified = await ib.qualifyContractsAsync(*contracts)
     if len(qualified) != len(contracts):
         raise HTTPException(status_code=422, detail="IBKR could not qualify one or more option contracts")
@@ -582,12 +626,17 @@ async def _live_option_tickers(legs: list[OptionQuoteLeg]):
     return qualified, tickers
 
 
-def _defined_risk_per_combo(legs: list[ComboOrderLeg], net_credit: float) -> float | None:
-    """Calculate maximum loss only for structures this Bridge can prove defined-risk."""
+def _defined_risk_per_combo(legs: list[ComboOrderLeg], net_credit: float, multiplier: int = 100) -> float | None:
+    """Calculate maximum loss only for structures this Bridge can prove
+    defined-risk, in dollars per combo (prices are per unit of the
+    underlying; multiplier is the qualified contract's: 100 equity, 5 MES,
+    2 MNQ). A single-leg futures option is never provable."""
     if len(legs) == 1:
         leg = legs[0]
+        if leg.sec_type == "FOP":
+            return None
         if leg.action == "SELL" and leg.right == "P" and net_credit > 0:
-            return (leg.strike - net_credit) * 100
+            return (leg.strike - net_credit) * multiplier
         # A covered call's stock downside belongs to the already-held shares;
         # ownership is checked separately before the call order is submitted.
         if leg.action == "SELL" and leg.right == "C" and net_credit > 0:
@@ -595,7 +644,7 @@ def _defined_risk_per_combo(legs: list[ComboOrderLeg], net_credit: float) -> flo
         return None
     if len(legs) == 2 and {leg.action for leg in legs} == {"BUY", "SELL"} and legs[0].right == legs[1].right:
         width = abs(legs[0].strike - legs[1].strike)
-        return (width - net_credit) * 100 if net_credit >= 0 else abs(net_credit) * 100
+        return (width - net_credit) * multiplier if net_credit >= 0 else abs(net_credit) * multiplier
     if len(legs) == 4 and {leg.right for leg in legs} == {"C", "P"}:
         widths = []
         for right in ("C", "P"):
@@ -603,7 +652,7 @@ def _defined_risk_per_combo(legs: list[ComboOrderLeg], net_credit: float) -> flo
             if len(side) != 2 or {leg.action for leg in side} != {"BUY", "SELL"}:
                 return None
             widths.append(abs(side[0].strike - side[1].strike))
-        return (max(widths) - net_credit) * 100 if net_credit >= 0 else None
+        return (max(widths) - net_credit) * multiplier if net_credit >= 0 else None
     return None
 
 
@@ -688,7 +737,9 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
         live_prices.append(bid if leg.action == "SELL" else -ask)
 
     net_credit = sum(live_prices)
-    max_loss = _defined_risk_per_combo(order.legs, net_credit)
+    multiplier = _contract_multiplier(qualified)
+    combo_exchange = _combo_exchange(order.legs)
+    max_loss = _defined_risk_per_combo(order.legs, net_credit, multiplier)
     if max_loss is None or max_loss < 0:
         raise HTTPException(status_code=422, detail="This structure cannot be proven defined-risk by the paper Bridge")
     total_risk = max_loss * order.quantity
@@ -703,6 +754,8 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
             ),
         )
 
+    if len(order.legs) == 1 and order.legs[0].sec_type == "FOP":
+        raise HTTPException(status_code=422, detail="A single futures option is never defined-risk; spreads and condors only")
     if len(order.legs) == 1:
         leg = order.legs[0]
         if leg.action != "SELL" or leg.right not in {"C", "P"}:
@@ -721,9 +774,9 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
     else:
         bag = Bag(
             symbol=order.legs[0].symbol.upper(),
-            exchange="SMART",
+            exchange=combo_exchange,
             currency="USD",
-            comboLegs=[ComboLeg(conId=contract.conId, ratio=1, action=leg.action, exchange="SMART") for contract, leg in zip(qualified, order.legs)],
+            comboLegs=[ComboLeg(conId=contract.conId, ratio=1, action=leg.action, exchange=combo_exchange) for contract, leg in zip(qualified, order.legs)],
         )
         # A combo is bought as one structure. Credit combinations therefore have a
         # negative limit price; IBKR interprets that as receiving cash for a buy
@@ -753,6 +806,8 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
         "limit_price": limit_price,
         "quote_quality": _snapshot_quality(tickers),
         "net_credit": round(net_credit, 2),
+        "multiplier": multiplier,
+        "sec_type": order.legs[0].sec_type,
         "max_loss_per_combo": round(max_loss, 2),
         "max_loss_total": round(total_risk, 2),
         "week_key": _current_week_key(),
@@ -795,6 +850,8 @@ def _mirror_close_legs(parent_legs: list[dict[str, Any]]) -> list[ComboOrderLeg]
                 strike=float(leg.get("strike", 0)),
                 right=leg.get("right") if leg.get("right") in {"C", "P"} else "C",
                 action=action,
+                sec_type=leg.get("sec_type") or "OPT",
+                trading_class=leg.get("trading_class"),
             )
         )
     return close_legs
@@ -845,7 +902,10 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
         )
     if not parent.get("legs"):
         raise HTTPException(status_code=422, detail="Parent order has no legs; cannot build a closing order")
-    if not (float(parent.get("max_loss_total", 0) or 0) > 0 or float(parent.get("max_loss_per_combo", 0) or 0) > 0):
+    # Every submit-combo entry records its proven max loss; a covered call's is
+    # legitimately 0 (the shares cover it), so test that one was RECORDED, not
+    # that it is positive -- the old "> 0" test made covered calls unclosable.
+    if parent.get("max_loss_per_combo") is None and parent.get("max_loss_total") is None:
         raise HTTPException(status_code=422, detail="Parent was not a proven defined-risk structure; refusing to close it")
 
     parent_legs = parent["legs"]
@@ -874,8 +934,12 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
             detail="Closing this structure should cost money (net cash out); refusing a fill that would pay the position",
         )
     cost_to_close = -net_credit
+    multiplier = _contract_multiplier(qualified)
+    combo_exchange = _combo_exchange(close_legs)
 
-    quantity = int(parent.get("quantity", 1) or 1)
+    # Close what actually filled; closing the ordered quantity on a partial
+    # fill would open a reverse position on the unfilled remainder.
+    quantity = int(float(parent.get("filled", 0) or 0)) or int(parent.get("quantity", 1) or 1)
     if len(close_legs) == 1:
         leg = close_legs[0]
         if leg.action != "BUY" or leg.right not in {"C", "P"}:
@@ -886,10 +950,10 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
     else:
         bag = Bag(
             symbol=close_legs[0].symbol.upper(),
-            exchange="SMART",
+            exchange=combo_exchange,
             currency="USD",
             comboLegs=[
-                ComboLeg(conId=contract.conId, ratio=1, action=leg.action, exchange="SMART")
+                ComboLeg(conId=contract.conId, ratio=1, action=leg.action, exchange=combo_exchange)
                 for contract, leg in zip(qualified, close_legs)
             ],
         )
@@ -903,7 +967,9 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
     now = datetime.now(timezone.utc).isoformat()
     status = str(trade.orderStatus.status or "PendingSubmit")
     entry_credit = float(parent.get("net_credit", 0) or 0)
-    realized_pnl = (entry_credit - cost_to_close) * quantity
+    # Ledger prices are per unit of the underlying; dollars need the contract
+    # multiplier. Omitting it booked a $25 winner as $0.25.
+    realized_pnl = (entry_credit - cost_to_close) * multiplier * quantity
     close_record = {
         "id": ledger_id,
         "close_of": request.ledger_id,
@@ -922,6 +988,7 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
         "net_credit": round(net_credit, 2),
         "cost_to_close": round(cost_to_close, 2),
         "realized_pnl": round(realized_pnl, 2),
+        "multiplier": multiplier,
         "week_key": _current_week_key(),
         "submitted_at": now,
         "updated_at": now,

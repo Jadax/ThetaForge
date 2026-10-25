@@ -69,3 +69,54 @@ def test_covered_call_inventory_excludes_equity_engine_shares():
     ledger = LEDGER + [{"symbol": "ITUB", "asset_class": "equity", "status": "Filled", "filled": 76}]
     wheel = ex.fetch_wheel_share_positions(_Client(positions), ledger)
     assert wheel == [{"symbol": "XLF", "position": 100.0}, {"symbol": "F", "position": 100.0}]
+
+
+def _status_error(code):
+    import httpx
+    request = httpx.Request("POST", "http://advisor.test/api/advisor/recommend")
+    return httpx.HTTPStatusError("x", request=request, response=httpx.Response(code, request=request))
+
+
+def test_transient_fetch_failures_are_retried_not_discarded():
+    import httpx
+    ex._fetch_attempts.clear()
+    assert ex.should_retry("n1", _status_error(429))           # attempt 1: keep queued
+    assert ex.should_retry("n1", httpx.ReadTimeout("slow"))     # attempt 2: keep queued
+    assert not ex.should_retry("n1", _status_error(429))       # attempt 3: give up, ack
+    assert not ex.should_retry("n2", _status_error(422))       # a real rejection: ack now
+    assert ex.is_rate_limited(_status_error(429)) and not ex.is_rate_limited(_status_error(503))
+
+
+class _Resp200(_Resp):
+    status_code = 200
+
+
+class _RecordingClient:
+    def __init__(self, payload):
+        self.payload = payload
+        self.sent = None
+
+    def post(self, url, json=None, **_):
+        self.sent = json
+        return _Resp200(self.payload)
+
+
+def test_recommend_request_names_the_notifications_path():
+    client = _RecordingClient({"recommendations": [{"id": "r"}]})
+    note = {"instrument": "futures_options", "best_strategy": "bull_put_credit"}
+    ex.fetch_recommendation(client, "MES", [], note)
+    assert client.sent["instrument"] == "futures_options"
+    assert client.sent["strategy_hint"] == "bull_put_credit"
+    ex.fetch_recommendation(client, "AAPL", [], {"best_strategy": "earnings_iron_condor"})
+    assert client.sent["instrument"] == "options" and client.sent["strategy_hint"] == "earnings_iron_condor"
+
+
+def test_futures_legs_reach_the_bridge_with_their_identity():
+    client = _RecordingClient({"status": "Submitted"})
+    trade = {"id": "r1", "symbol": "MES", "quantity": 1, "strategy": "bull_put_credit", "legs": [
+        {"expiry": "2026-12-18", "strike": 7400.0, "type": "PUT", "action": "SELL", "sec_type": "FOP", "trading_class": "EX3"},
+        {"expiry": "2026-12-18", "strike": 7375.0, "type": "PUT", "action": "BUY", "sec_type": "FOP", "trading_class": "EX3"},
+    ]}
+    ok, _ = ex.submit_to_bridge(client, trade)
+    assert ok
+    assert {(leg["sec_type"], leg["trading_class"]) for leg in client.sent["legs"]} == {("FOP", "EX3")}

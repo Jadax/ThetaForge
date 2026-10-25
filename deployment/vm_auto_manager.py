@@ -61,7 +61,10 @@ RESERVING_ORDER_STATUSES = {
     "ApiPending", "PendingSubmit", "PreSubmitted", "Submitted",
     "PendingCancel", "Filled", "Unknown",
 }
-CLOSE_ACTIONS = {"close_profit", "close_time", "close_loss", "close_pre_earnings", "close_pre_macro"}
+CLOSE_ACTIONS = {
+    "close_profit", "close_time", "close_loss", "close_pre_earnings",
+    "close_pre_macro", "close_post_earnings",
+}
 # Mirrors agents/trade_engine/high_winrate.py's _SELL_PREMIUM_TYPES exactly
 # (that's the single source of truth for the rest of the system) -- this
 # script can't import it directly since it runs on the VM without the full
@@ -74,7 +77,7 @@ MANAGED_STRATEGIES = {
     "covered_call", "short_straddle", "short_strangle",
     "iron_butterfly", "jade_lizard", "bull_put_credit",
     "bear_call_credit", "iron_condor_weekly", "credit_spread_weekly",
-    "wheel", "csp", "cc",
+    "wheel", "csp", "cc", "earnings_iron_condor",
 }
 
 
@@ -156,6 +159,14 @@ def build_position_inputs(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]
                 dte = None
         inputs.append({
             "symbol": record["symbol"],
+            # Every leg, so the Advisor marks the WHOLE position (cost to
+            # close) instead of the short leg alone against the net credit.
+            "legs": [
+                {"strike": leg.get("strike"), "right": leg.get("right"),
+                 "expiry": leg.get("expiry"), "action": leg.get("action")}
+                for leg in legs
+            ],
+            "sec_type": record.get("sec_type") or (legs[0].get("sec_type") if legs else None) or "OPT",
             "strategy": record.get("strategy") or "bull_put",
             "short_strike": _short_strike(legs, record.get("strategy")),
             "long_strike": _long_strike(legs, record.get("strategy")),

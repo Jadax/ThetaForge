@@ -22,7 +22,7 @@ type TradeRecommendation = {
   symbol: string;
   strategy: string;
   underlying_price: number;
-  legs: Array<{ action: string; strike: number; expiry: string; type: string }>;
+  legs: Array<{ action: string; strike: number; expiry: string; type: string; sec_type?: string; trading_class?: string | null }>;
   quantity: number;
   capital_required: number;
   max_loss: number;
@@ -570,7 +570,7 @@ const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "r
 // the one authoritative gate (BackgroundBrainScanner._passes_notification_floor
 // — IV rank for premium sales, |score| for directional picks). A second floor
 // here drifted from it twice and hid exactly the signals the executor acts on.
-const VERSION = "v1.17.27";
+const VERSION = "v1.17.28";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -1530,7 +1530,7 @@ export default function Home() {
         method: "POST",
         headers,
         body: JSON.stringify({
-          legs: trade.legs.map((leg) => ({ symbol: trade.symbol, expiry: leg.expiry, strike: leg.strike, right: leg.type === "CALL" ? "C" : "P", action: leg.action })),
+          legs: trade.legs.map((leg) => ({ symbol: trade.symbol, expiry: leg.expiry, strike: leg.strike, right: leg.type === "CALL" ? "C" : "P", action: leg.action, sec_type: leg.sec_type || "OPT", trading_class: leg.trading_class ?? null })),
           quantity: trade.quantity,
           capital_limit: capital,
           recommendation_id: trade.id,

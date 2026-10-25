@@ -66,3 +66,9 @@ async def test_endpoints_round_trip(monkeypatch):
 async def test_endpoint_rejects_empty_batch():
     response = await advisor.post_executor_decisions(advisor.ExecutorDecisionBatch(decisions=[]))
     assert response["stored"] == 0
+
+
+def test_advisor_module_has_a_logger():
+    """/recommend logged IV-store failures through an undefined `logger`, so
+    the except handler itself raised NameError (HTTP 500)."""
+    assert hasattr(advisor, "logger")

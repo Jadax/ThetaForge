@@ -201,3 +201,14 @@ def test_run_once_still_runs_equity_cycle_when_no_option_positions():
     assert submitted == 0
     order_fetches = [c for c in client.calls if c[0] == "GET" and str(c[1]).endswith("/orders")]
     assert len(order_fetches) == 2
+
+
+def test_management_inputs_carry_every_leg_and_the_contract_type():
+    record = {"symbol": "MES", "strategy": "bull_put_credit", "net_credit": 6.0, "quantity": 1,
+              "sec_type": "FOP", "legs": [
+                  {"strike": 7400, "right": "P", "expiry": "2026-12-18", "action": "SELL", "sec_type": "FOP"},
+                  {"strike": 7375, "right": "P", "expiry": "2026-12-18", "action": "BUY", "sec_type": "FOP"}]}
+    inputs = m.build_position_inputs([record])[0]
+    assert inputs["sec_type"] == "FOP"
+    assert [leg["action"] for leg in inputs["legs"]] == ["SELL", "BUY"]
+    assert "close_post_earnings" in m.CLOSE_ACTIONS

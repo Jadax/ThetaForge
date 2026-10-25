@@ -50,7 +50,9 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from journal_common import journal_legs, ledger_capital_at_risk  # noqa: E402
+from journal_common import (  # noqa: E402
+    contract_multiplier, journal_legs, ledger_capital_at_risk, ledger_max_profit,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_JOURNAL = REPO_ROOT / "journal" / "trades.json"
@@ -135,6 +137,8 @@ def _order_block(record: dict) -> dict:
         "realized_pnl": record.get("realized_pnl"),
         "reason": record.get("reason"),
         "quantity": record.get("quantity"),
+        "multiplier": record.get("multiplier"),
+        "sec_type": record.get("sec_type"),
         "submitted_at": record.get("submitted_at"),
         "updated_at": record.get("updated_at"),
     }
@@ -241,7 +245,7 @@ def build_entry(record: dict, overlay: dict) -> dict:
         "stop_price": record.get("stop_price"),
         "target_price": record.get("target_price"),
         "capital_at_risk": ledger_capital_at_risk(record) or 0.0,
-        "max_profit": float(record.get("net_credit") or 0),
+        "max_profit": ledger_max_profit(record) if asset_class != "equity" else 0.0,
         "net_pnl": 0.0,
         "net_pnl_pct": 0.0,
         "conditions": record.get("conditions"),
@@ -325,9 +329,10 @@ def _entry_mark_reference(entry: dict) -> tuple[Optional[float], Optional[str]]:
         return None, None
     order = entry.get("order") or {}
     credit = order.get("net_credit")
-    qty = float(order.get("quantity") or 0)
-    if credit and qty > 0:
-        return abs(float(credit)) / qty, str(entry.get("opened") or "")
+    if credit:
+        # Same per-unit scale as the leg-mid marks it seeds (signed: a debit
+        # spread's mark is its negated value).
+        return float(credit), str(entry.get("opened") or "")
     return None, None
 
 
@@ -354,37 +359,15 @@ def _should_trail(existing: list, price: float, now: datetime) -> bool:
 
 
 def _option_mark(chain: list, legs: list) -> Optional[float]:
-    """Per-contract mid mark of a vertical spread from the merged chain:
-    SELL legs add, BUY legs subtract. Any unquotable leg yields None —
-    a partial mark would silently misstate the position."""
-    if not chain or not legs:
-        return None
-    mark = 0.0
-    for leg in legs:
-        expiry = str(leg.get("expiry") or "")
-        try:
-            strike = float(leg.get("strike") or 0)
-        except (TypeError, ValueError):
-            return None
-        option_type = str(leg.get("type") or "").upper()
-        row = None
-        for candidate in chain:
-            if (str(candidate.get("expiry") or "") == expiry
-                    and abs(float(candidate.get("strike") or 0) - strike) < 1e-6
-                    and str(candidate.get("option_type") or "").upper() == option_type):
-                row = candidate
-                break
-        if row is None:
-            return None
-        try:
-            bid, ask = float(row.get("bid") or 0), float(row.get("ask") or 0)
-            mid = (bid + ask) / 2.0 if (bid > 0 and ask > 0) else float(row.get("last") or 0)
-        except (TypeError, ValueError):
-            return None
-        if mid <= 0:
-            return None
-        mark += mid if str(leg.get("action", "SELL")).upper() == "SELL" else -mid
-    return mark
+    """Per-contract mid mark of an option position (SELL mids minus BUY
+    mids). Delegates to agents.trade_engine.position_marks.net_mark, the one
+    implementation shared with the exit manager; imported lazily for the same
+    reason as the provider (repo root is not on sys.path by default)."""
+    repo_root = str(Path(__file__).resolve().parent.parent)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    from agents.trade_engine.position_marks import net_mark
+    return net_mark(chain, legs)
 
 
 def _live_panel(entry: dict, mark: float, kind: str) -> dict:
@@ -416,13 +399,13 @@ def _live_panel(entry: dict, mark: float, kind: str) -> dict:
         credit = order.get("net_credit")
         if credit is None:
             credit = entry.get("net_credit")
-        qty = order.get("quantity") or entry.get("quantity") or entry.get("filled")
+        qty = order.get("filled") or order.get("quantity") or entry.get("quantity")
         if credit is not None and qty and float(qty) > 0:
-            # net_credit is ledger dollars already scaled by the option
-            # multiplier; the leg-mid mark is a raw per-contract premium,
-            # so scale it back up before netting.
-            entry_value = float(credit) / float(qty)
-            pnl = (entry_value - float(mark) * 100.0) * float(qty)
+            # Both the ledger credit and the leg-mid mark are per unit of the
+            # underlying; dollars = (credit - mark) x multiplier x contracts.
+            # (The old code treated the per-unit credit as dollars and scaled
+            # only the mark, publishing a +$25 spread as about -$24.50.)
+            pnl = (float(credit) - float(mark)) * contract_multiplier(order) * float(qty)
     if pnl is not None:
         panel["pnl"] = round(pnl, 2)
         risk = entry.get("capital_at_risk")
@@ -455,7 +438,9 @@ async def _refresh_entries(entries: list) -> tuple[int, int]:
                 mark = float(price) if price and float(price) > 0 else None
                 kind = "stock"
             else:
-                chain = await provider.get_option_chain(symbol)
+                futures = (entry.get("order") or {}).get("sec_type") == "FOP"
+                chain = await (provider.get_futures_option_chain(symbol) if futures
+                               else provider.get_option_chain(symbol))
                 mark = _option_mark(chain, entry.get("legs") or [])
                 kind = "spread"
         except Exception:

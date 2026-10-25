@@ -31,7 +31,9 @@ def _record(rec_id, status="Filled", recommendation_id="rec-abc", **extra):
         "filled": 1,
         "remaining": 0,
         "status": status,
-        "net_credit": 300,
+        # The Bridge records net_credit per unit of the underlying (bid - ask
+        # = 3.00 here), never in dollars; dollars = x multiplier x contracts.
+        "net_credit": 3.0,
         "max_loss_total": 1500,
         "submitted_at": "2026-08-01T14:00:00Z",
         "updated_at": "2026-08-01T14:00:00Z",
@@ -82,7 +84,7 @@ def test_rebuilds_from_ledger(tmp_path):
     assert trade["source"] == "ledger"
     assert trade["ledger_ref"] == "rec-1"
     assert trade["order"]["status"] == "Filled"
-    assert trade["order"]["net_credit"] == 300
+    assert trade["order"]["net_credit"] == 3.0
     assert trade["management_plan"]["target"]
     assert "verification" in data
     assert data["verification"]["entries_from_ledger"] == 1
@@ -749,3 +751,13 @@ def test_trail_dedupes_flat_feed_on_repeated_refresh(tmp_path):
     assert len(second["price_trail"]) == len(points)
     assert second["live"]["price"] == 104.21
 
+
+
+def test_option_dollars_use_the_contract_multiplier():
+    from journal_common import ledger_max_profit
+    spread = {"net_credit": 0.50, "filled": 2, "legs": []}
+    assert ledger_max_profit(spread) == 100.0                       # 0.50 x 100 x 2
+    mes = {"net_credit": 6.0, "filled": 1, "multiplier": 5, "legs": []}
+    assert ledger_max_profit(mes) == 30.0                           # 6 points x $5
+    debit = {"net_credit": -1.0, "filled": 1, "legs": [{"strike": 100}, {"strike": 105}]}
+    assert ledger_max_profit(debit) == 400.0                        # (5 - 1) x 100
