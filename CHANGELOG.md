@@ -1,5 +1,63 @@
 # ThetaForge Changelog
 
+## v1.17.28 - 2026-10-25
+
+**Exits are now automatic for every trade type, and the three missing
+strategies are in: earnings IV-crush condors, CME micro futures options, and
+wheel-ready chains. Building them uncovered why IBKR-sourced chains had never
+produced a trade, plus several exit and P&L bugs that would have bitten the
+first time options traded.**
+
+Why IBKR chains never qualified (priority-1 source since Aug)
+- Expiries: the proxy kept the 2 nearest expiries, so every weekly/daily
+  name got only 1-7 DTE contracts the 14-60 DTE recommender can't use. Now a
+  standard monthly near 45 DTE plus the nearest short expiry.
+- Strikes: "12 nearest spot" spanned +/-0.8% on SPY; a 1-SD short sits ~6%
+  out. Now a 3/6/9/13/18% ladder with >= 0.3% wings.
+- Open interest: snapshots carry none, so every contract read OI=0 and failed
+  every OI gate. Now tick 101 (real OI); unknown OI is flagged and judged on
+  quote tightness.
+- The Advisor gave a chain 12s while the proxy allows 75s: most were abandoned
+  for CBOE. Chain client timeout 40s; proxy client consolidated into one helper.
+
+Strategy correctness
+- Vertical spreads: the 1-SD rule (~16 delta, ~0.16 of width) and the 0.25
+  credit/width floor were mutually exclusive — no bull put/bear call could
+  ever pass. Verticals use the ~30-delta band (0.5x); condors keep 1.0x.
+- Iron condor scorer computed the expected move and never used it (sold
+  ATM-adjacent strikes that the 1-SD gate always rejected); shorts now sit at
+  the move, wings one strike out.
+- Earnings veto skipped stocks reporting *today* (days_to_earnings 0 is falsy).
+- `empirical gate`: sixth copy of the premium-selling taxonomy removed.
+
+New strategies
+- Earnings IV crush: Brain `earnings_iv_crush` (1-2 sessions before, implied
+  >= 1.15x median realized move, market vetoes still apply); Recommender
+  earnings mode (condor on the first post-print expiry, shorts outside the
+  implied move); `close_post_earnings` exit; exempt from 21-DTE and
+  pre-earnings exits by design.
+- CME micro futures options (/MES, /MNQ): proxy `/futures-option-chain`
+  (delayed CME, entitled), `agents/trade_engine/futures_options.py`, scanner
+  notifications from the SPY/QQQ read, `/recommend instrument=futures_options`,
+  Bridge `FuturesOption` support on CME — defined-risk only, multiplier from
+  IBKR's qualified contract. A naked futures put is never placed.
+
+Exits and P&L
+- `AUTO_CLOSE_ENABLED=true` (all trade types).
+- Exit manager marked spreads by the short leg alone against the net credit
+  (a fresh spread read as a 1.6x loss and would be stopped on noise); now the
+  whole position via the shared `position_marks.net_mark`.
+- Option realized P&L, journal max profit and live marks omitted the contract
+  multiplier ($25 booked as $0.25; an open +$25 spread shown as about -$24.50).
+- Covered calls could never be closed (recorded max loss 0 failed a "> 0"
+  check); combo closes use the filled quantity.
+- Executor: transient fetch failures (429/timeouts/5xx) stay queued and are
+  retried (max 3) instead of being acknowledged and lost; a 429 ends the cycle.
+- `/recommend` logged through an undefined `logger` (NameError -> 500 when the
+  IV store failed).
+
+Tests: 422 -> 454.
+
 ## v1.17.27 - 2026-10-24
 
 **Full review: the options advisor could not produce the strategies it was

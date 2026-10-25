@@ -34,7 +34,9 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
   Same invariants: fail-closed gates, free/read-only data, and the Bridge
   remains the only order path with a single shared capital ledger.
 - `bridge/main.py` is the ONLY paper-order path; it rejects live accounts,
-  naked options, undefined-risk structures, and short stock. This is a hard,
+  naked options (incl. any single-leg futures option), undefined-risk
+  structures, and short stock. Futures options are limited to MES/MNQ and
+  sized with IBKR's own contract multiplier. This is a hard,
   intentional invariant -- do not weaken it to make a future live-trading
   switch easier; see the guardrail below.
 - State lives in `data/*.json` (gitignored). No database, no Celery.
@@ -58,6 +60,8 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | `agents/trade_engine/recommender.py` | Authoritative candidate scoring and quality gates; sector correlation cap (`MAX_CORRELATED_POSITIONS` + `SYMBOL_SECTOR`) and empirical outcome gate over published journal trades |
 | `agents/trade_engine/theoretical_edge.py` | Own BS model value vs CBOE mid → `theoretical_edge_pct` on recommendations |
 | `agents/trade_engine/historical_backtest.py` | Empirical win rate/expectancy/drawdown over realized credit-spread outcomes |
+| `agents/trade_engine/futures_options.py` | CME micro futures options (/MES, /MNQ): proxy-ETF read (SPY/QQQ) and vol index (VIX/VXN) for context, x100-equivalent chain scaling so the Recommender's dollars are exact, leg restore with FOP identity; defined-risk spreads/condors only |
+| `agents/trade_engine/position_marks.py` | One whole-position mark (sold mids minus bought mids) shared by exit management and the journal |
 | `agents/trade_engine/high_winrate.py` | Research-backed entry context vetoes (trend alignment, expected-move buffer, DTE band, earnings blackout, relative strength) — pure gates used by both the Brain and Recommender step 4c |
 | `agents/trade_engine/trade_manager.py` | Open-position management rules (50% take-profit, 21-DTE gamma, 2×-credit stop, pre-earnings, pre-macro, tested-strike review) + portfolio plan; recommended via `POST /api/advisor/positions/management`, never an order path |
 | `agents/volatility/desk_analytics.py` | Desk surfaces from the free chain: IV skew (RR25/BF25), earnings implied-vs-realized move, front-month straddle move |
@@ -69,8 +73,8 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | `dashboard/app/page.tsx` | Private terminal — local, or hosted on Cloudflare Pages behind Cloudflare Access (never on the public journal's GitHub Pages) |
 | `deployment/cloudflare_deploy_terminal.ps1` | Builds and deploys the private terminal to Cloudflare Pages |
 | `deployment/vm_auto_executor.py` | Autonomous paper-order executor (entries), runs on the GCP executor VM beside the Bridge; handles both options and equity notifications |
-| `deployment/vm_auto_manager.py` | Autonomous paper position manager (exits) — asks the Advisor for management decisions (options + equity), submits closes via the Bridge, advisory-only unless `AUTO_CLOSE_ENABLED=true`; `review_tested` is never auto-submitted |
-| `deployment/vm_market_data_service.py` | Read-only IBKR market-data proxy (own port 8003, own client id, own token): `/option-chain`, `/stock`, `/stock-history` |
+| `deployment/vm_auto_manager.py` | Autonomous paper position manager (exits) — asks the Advisor for management decisions (options incl. futures options + equity), submits closes via the Bridge; `AUTO_CLOSE_ENABLED=true` on the VM since v1.17.28 (all trade types); `review_tested` is never auto-submitted |
+| `deployment/vm_market_data_service.py` | Read-only IBKR market-data proxy (own port 8003, own client id, own token): `/option-chain`, `/futures-option-chain` (MES/MNQ), `/stock`, `/stock-history`; standard-monthly + short expiry, strike ladder, tick-101 open interest |
 | `deployment/market_hours_supervisor.sh` | Starts/stops Gateway+Bridge+executors on the VM around real market hours |
 | `deployment/journal_sync_push.sh` | Auto-publishes the journal from the VM's ledger after an autonomous fill or close |
 | `journal/` | Public trade journal — static site served at `https://journal.astraiva.app/` (custom domain on the `gh-pages` branch, `CNAME` file); only entries actually placed on the paper account from the paper-order ledger |

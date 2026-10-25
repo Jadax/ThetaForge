@@ -232,6 +232,27 @@ available on the VM.
   delivers OPRA quotes and has been the scanner's priority-1 chain source
   since 2026-08-13; CBOE then yfinance remain the automatic fallbacks.)
 
+## Exits are automatic (all trade types)
+
+`AUTO_CLOSE_ENABLED=true` in `thetaforge-auto-manager.service` since v1.17.28:
+equity stops/targets/trails and option profit/time/loss/pre-earnings/
+pre-macro/post-earnings exits are submitted through the Bridge's close
+endpoints. `review_tested` stays advisory. To return to advisory mode, set it
+to `false` and `sudo systemctl restart thetaforge-auto-manager`.
+
+Option positions are marked as a whole (sold-leg mids minus bought-leg mids,
+`agents/trade_engine/position_marks.py`) — never the short leg alone against
+the net credit, which read a fresh spread as a 1.6x loss.
+
+## CME micro futures options
+
+/MES and /MNQ options trade as defined-risk spreads/condors only (the Bridge
+refuses any single-leg futures option). The proxy's `/futures-option-chain`
+serves delayed CME quotes (the account has no paid CME subscription; delayed
+is entitled); the Bridge qualifies `FuturesOption` contracts on CME and sizes
+risk with the qualified multiplier (MES 5, MNQ 2). Notifications ride the
+options scanner's SPY/QQQ read.
+
 ## Order-state reconciliation
 
 IBKR stops reporting a DAY order once its session ends, so the Bridge's

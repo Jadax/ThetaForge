@@ -303,6 +303,29 @@ Typical pipeline: 7000 symbols → ~200 flow signals → ~80 dark pool confirmed
 
 ---
 
+## Earnings IV crush (defined risk) — as enforced
+
+- Entered 1-2 sessions before the print, only when the implied move (front
+  straddle) is >= 1.15x the stock's median realized earnings move over >= 4
+  past events, and no macro/VIX/term-structure veto is active
+- Iron condor on the first expiry after the print (<= 14 DTE), both shorts
+  outside 1.0x the implied move, credit >= 25% of the wing
+- Closed the first session after the print (or at 50% profit / 2x-credit stop)
+
+## Micro futures options (/MES, /MNQ) — as enforced
+
+- Direction from the scanner's SPY (MES) / QQQ (MNQ) read; IV rank from VIX/VXN
+- Put credit spreads, call credit spreads and condors only — a short futures
+  put is margined, never cash-secured, so the thetagang-style naked /MES put is
+  expressed as a defined-risk put spread
+- Same gates as equity options; risk in exact dollars (5 or 2 per point)
+
+## Vertical spreads band
+
+Credit spreads sell ~30-delta shorts (>= 0.5x the 1-SD expected move) and
+need credit >= 25% of the width. The earlier 1.0x rule (~16 delta) collects
+~0.16 of the width, so it could never pass the credit floor.
+
 ## Position Sizing Framework
 
 1. **Defined-risk spreads/condors**: max loss per trade <= 2% of the options
