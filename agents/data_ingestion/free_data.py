@@ -33,6 +33,12 @@ logger = logging.getLogger(__name__)
 IBKR_MARKET_DATA_URL = os.getenv("IBKR_MARKET_DATA_URL", "")
 IBKR_MARKET_DATA_TOKEN = os.getenv("IBKR_MARKET_DATA_TOKEN", "")
 IBKR_MARKET_DATA_TIMEOUT = float(os.getenv("IBKR_MARKET_DATA_TIMEOUT", "12"))
+# A chain fetch on the proxy is qualify + definition + a ~4.5s quote wait and
+# is allowed up to 75s there (CHAIN_REQUEST_TIMEOUT_SECONDS). Waiting only the
+# 12s quote timeout abandoned most IBKR chains mid-flight and silently fell
+# back to CBOE. 40s covers a normal 10-20s fetch while bounding what a hung
+# proxy can cost the one-symbol-at-a-time scanner before it falls back.
+IBKR_MARKET_DATA_CHAIN_TIMEOUT = float(os.getenv("IBKR_MARKET_DATA_CHAIN_TIMEOUT", "40"))
 
 
 # ── Process-isolated HTML scraping ─────────────────────────────────────────
@@ -280,73 +286,58 @@ class FreeDataProvider:
             await asyncio.gather(*(_warm(s) for s in batch),
                                  return_exceptions=True)
 
-    async def _get_ibkr_proxy_chain(self, symbol: str) -> Optional[List[Dict[str, Any]]]:
-        """Pull a chain from the VM's read-only IBKR proxy. Returns None (never
-        raises) on any failure so the caller always falls through to CBOE --
-        a slow or down VM should degrade the data source, not the scan."""
+    async def _ibkr_proxy_get(self, path: str, *, params: Optional[Dict[str, Any]] = None,
+                              timeout: float = IBKR_MARKET_DATA_TIMEOUT) -> Any:
+        """GET a JSON payload from the VM's read-only IBKR proxy. Returns None
+        (never raises) on missing config or any failure, so every caller falls
+        through to its free fallback -- a slow or down VM degrades the data
+        source, never the scan."""
         if not IBKR_MARKET_DATA_URL or not IBKR_MARKET_DATA_TOKEN:
             return None
         try:
-            async with httpx.AsyncClient(timeout=IBKR_MARKET_DATA_TIMEOUT) as client:
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.get(
-                    f"{IBKR_MARKET_DATA_URL}/option-chain/{symbol}",
+                    f"{IBKR_MARKET_DATA_URL}{path}",
+                    params=params,
                     headers={"X-Market-Data-Token": IBKR_MARKET_DATA_TOKEN},
                 )
             if response.status_code != 200:
-                logger.debug("IBKR proxy chain unavailable for %s: HTTP %s", symbol, response.status_code)
-                return None
-            chain = response.json()
-            return chain or None
-        except Exception as error:
-            logger.debug("IBKR proxy chain unavailable for %s: %s", symbol, error)
-            return None
-
-    async def _get_ibkr_proxy_stock_price(self, symbol: str) -> Optional[float]:
-        """Pull a snapshot stock quote from the VM's read-only IBKR proxy.
-        Returns None (never raises) on any failure so the caller falls through
-        to yfinance."""
-        if not IBKR_MARKET_DATA_URL or not IBKR_MARKET_DATA_TOKEN:
-            return None
-        try:
-            async with httpx.AsyncClient(timeout=IBKR_MARKET_DATA_TIMEOUT) as client:
-                response = await client.get(
-                    f"{IBKR_MARKET_DATA_URL}/stock/{symbol}",
-                    headers={"X-Market-Data-Token": IBKR_MARKET_DATA_TOKEN},
-                )
-            if response.status_code != 200:
-                logger.debug("IBKR proxy stock quote unavailable for %s: HTTP %s", symbol, response.status_code)
-                return None
-            payload = response.json()
-            last = payload.get("last")
-            ask = payload.get("ask")
-            bid = payload.get("bid")
-            for value in (last, ask, bid):
-                if isinstance(value, (int, float)) and value > 0:
-                    return float(value)
-            return None
-        except Exception as error:
-            logger.debug("IBKR proxy stock quote unavailable for %s: %s", symbol, error)
-            return None
-
-    async def _get_ibkr_proxy_stock_history(self, symbol: str, period: str = "1y") -> Optional[List[Dict[str, Any]]]:
-        """Pull daily OHLCV bars from the VM's read-only IBKR proxy. Returns
-        None (never raises) on any failure so the caller falls through."""
-        if not IBKR_MARKET_DATA_URL or not IBKR_MARKET_DATA_TOKEN:
-            return None
-        try:
-            async with httpx.AsyncClient(timeout=IBKR_MARKET_DATA_TIMEOUT) as client:
-                response = await client.get(
-                    f"{IBKR_MARKET_DATA_URL}/stock-history/{symbol}",
-                    params={"period": period},
-                    headers={"X-Market-Data-Token": IBKR_MARKET_DATA_TOKEN},
-                )
-            if response.status_code != 200:
-                logger.debug("IBKR proxy stock history unavailable for %s: HTTP %s", symbol, response.status_code)
+                logger.debug("IBKR proxy %s unavailable: HTTP %s", path, response.status_code)
                 return None
             return response.json() or None
         except Exception as error:
-            logger.debug("IBKR proxy stock history unavailable for %s: %s", symbol, error)
+            logger.debug("IBKR proxy %s unavailable: %s", path, error)
             return None
+
+    async def _get_ibkr_proxy_chain(self, symbol: str) -> Optional[List[Dict[str, Any]]]:
+        """Option chain from the IBKR proxy (priority-1 chain source)."""
+        return await self._ibkr_proxy_get(f"/option-chain/{symbol}", timeout=IBKR_MARKET_DATA_CHAIN_TIMEOUT)
+
+    async def _get_ibkr_proxy_stock_price(self, symbol: str) -> Optional[float]:
+        """Snapshot stock quote from the IBKR proxy (last, else ask, else bid)."""
+        payload = await self._ibkr_proxy_get(f"/stock/{symbol}")
+        if not isinstance(payload, dict):
+            return None
+        for value in (payload.get("last"), payload.get("ask"), payload.get("bid")):
+            if isinstance(value, (int, float)) and value > 0:
+                return float(value)
+        return None
+
+    async def _get_ibkr_proxy_stock_history(self, symbol: str, period: str = "1y") -> Optional[List[Dict[str, Any]]]:
+        """Daily OHLCV bars from the IBKR proxy."""
+        return await self._ibkr_proxy_get(f"/stock-history/{symbol}", params={"period": period})
+
+    async def get_futures_option_chain(self, root: str) -> List[Dict[str, Any]]:
+        """CME micro futures option chain (MES, MNQ) from the IBKR proxy.
+
+        There is no free fallback: CBOE and Yahoo carry no futures options,
+        so an unavailable proxy means no futures candidates this pass (never
+        a substituted chain). Rows use the equity-chain schema plus
+        sec_type="FOP", trading_class, multiplier and underlying_price.
+        """
+        chain = await self._ibkr_proxy_get(f"/futures-option-chain/{root.upper()}",
+                                           timeout=IBKR_MARKET_DATA_CHAIN_TIMEOUT)
+        return chain if isinstance(chain, list) else []
 
     async def get_stock_price(self, symbol: str) -> Optional[float]:
         """Get current stock price from any available source."""
