@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from agents.data_ingestion.free_data import FreeDataProvider
+from agents.trade_engine.futures_options import FUTURES_OPTION_ROOTS, futures_strategy_for
 from agents.trade_engine.high_winrate import is_premium_selling
 from agents.trade_engine.macro_calendar import macro_days_until
 
@@ -890,6 +891,41 @@ class BackgroundBrainScanner:
             return eff_iv_rank is not None and eff_iv_rank >= PREMIUM_NOTIFICATION_MIN_IVR
         return abs(score) >= NOTIFICATION_SCORE_FLOOR
 
+    def _maybe_notify(self, symbol: str, data: Dict, extra: Optional[Dict] = None) -> Optional[Dict]:
+        """Build (and record the signature of) a notification when *data* is a
+        new actionable pick for *symbol*; None otherwise. The one builder for
+        equity-option and futures-option picks alike."""
+        if not self._is_new_trade(symbol, data["score"], data["signal"],
+                                  data["strategy"], data.get("regime"),
+                                  data.get("eff_iv_rank")):
+            return None
+        notif = {
+            "id": f"NTF-{symbol}-{int(datetime.now(timezone.utc).timestamp())}",
+            "symbol": symbol,
+            "score": data["score"],
+            "signal": data["signal"],
+            "regime": data.get("regime"),
+            "best_strategy": data["strategy"],
+            "strategy_reasoning": data.get("strategy_reasoning", ""),
+            "iv_rank": data.get("iv_rank"),
+            "eff_iv_rank": data.get("eff_iv_rank"),
+            "iv_hv_ratio": data.get("iv_hv_ratio"),
+            "iv_hv_signal": data.get("iv_hv_signal"),
+            "iv_skew": data.get("iv_skew"),
+            "short_interest": data.get("short_interest"),
+            "earnings_move": data.get("earnings_move"),
+            "top_signal": data.get("top_signal", ""),
+            "instrument": "options",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "acknowledged": False,
+        }
+        if extra:
+            notif.update(extra)
+        self._last_results[symbol] = self._result_signature(
+            data["score"], data["signal"], data["strategy"], data.get("regime")
+        )
+        return notif
+
     @classmethod
     def _notification_is_actionable(cls, notification: Dict) -> bool:
         return cls._passes_notification_floor(
@@ -1261,31 +1297,8 @@ class BackgroundBrainScanner:
                     }
                     continue
 
-                if self._is_new_trade(symbol, data["score"], data["signal"],
-                                       data["strategy"], data["regime"],
-                                       data.get("eff_iv_rank")):
-                    notif = {
-                        "id": f"NTF-{symbol}-{int(datetime.now(timezone.utc).timestamp())}",
-                        "symbol": symbol,
-                        "score": data["score"],
-                        "signal": data["signal"],
-                        "regime": data["regime"],
-                        "best_strategy": data["strategy"],
-                        "strategy_reasoning": data.get("strategy_reasoning", ""),
-                        "iv_rank": data.get("iv_rank"),
-                        "eff_iv_rank": data.get("eff_iv_rank"),
-                        "iv_hv_ratio": data.get("iv_hv_ratio"),
-                        "iv_hv_signal": data.get("iv_hv_signal"),
-                        "iv_skew": data.get("iv_skew"),
-                        "short_interest": data.get("short_interest"),
-                        "earnings_move": data.get("earnings_move"),
-                        "top_signal": data.get("top_signal", ""),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "acknowledged": False,
-                    }
-                    self._last_results[symbol] = self._result_signature(
-                        data["score"], data["signal"], data["strategy"], data["regime"]
-                    )
+                notif = self._maybe_notify(symbol, data)
+                if notif:
                     new_notifications.append(notif)
                     notifs.append(notif)
                     new_count += 1
@@ -1325,6 +1338,27 @@ class BackgroundBrainScanner:
                     rss,
                 )
             await asyncio.sleep(0)
+
+        # CME micro futures options ride the proxy ETF's read (SPY -> /MES,
+        # QQQ -> /MNQ): same index exposure, so no second Brain pass. Only a
+        # premium-selling read becomes a (defined-risk) futures notification.
+        for root, config in FUTURES_OPTION_ROOTS.items():
+            proxy = results.get(config["proxy_etf"])
+            strategy = futures_strategy_for((proxy or {}).get("strategy"))
+            if not proxy or not strategy:
+                continue
+            notif = self._maybe_notify(root, {
+                **proxy,
+                "strategy": strategy,
+                "strategy_reasoning": (
+                    f"{config['proxy_etf']} read ({proxy.get('strategy')}, regime {proxy.get('regime')}) "
+                    f"→ defined-risk {strategy.replace('_', ' ')} on /{root} futures options"
+                ),
+            }, extra={"instrument": "futures_options", "proxy_symbol": config["proxy_etf"]})
+            if notif:
+                new_notifications.append(notif)
+                notifs.append(notif)
+                new_count += 1
 
         # Threshold alerts run once per pass over every analyzed symbol --
         # tradeable or not -- so rules like "VIX above" fire regardless of

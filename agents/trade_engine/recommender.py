@@ -27,7 +27,7 @@ from agents.trade_engine.roi_calculator import ROICalculator
 from agents.trade_engine.analytics import OptionsAnalytics
 from agents.trade_engine.strategy_scorer import StrategyScorer
 from agents.trade_engine.theoretical_edge import estimate_structure_value
-from agents.trade_engine.high_winrate import evaluate_entry as hw_evaluate_entry
+from agents.trade_engine.high_winrate import evaluate_entry as hw_evaluate_entry, is_premium_selling
 from agents.risk_management.kelly_calculator import calculate_kelly
 from agents.risk_management.portfolio_limits import RiskManager
 
@@ -62,6 +62,19 @@ CASH_SECURED_TYPES = ("csp", "cc")
 # backing is the conventional wheel hurdle; $0.20 keeps the credit clear of
 # round-trip commissions. MAX_CSP_DELTA keeps strikes off the money.
 MIN_CSP_CREDIT = 0.20
+# Earnings IV-crush condor (Tastytrade's defined-risk earnings play): entered
+# the session before the print on the first expiry after it, both short
+# strikes outside the market's own implied earnings move, closed after the
+# print (trade_manager close_post_earnings). Short-dated by design, so it is
+# exempt from the 21-60 DTE window that governs the standard book.
+EARNINGS_PLAY_MAX_DTE = 14
+EARNINGS_SHORT_STRIKE_MOVE_MULTIPLE = 1.0
+MIN_EARNINGS_IC_CREDIT_TO_WIDTH = 0.25
+# IBKR's option snapshots carry no open interest (and CME futures options
+# report none at all). An OI-unknown contract is judged on its quote instead:
+# a two-sided market no wider than this fraction of the mid is executable.
+MAX_UNKNOWN_OI_SPREAD_PCT = 0.15
+SELL_CANDIDATE_TYPES = ("csp", "cc", "bull_put", "bear_call", "iron_condor", "earnings_iron_condor")
 MIN_CSP_ANNUALIZED_RETURN_PCT = 12.0
 MAX_CSP_DELTA = 0.35
 # Concentration cap: no more than this many selected positions may share one
@@ -200,10 +213,6 @@ MIN_EMPIRICAL_SAMPLES = 10
 MIN_EMPIRICAL_WIN_RATE = 50.0
 EMPIRICAL_CACHE_TTL_SECONDS = 6 * 3600
 _EMPIRICAL_CACHE: Dict[str, Any] = {"at": 0.0, "stats": None}
-_EMPIRICAL_SELL_STRATEGIES = (
-    "bull_put", "bear_call", "iron_condor", "cash_secured",
-    "covered_call", "strangle", "straddle", "condor",
-)
 
 
 class TradeRecommender:
@@ -227,6 +236,8 @@ class TradeRecommender:
         flow_data: Dict[str, Any] = None,
         volatility_data: Dict[str, Any] = None,
         diversify_underlyings: bool = True,
+        mode: str = "standard",
+        allowed_types: Optional[set] = None,
     ) -> AdvisoryOutput:
         """
         MAIN ENTRY POINT: Capital In → Trade Recommendations Out.
@@ -285,7 +296,10 @@ class TradeRecommender:
                 max_capital=max_capital_per_trade,
                 shares_owned=shares_owned,
                 cash_secured_cap=cash_secured_cap,
+                mode=mode,
             )
+            if allowed_types is not None:
+                candidates = [c for c in candidates if c.get("type") in allowed_types]
             all_candidates.extend(candidates)
 
         # Step 4b: A tested short strike is where premium sellers lose money.
@@ -375,8 +389,14 @@ class TradeRecommender:
         max_capital: float,
         shares_owned: float = 0,
         cash_secured_cap: Optional[float] = None,
+        mode: str = "standard",
     ) -> List[Dict]:
-        """Scan a single symbol for strategy opportunities."""
+        """Scan a single symbol for strategy opportunities.
+
+        mode="earnings" builds only the earnings IV-crush condor (first expiry
+        after the print, shorts outside the implied earnings move); the
+        standard 21-60 DTE playbook is skipped entirely in that mode.
+        """
         candidates = []
         if cash_secured_cap is None:
             cash_secured_cap = max_capital
@@ -409,13 +429,23 @@ class TradeRecommender:
                 expiries[exp] = []
             expiries[exp].append(opt)
 
+        earnings_mode = mode == "earnings"
+        implied_move_pct = volatility_data.get("earnings_implied_move_pct")
+        days_to_earnings = volatility_data.get("days_to_earnings")
+        if earnings_mode and (not implied_move_pct or days_to_earnings is None):
+            return candidates  # no implied move or no print date: no earnings play
+
         # For each expiry, try all strategies
         for expiry, opts in expiries.items():
             dte = opts[0].get("dte", 30) if opts else 30
+            if earnings_mode:
+                # First expiry that settles after the reaction session.
+                if dte < int(days_to_earnings) + 1 or dte > EARNINGS_PLAY_MAX_DTE:
+                    continue
             # Avoid stale leaps and near-expiry contracts for the standard
             # defined-risk playbook. Their actual DTE comes from the provider,
             # never a placeholder.
-            if dte < 14 or dte > 60:
+            elif dte < 14 or dte > 60:
                 continue
             # Sort by strike: free chains arrive grouped per expiry but their
             # within-expiry row order is not contractual. The pairing loops
@@ -432,9 +462,18 @@ class TradeRecommender:
                 key=lambda o: float(o.get("strike", 0) or 0),
             )
 
-            # Find ATM strike
-            atm_call = min(calls, key=lambda x: abs(x.get("strike", 0) - stock_price), default=None)
-            atm_put = min(puts, key=lambda x: abs(x.get("strike", 0) - stock_price), default=None)
+            if earnings_mode:
+                cand = self._score_iron_condor(
+                    symbol, stock_price, puts, calls, dte, regime, technical_data,
+                    flow_data, nvrp, risk_per_trade, max_capital,
+                    expected_move=stock_price * float(implied_move_pct) / 100 * EARNINGS_SHORT_STRIKE_MOVE_MULTIPLE,
+                    candidate_type="earnings_iron_condor",
+                    min_credit_to_width=MIN_EARNINGS_IC_CREDIT_TO_WIDTH,
+                )
+                if cand:
+                    candidates.append(cand)
+                continue
+
 
             # Strategy 1: Cash-Secured Puts (credit selling)
             for put in puts:
@@ -544,17 +583,34 @@ class TradeRecommender:
         return short_bid - long_ask
 
     @staticmethod
-    def _has_liquidity(contract: Dict[str, Any], minimum_oi: int = MIN_LIQUIDITY_OI) -> bool:
-        """Require either current participation or sufficient open interest."""
-        return (
-            float(contract.get("volume", 0) or 0) >= MIN_LIQUIDITY_VOLUME
-            or float(contract.get("open_interest", 0) or 0) >= minimum_oi
-        )
+    def _tight_market(contract: Dict[str, Any]) -> bool:
+        """Two-sided quote within MAX_UNKNOWN_OI_SPREAD_PCT of its mid."""
+        try:
+            bid = float(contract.get("bid", 0) or 0)
+            ask = float(contract.get("ask", 0) or 0)
+        except (TypeError, ValueError):
+            return False
+        if bid <= 0 or ask <= bid:
+            return False
+        return (ask - bid) / ((ask + bid) / 2) <= MAX_UNKNOWN_OI_SPREAD_PCT
 
-    @staticmethod
-    def _has_minimum_open_interest(contract: Dict[str, Any], minimum_oi: int) -> bool:
-        """Use an OI-only floor when a strategy must remain readily closable."""
-        return float(contract.get("open_interest", 0) or 0) >= minimum_oi
+    @classmethod
+    def _has_liquidity(cls, contract: Dict[str, Any], minimum_oi: int = MIN_LIQUIDITY_OI) -> bool:
+        """Require either current participation or sufficient open interest."""
+        if float(contract.get("volume", 0) or 0) >= MIN_LIQUIDITY_VOLUME:
+            return True
+        return cls._has_minimum_open_interest(contract, minimum_oi)
+
+    @classmethod
+    def _has_minimum_open_interest(cls, contract: Dict[str, Any], minimum_oi: int) -> bool:
+        """Use an OI-only floor when a strategy must remain readily closable.
+        Unknown OI (the IBKR proxy's open_interest_known=False, e.g. CME
+        futures options, or a missing value) falls back to the quote-tightness
+        test rather than reading as zero."""
+        open_interest = contract.get("open_interest")
+        if open_interest is None or contract.get("open_interest_known") is False:
+            return cls._tight_market(contract)
+        return float(open_interest or 0) >= minimum_oi
 
     @classmethod
     def _passes_credit_spread_execution_gate(
@@ -631,7 +687,7 @@ class TradeRecommender:
         premium sellers give the edge back. Debit spreads' short (hedge) legs
         are not sell decisions and are deliberately excluded.
         """
-        if candidate.get("type") not in ("csp", "cc", "bull_put", "bear_call", "iron_condor"):
+        if candidate.get("type") not in SELL_CANDIDATE_TYPES:
             return True
         stock_price = float(candidate.get("stock_price", 0) or 0)
         if stock_price <= 0:
@@ -717,9 +773,7 @@ class TradeRecommender:
         unverifiable book never gets a fabricated rejection — the gate only
         acts when there is real evidence of a losing strategy.
         """
-        strategy = candidate.get("type")
-        key = (strategy or "").lower()
-        if not any(token in key for token in _EMPIRICAL_SELL_STRATEGIES):
+        if not is_premium_selling(candidate.get("type")):
             return True
         stats = self._realized_outcome_stats()
         if stats is None:
@@ -752,8 +806,7 @@ class TradeRecommender:
             for trade in trades:
                 if str(trade.get("status", "")) != "closed":
                     continue
-                strat_key = str(trade.get("strategy", "")).lower()
-                if not any(token in strat_key for token in _EMPIRICAL_SELL_STRATEGIES):
+                if not is_premium_selling(str(trade.get("strategy", ""))):
                     continue
                 try:
                     pnl = float(trade.get("net_pnl", 0) or 0)
@@ -807,7 +860,7 @@ class TradeRecommender:
         elif strategy == "bear_call":
             p_profit = self.roi_calc._approx_pop_otm(stock_price, candidate["short_strike"], dte, "call", iv) / 100
             p_loss = 1 - self.roi_calc._approx_pop_otm(stock_price, candidate["long_strike"], dte, "call", iv) / 100
-        elif strategy == "iron_condor":
+        elif strategy in ("iron_condor", "earnings_iron_condor"):
             p_profit = pop
             p_loss = (
                 1 - self.roi_calc._approx_pop_otm(stock_price, candidate["put_long"], dte, "put", iv) / 100
@@ -1055,34 +1108,35 @@ class TradeRecommender:
 
     def _score_iron_condor(
         self, symbol, stock_price, puts, calls, dte, regime, tech, flow,
-        nvrp, risk, max_cap
+        nvrp, risk, max_cap, expected_move: Optional[float] = None,
+        candidate_type: str = "iron_condor",
+        min_credit_to_width: float = MIN_IRON_CONDOR_CREDIT_TO_WIDTH,
     ) -> Optional[Dict]:
-        """Score an Iron Condor."""
+        """Score an Iron Condor: both shorts at/outside the expected move,
+        each long wing one strike further out (the narrowest defined risk).
+
+        The standard condor uses the 1-SD IV expected move; the earnings play
+        passes the market's implied earnings move instead. The shorts used to
+        be the strikes adjacent to ATM -- the expected move was computed and
+        then never used -- so every condor failed the 1-SD high-win-rate gate.
+        """
         if len(puts) < 2 or len(calls) < 2:
             return None
 
-        # Find ATM for both sides
-        atm_strike = min(puts, key=lambda x: abs(x.get("strike", 0) - stock_price), default=None)
-        if not atm_strike:
+        if expected_move is None:
+            em = self.analytics.expected_move(stock_price, nvrp.get("iv", 0.20), dte)
+            expected_move = em.get("expected_move_1sd", stock_price * 0.05)
+        if not expected_move or expected_move <= 0:
             return None
 
-        atm_s = atm_strike.get("strike", 0)
-
-        # Select strikes: 1 std OTM each side
-        em = self.analytics.expected_move(stock_price, nvrp.get("iv", 0.20), dte)
-        expected_move = em.get("expected_move_1sd", stock_price * 0.05)
-
-        # Put side: short ~1 SD below, long ~1.5 SD below
-        put_short = max([p for p in puts if p.get("strike", 0) < atm_s],
+        put_short = max([p for p in puts if p.get("strike", 0) <= stock_price - expected_move],
                         key=lambda x: x.get("strike", 0), default=None)
         put_long = max([p for p in puts if p.get("strike", 0) < (put_short.get("strike", 0) if put_short else 0)],
-                        key=lambda x: x.get("strike", 0), default=None)
-
-        # Call side: short ~1 SD above, long ~1.5 SD above
-        call_short = min([c for c in calls if c.get("strike", 0) > atm_s],
+                       key=lambda x: x.get("strike", 0), default=None)
+        call_short = min([c for c in calls if c.get("strike", 0) >= stock_price + expected_move],
                          key=lambda x: x.get("strike", 0), default=None)
         call_long = min([c for c in calls if c.get("strike", 0) > (call_short.get("strike", 0) if call_short else 999999)],
-                         key=lambda x: x.get("strike", 0), default=None)
+                        key=lambda x: x.get("strike", 0), default=None)
 
         if not all([put_short, put_long, call_short, call_long]):
             return None
@@ -1109,7 +1163,7 @@ class TradeRecommender:
 
         # Thin-credit condors are low-probability lottery tickets: the credit
         # must represent a real share of the defined risk.
-        if wing_width <= 0 or total_credit / wing_width < MIN_IRON_CONDOR_CREDIT_TO_WIDTH:
+        if wing_width <= 0 or total_credit / wing_width < min_credit_to_width:
             return None
 
         max_loss = (wing_width - total_credit) * 100
@@ -1137,7 +1191,7 @@ class TradeRecommender:
             return None
 
         return {
-            "type": "iron_condor",
+            "type": candidate_type,
             "symbol": symbol,
             "stock_price": stock_price,
             "put_short": put_short.get("strike", 0),
@@ -1432,6 +1486,7 @@ class TradeRecommender:
             "bull_put": StrategyType.BULL_PUT_CREDIT,
             "bear_call": StrategyType.BEAR_CALL_CREDIT,
             "iron_condor": StrategyType.IRON_CONDOR,
+            "earnings_iron_condor": StrategyType.EARNINGS_IRON_CONDOR,
             "call_debit": StrategyType.CALL_DEBIT_SPREAD,
             "put_debit": StrategyType.PUT_DEBIT_SPREAD,
         }
@@ -1457,6 +1512,9 @@ class TradeRecommender:
                 iv=raw.get("iv", 0),
                 delta=raw.get("delta", 0),
                 dte=raw.get("dte", candidate.get("dte", 30)),
+                sec_type=raw.get("sec_type") or "OPT",
+                trading_class=raw.get("trading_class"),
+                multiplier=int(raw.get("multiplier") or 100),
             )
             action = "SELL" if raw.get("action") == "SELL" else "BUY"
             role = raw.get("role", "")
@@ -1587,7 +1645,11 @@ class TradeRecommender:
 
         # 50% is the standard profit target; expensive premium (IVR > 60)
         # justifies holding toward 75% of the credit before the DTE close.
-        if strategy_type == StrategyType.IRON_CONDOR:
+        if strategy_type == StrategyType.EARNINGS_IRON_CONDOR:
+            target_pct = 50
+            profit_target = "Close the session after the print (IV crush) or at 50% of max profit"
+            stop_loss = "Close if either wing reaches 2x its credit"
+        elif strategy_type == StrategyType.IRON_CONDOR:
             wing_width = float(candidate.get("wing_width", 0) or 0)
             thin = wing_width > 0 and (credit / wing_width) < 0.5
             target_pct = 25 if thin else 50
@@ -1614,6 +1676,10 @@ class TradeRecommender:
             "roll_rules": "Roll out in time if tested, never roll for a loss",
         }
 
+        if strategy_type == StrategyType.EARNINGS_IRON_CONDOR:
+            rules["time_exit"] = "Close the first session after the earnings print"
+            rules["close_rule"] = "Whichever comes first: post-earnings session, 50% profit, or 2x-credit stop"
+            rules["hold_to_expiry"] = "Never: this is an event trade"
         if strategy_type in [StrategyType.IRON_CONDOR, StrategyType.BULL_PUT_CREDIT, StrategyType.BEAR_CALL_CREDIT]:
             rules["adjustment"] = "If short strike tested, roll up/down the tested side"
         elif strategy_type in [StrategyType.CALL_DEBIT_SPREAD, StrategyType.PUT_DEBIT_SPREAD]:
@@ -1655,8 +1721,10 @@ class TradeRecommender:
     def _generate_risk_warning(self, candidate: Dict) -> str:
         """Generate risk warning."""
         warnings = []
-        if candidate.get("type") == "iron_condor":
-            warnings.append("Iron condors have undefined risk on both sides if market moves significantly")
+        if candidate.get("type") in ("iron_condor", "earnings_iron_condor"):
+            warnings.append("Iron condor: max loss is the wider wing minus the credit if the move breaches a short strike")
+        if candidate.get("type") == "earnings_iron_condor":
+            warnings.append("Earnings event trade: a gap beyond the implied move can reach max loss overnight")
         if candidate.get("dte", 30) < 7:
             warnings.append("Short DTE trade - higher gamma risk")
         if candidate.get("capital_required", 0) > 5000:

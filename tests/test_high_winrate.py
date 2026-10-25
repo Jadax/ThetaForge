@@ -63,8 +63,18 @@ def test_trend_alignment_missing_trend_is_not_a_veto():
 # ── expected-move buffer ──────────────────────────────────────────────────
 
 def test_expected_move_buffer_rejects_short_strike_inside_1sd():
-    ok, reason = expected_move_buffer_ok("bull_put", short_strike=195, spot=200, expected_move_1sd=10)
+    # Condors keep the full 1-SD rule.
+    ok, reason = expected_move_buffer_ok("iron_condor", short_strike=195, spot=200, expected_move_1sd=10)
     assert not ok and "1-SD" in reason
+    # Verticals use the ~30-delta band (0.5x): 0.3x is still too close.
+    assert not expected_move_buffer_ok("bull_put", short_strike=197, spot=200, expected_move_1sd=10)[0]
+
+
+def test_vertical_spreads_use_the_30_delta_band():
+    """At 1.0x a vertical collects ~0.16 of its width, so the 1-SD rule and
+    the 0.25 credit/width floor could never both pass."""
+    assert expected_move_buffer_ok("bull_put", short_strike=195, spot=200, expected_move_1sd=10)[0]
+    assert expected_move_buffer_ok("bear_call_credit", short_strike=205, spot=200, expected_move_1sd=10)[0]
 
 
 def test_expected_move_buffer_accepts_strike_at_or_outside_1sd():
@@ -170,5 +180,5 @@ def test_recommender_cash_secured_codes_get_every_context_gate():
 def test_cash_secured_uses_wheel_expected_move_band():
     # Spot 20, 1-SD move 3.5: a strike 2.0 away is 0.57x the move.
     assert expected_move_buffer_ok("csp", 18.0, 20.0, 3.5)[0]
-    assert not expected_move_buffer_ok("bull_put", 18.0, 20.0, 3.5)[0]   # spreads keep 1.0x
+    assert not expected_move_buffer_ok("iron_condor", 18.0, 20.0, 3.5)[0]  # condors keep 1.0x
     assert not expected_move_buffer_ok("csp", 19.0, 20.0, 3.5)[0]        # 0.29x: too close

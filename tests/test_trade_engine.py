@@ -805,10 +805,12 @@ def test_high_winrate_gate_rejects_bull_put_in_a_downtrend():
 
 def test_high_winrate_gate_rejects_short_strike_inside_the_expected_move():
     recommender = TradeRecommender()
-    # 100 * 0.25 * sqrt(30/365) = 7.24 → the 95 strike is inside the 1-SD move.
-    candidate = {"type": "bull_put", "stock_price": 100, "short_strike": 95, "long_strike": 90,
+    # 100 * 0.25 * sqrt(30/365) = 7.24. Verticals need >= 0.5x (~30 delta):
+    # 98 is 0.28x (rejected); 95 is 0.69x (accepted).
+    candidate = {"type": "bull_put", "stock_price": 100, "short_strike": 98, "long_strike": 93,
                  "dte": 30, "nvrp": {"iv": 0.25, "trend": "bullish"}}
     assert not recommender._passes_high_winrate_gate(candidate)
+    assert recommender._passes_high_winrate_gate(dict(candidate, short_strike=95, long_strike=90))
 
 
 def test_high_winrate_gate_rejects_short_premium_inside_the_gamma_window():

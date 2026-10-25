@@ -49,6 +49,15 @@ EXPECTED_MOVE_MIN_MULTIPLE = 1.0
 # touch-probability gate plus MAX_CSP_DELTA still keep strikes off the money.
 CASH_SECURED_EXPECTED_MOVE_MULTIPLE = 0.5
 _CASH_SECURED_TYPES = {"csp", "cc", "cash_secured_put", "covered_call", "wheel"}
+# Vertical credit spreads use the same ~30-delta band. A vertical's credit is
+# at most ~P(ITM) x width, so at 1.0x (~16 delta) it collects ~0.16 of the
+# width gross (~0.07 executable on MES's tick grid) -- the 1.0x rule and the
+# Recommender's credit/width >= 0.25 execution floor could never both pass,
+# which made every bull put / bear call unreachable. The 1-SD rule is the
+# strangle/condor convention; Tastytrade's defined-risk vertical is a ~30-delta
+# short collecting about a third of the width. Condors keep 1.0x.
+VERTICAL_SPREAD_EXPECTED_MOVE_MULTIPLE = 0.5
+_VERTICAL_SPREAD_TYPES = {"bull_put", "bear_call", "bull_put_credit", "bear_call_credit", "credit_spread_weekly"}
 
 # No NEW short-premium entries with earnings within this many days. The
 # earnings move is binary; IV crush makes the credit look rich without being
@@ -72,6 +81,10 @@ _SELL_PREMIUM_TYPES = {
     # candidates silently skipped every context veto in evaluate_entry()
     # (trend, expected-move buffer, DTE band, relative strength).
     "csp", "cc",
+    # Defined-risk earnings IV-crush condor (recommender/Brain). It is exempt
+    # from the DTE band and earnings blackout by design (see recommender
+    # EARNINGS_PLAY_*), but it IS premium selling everywhere else.
+    "earnings_iron_condor",
 }
 # This is the single source of truth for "is this a premium-selling
 # strategy" across the whole system -- trade_manager.py and ai_brain.py both
@@ -155,11 +168,18 @@ def expected_move_multiple_for(strategy: str) -> float:
     key = (strategy or "").lower()
     if key in _CASH_SECURED_TYPES:
         return CASH_SECURED_EXPECTED_MOVE_MULTIPLE
+    if key in _VERTICAL_SPREAD_TYPES:
+        return VERTICAL_SPREAD_EXPECTED_MOVE_MULTIPLE
     return EXPECTED_MOVE_MIN_MULTIPLE
 
 
+# Event trades that deliberately sit inside the earnings window and the short
+# DTE band: the earnings IV-crush condor exists to sell the inflated event IV.
+EARNINGS_EVENT_STRATEGIES = {"earnings_iron_condor"}
+
+
 def entry_dte_ok(strategy: str, dte: Optional[int]) -> Tuple[bool, str]:
-    if not dte:
+    if not dte or (strategy or "").lower() in EARNINGS_EVENT_STRATEGIES:
         return True, ""
     if is_premium_selling(strategy):
         if dte < MIN_SELL_DTE:
@@ -178,6 +198,8 @@ def earnings_window_ok(
 ) -> Tuple[bool, str]:
     """Refuse new short-premium entries whose life spans an earnings print."""
     if not is_premium_selling(strategy) or days_to_earnings is None:
+        return True, ""
+    if (strategy or "").lower() in EARNINGS_EVENT_STRATEGIES:
         return True, ""
     if 0 < days_to_earnings <= EARNINGS_BLACKOUT_DAYS:
         return (

@@ -122,6 +122,10 @@ class AIBrain:
     # used for directional credit spreads: without a directional tailwind the
     # volatility premium has to carry the whole edge (Tastytrade: IVR > 50).
     NEUTRAL_PREMIUM_MIN_IVR = 50
+    # Earnings IV-crush play: enter 1-2 sessions before the print, only when
+    # the implied move is >= 1.15x the stock's median realized earnings move.
+    EARNINGS_PLAY_MAX_DAYS = 2
+    EARNINGS_PLAY_MIN_RICHNESS = 1.15
     # Neutral signals (no directional read) that would dilute a mean of all
     # confidences are excluded from the agreement average below this strength.
     INFORMATIVE_STRENGTH_EPS = 0.05
@@ -927,59 +931,26 @@ class AIBrain:
                 "reasoning": f"Already have a position on {symbol} — roll for credit or close for profit",
             }
 
-        # Earnings filter — this must also pass the confidence gate so that
-        # a single IVR data point on an unfamiliar symbol doesn't force a
-        # blanket "no trade" without signal support.
-        if days_to_earnings and days_to_earnings <= 7:
+        market_veto = self._market_veto(iv_signal, vix, days_to_macro)
+
+        # Earnings window. `days_to_earnings == 0` (reporting today) is inside
+        # the window too: the old truthiness check skipped the veto for it. The
+        # one exception is the defined-risk earnings IV-crush condor, which is
+        # only offered when no market-wide veto is active and the implied move
+        # is genuinely rich versus the stock's own realized earnings moves.
+        if days_to_earnings is not None and 0 <= days_to_earnings <= 7:
+            if market_veto is None:
+                play = self._earnings_play(iv_signal, days_to_earnings)
+                if play:
+                    return play
             return {
                 "strategy": "avoid_new_positions",
                 "reason_code": "earnings_proximity",
                 "reasoning": f"Earnings in {days_to_earnings} days → too close, avoid new positions",
             }
 
-        # Scheduled macro print (FOMC/CPI/NFP) inside the blackout window — the
-        # largest scheduled overnight-vol event of its week. Unlike earnings,
-        # this is market-wide: every symbol carries the same print risk, so the
-        # veto fires before any strategy branch. None (unknown schedule) fails
-        # open — a missing calendar never mints a veto.
-        if days_to_macro is not None and 0 <= days_to_macro <= macro_calendar.MACRO_BLACKOUT_DAYS:
-            macro_label = "scheduled macro event"
-            try:
-                event = macro_calendar.next_macro_event()
-                if event:
-                    macro_label = event["label"]
-            except Exception:
-                macro_label = macro_label
-            return {
-                "strategy": "no_trade",
-                "reason_code": "macro_proximity",
-                "reasoning": (
-                    f"Macro event ({macro_label}) in {days_to_macro} day"
-                    f"{'s' if days_to_macro != 1 else ''} → no new positions "
-                    "through the print"
-                ),
-            }
-
-        # Inverted VIX term structure = front-month fear. Selling premium into
-        # an inverted curve is the classic premium-capture mistake; pause all
-        # short-vega strategies until the curve re-steepens (Option Alpha).
-        if iv_signal.get("term_structure") == "inverted":
-            return {
-                "strategy": "no_trade",
-                "reason_code": "inverted_term_structure",
-                "reasoning": "VIX term structure inverted → pause new premium selling until curve re-steepens",
-            }
-
-        # Extreme VIX fires before any strategy branch (docstring contract).
-        # A VIX spike does not itself authorize selling puts; premium selling
-        # is only safe in a defined moderate-VIX window.  This veto must sit
-        # BEFORE every strategy branch so it cannot be skipped.
-        if vix > 30:
-            return {
-                "strategy": "no_trade",
-                "reason_code": "high_vix",
-                "reasoning": f"VIX {vix:.0f} is extreme; wait for a directional and volatility confirmation",
-            }
+        if market_veto:
+            return market_veto
 
         # --- Non-directional premium selling --------------------------------
         # These two branches sit BEFORE the signal-agreement gate on purpose:
@@ -1136,6 +1107,77 @@ class AIBrain:
             "strategy": "no_trade",
             "reason_code": "no_edge",
             "reasoning": "No strategy has a sufficiently differentiated edge in the current regime",
+        }
+
+    def _market_veto(
+        self, iv_signal: Dict, vix: float, days_to_macro: Optional[int]
+    ) -> Optional[Dict[str, str]]:
+        """Market-wide vetoes that fire before any strategy branch: a scheduled
+        macro print inside the blackout window, an inverted VIX curve, or an
+        extreme VIX. None (unknown macro schedule) fails open."""
+        # Scheduled macro print (FOMC/CPI/NFP) — the largest scheduled
+        # overnight-vol event of its week; every symbol carries the same risk.
+        if days_to_macro is not None and 0 <= days_to_macro <= macro_calendar.MACRO_BLACKOUT_DAYS:
+            macro_label = "scheduled macro event"
+            try:
+                event = macro_calendar.next_macro_event()
+                if event:
+                    macro_label = event["label"]
+            except Exception:
+                pass
+            return {
+                "strategy": "no_trade",
+                "reason_code": "macro_proximity",
+                "reasoning": (
+                    f"Macro event ({macro_label}) in {days_to_macro} day"
+                    f"{'s' if days_to_macro != 1 else ''} → no new positions "
+                    "through the print"
+                ),
+            }
+        # Inverted VIX term structure = front-month fear. Selling premium into
+        # an inverted curve is the classic premium-capture mistake (Option Alpha).
+        if iv_signal.get("term_structure") == "inverted":
+            return {
+                "strategy": "no_trade",
+                "reason_code": "inverted_term_structure",
+                "reasoning": "VIX term structure inverted → pause new premium selling until curve re-steepens",
+            }
+        # A VIX spike does not itself authorize selling puts; premium selling
+        # is only safe in a defined moderate-VIX window.
+        if vix > 30:
+            return {
+                "strategy": "no_trade",
+                "reason_code": "high_vix",
+                "reasoning": f"VIX {vix:.0f} is extreme; wait for a directional and volatility confirmation",
+            }
+        return None
+
+    def _earnings_play(
+        self, iv_signal: Dict, days_to_earnings: int
+    ) -> Optional[Dict[str, str]]:
+        """Tastytrade's defined-risk earnings IV crush: entered 1-2 sessions
+        before the print, only when the market's implied earnings move is rich
+        versus the stock's own median realized earnings move (desk_analytics.
+        earnings_move_edge, which needs >= 4 past events). The Recommender
+        places both shorts outside the implied move; the manager closes the
+        session after the print."""
+        if not (1 <= days_to_earnings <= self.EARNINGS_PLAY_MAX_DAYS):
+            return None
+        move = iv_signal.get("earnings_move") if isinstance(iv_signal, dict) else None
+        if not move or move.get("read") != "sell_iv":
+            return None
+        implied = float(move.get("implied_move_pct") or 0)
+        median = float(move.get("median_historical_move_pct") or 0)
+        if implied <= 0 or median <= 0 or implied / median < self.EARNINGS_PLAY_MIN_RICHNESS:
+            return None
+        return {
+            "strategy": "earnings_iron_condor",
+            "reason_code": "earnings_iv_crush",
+            "reasoning": (
+                f"Earnings in {days_to_earnings} day{'s' if days_to_earnings != 1 else ''}: implied move "
+                f"{implied:.1f}% vs realized median {median:.1f}% ({implied / median:.2f}x) → sell a "
+                "defined-risk condor outside the implied move, close after the print"
+            ),
         }
 
     def _horizon_recommendations(

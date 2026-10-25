@@ -44,6 +44,13 @@ MANAGE_DTE = 21
 LOSS_TO_CREDIT_STOP = 2.0
 # Close short premium before an earnings print within this many days.
 EARNINGS_EXIT_DAYS = 7
+# Earnings IV-crush condors are entered 1-2 sessions before the print
+# (ai_brain.EARNINGS_PLAY_MAX_DAYS) and closed the first session after it:
+# once the next print is further out than the entry window, the event passed.
+EARNINGS_PLAY_ENTRY_DAYS = 2
+# Fallback when the earnings date is unknown: never carry the event trade
+# into its expiry week's last sessions.
+EARNINGS_PLAY_LAST_DTE = 1
 # Close short premium before a scheduled FOMC/CPI/NFP print inside the macro
 # blackout window (same window the Brain uses to refuse new entries).
 MACRO_EXIT_DAYS = MACRO_BLACKOUT_DAYS
@@ -67,7 +74,11 @@ class OpenPosition:
     quantity: int = 1
     spot: Optional[float] = None
     dte: Optional[int] = None
-    short_leg_value: Optional[float] = None  # current mid of the short leg
+    # Current per-share mark of the WHOLE position -- its cost to close (sold
+    # legs' mids minus bought legs' mids). Comparing only the short leg's mid
+    # with the NET credit read a fresh 0.80/0.30 put spread (credit 0.50) as a
+    # 1.6x loss on day one and mis-stated every spread's profit.
+    short_leg_value: Optional[float] = None
 
     @property
     def max_loss(self) -> Optional[float]:
@@ -105,7 +116,9 @@ def evaluate_position(
 
     Rule order (first match wins):
       1. close_profit      — 50% of max credit captured
-      2. close_time        — inside the 21-DTE gamma window
+      1a. close_post_earnings — earnings IV-crush condor after its print
+      2. close_time        — inside the 21-DTE gamma window (earnings
+                             condors: only at <= 1 DTE)
       3. close_loss        — short leg worth >= 2x the credit
       4. close_pre_earnings— earnings print inside the blackout window
       5. close_pre_macro   — FOMC/CPI/NFP print inside the blackout window
@@ -116,6 +129,7 @@ def evaluate_position(
     reason = "No management trigger fired"
     urgency = "low"
 
+    earnings_play = "earnings" in (position.strategy or "").lower()
     profit_pct = position.profit_pct
     loss_to_credit = (
         position.short_leg_value / position.credit_received
@@ -133,7 +147,15 @@ def evaluate_position(
         action = "close_profit"
         reason = f"captured {profit_pct:.0%} of max credit (target {PROFIT_TARGET:.0%})"
         urgency = "medium"
-    elif position.dte is not None and position.dte <= MANAGE_DTE:
+    elif earnings_play and days_to_earnings is not None and days_to_earnings > EARNINGS_PLAY_ENTRY_DAYS:
+        action = "close_post_earnings"
+        reason = "earnings print has passed — close the IV-crush condor"
+        urgency = "high"
+    elif earnings_play and position.dte is not None and position.dte <= EARNINGS_PLAY_LAST_DTE:
+        action = "close_time"
+        reason = f"{position.dte} DTE on an earnings event trade — never carried into expiry"
+        urgency = "high"
+    elif not earnings_play and position.dte is not None and position.dte <= MANAGE_DTE:
         action = "close_time"
         reason = (
             f"{position.dte} DTE inside the {MANAGE_DTE}-day gamma window — "
@@ -144,7 +166,7 @@ def evaluate_position(
         action = "close_loss"
         reason = f"short leg at {loss_to_credit:.1f}x the credit (stop {LOSS_TO_CREDIT_STOP:.0f}x)"
         urgency = "high"
-    elif _days_to_earnings(days_to_earnings):
+    elif not earnings_play and _days_to_earnings(days_to_earnings):
         action = "close_pre_earnings"
         reason = f"earnings in {days_to_earnings} days — no short premium through the event"
         urgency = "high"

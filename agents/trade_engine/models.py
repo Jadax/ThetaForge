@@ -113,6 +113,13 @@ class OptionContract:
     vega: float = 0.0
     dte: int = 0
     itm: bool = False
+    # Contract identity beyond the symbol: equity options are OPT x100 on
+    # SMART; CME micro futures options are FOP with their own trading class
+    # and multiplier (MES 5, MNQ 2). Carried through to the Bridge so it can
+    # qualify the exact contract and size risk with the real multiplier.
+    sec_type: str = "OPT"
+    trading_class: Optional[str] = None
+    multiplier: int = 100
 
 
 @dataclass

@@ -471,3 +471,14 @@ def test_read_time_filter_keeps_premium_notifications(scanner):
     drop = {"best_strategy": "cash_secured_put", "score": 5, "eff_iv_rank": 20}
     assert scanner._notification_is_actionable(keep)
     assert not scanner._notification_is_actionable(drop)
+
+
+def test_futures_notification_rides_the_proxy_etf_read(scanner):
+    spy = {"score": 12.0, "signal": "neutral", "regime": "neutral", "strategy": "cash_secured_put",
+           "eff_iv_rank": 62.0}
+    from agents.trade_engine.futures_options import futures_strategy_for
+    notif = scanner._maybe_notify("MES", {**spy, "strategy": futures_strategy_for(spy["strategy"])},
+                                  extra={"instrument": "futures_options", "proxy_symbol": "SPY"})
+    assert notif["best_strategy"] == "bull_put_credit"                # never a naked futures put
+    assert notif["instrument"] == "futures_options"
+    assert scanner._maybe_notify("MES", {**spy, "strategy": "bull_put_credit"}) is None   # unchanged pick
