@@ -179,3 +179,17 @@ def test_unknown_open_interest_is_judged_on_the_quote():
     assert not rec._has_minimum_open_interest({"open_interest": None, "bid": 1.00, "ask": 1.40}, 500)
     assert rec._has_minimum_open_interest({"open_interest": 0, "open_interest_known": False, "bid": 1.00, "ask": 1.05}, 500)
     assert not rec._has_minimum_open_interest({"open_interest": 0, "bid": 1.00, "ask": 1.01}, 500)
+
+
+def test_bridge_refuses_naked_futures_option_before_touching_ibkr(monkeypatch):
+    import asyncio
+    import bridge.main as bridge
+
+    async def must_not_be_called(*_args, **_kwargs):
+        raise AssertionError("IBKR was contacted for an order that can never be placed")
+
+    monkeypatch.setattr(bridge, "_live_option_tickers", must_not_be_called)
+    order = bridge.PaperComboOrder(legs=[_leg(7400, "P", "SELL")], quantity=1, capital_limit=5000)
+    with pytest.raises(HTTPException) as refused:
+        asyncio.run(bridge.submit_paper_combo(order))
+    assert refused.value.status_code == 422 and "futures option" in refused.value.detail

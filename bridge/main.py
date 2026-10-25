@@ -727,6 +727,9 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
     a paid real-time data subscription (see SIGNAL_POLICY.md). The snapshot
     quality is recorded on the ledger.
     """
+    # Refuse what can never be defined-risk before touching IBKR at all.
+    if len(order.legs) == 1 and order.legs[0].sec_type == "FOP":
+        raise HTTPException(status_code=422, detail="A single futures option is never defined-risk; spreads and condors only")
     legs = [OptionQuoteLeg(**leg.model_dump(exclude={"action"})) for leg in order.legs]
     qualified, tickers = await _live_option_tickers(legs)
     live_prices = []
@@ -754,8 +757,6 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
             ),
         )
 
-    if len(order.legs) == 1 and order.legs[0].sec_type == "FOP":
-        raise HTTPException(status_code=422, detail="A single futures option is never defined-risk; spreads and condors only")
     if len(order.legs) == 1:
         leg = order.legs[0]
         if leg.action != "SELL" or leg.right not in {"C", "P"}:
