@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "44f370c383edd90148d2973a5531923555b4068b8d31c21e3156adfda5ff16af",
+    "ledger_sha": "a5df83b3cf42340eaafd820153d7e6987e77bb124830f3c389406f3005865f30",
     "entries_from_ledger": 48,
     "entries_manual": 0,
     "entries_carried": 0
@@ -78,7 +78,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689147+00:00",
+      "timestamp": "2026-10-26T18:30:40.926828+00:00",
       "live": {
         "price": 56.06,
         "kind": "stock",
@@ -159,7 +159,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:16.005341+00:00",
-        "updated_at": "2026-10-26T17:30:04.689147+00:00"
+        "updated_at": "2026-10-26T18:30:40.926828+00:00"
       }
     },
     {
@@ -225,7 +225,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-10-26T17:30:04.689214+00:00",
+      "timestamp": "2026-10-26T18:30:40.926892+00:00",
       "live": {
         "price": 7.52,
         "kind": "stock",
@@ -546,7 +546,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:24.664700+00:00",
-        "updated_at": "2026-10-26T17:30:04.689214+00:00"
+        "updated_at": "2026-10-26T18:30:40.926892+00:00"
       }
     },
     {
@@ -612,7 +612,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689195+00:00",
+      "timestamp": "2026-10-26T18:30:40.926872+00:00",
       "live": {
         "price": 33.01,
         "kind": "stock",
@@ -909,7 +909,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:20.517791+00:00",
-        "updated_at": "2026-10-26T17:30:04.689195+00:00"
+        "updated_at": "2026-10-26T18:30:40.926872+00:00"
       }
     },
     {
@@ -975,7 +975,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689260+00:00",
+      "timestamp": "2026-10-26T18:30:40.926939+00:00",
       "live": {
         "price": 88.15,
         "kind": "stock",
@@ -1164,7 +1164,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:37.139740+00:00",
-        "updated_at": "2026-10-26T17:30:04.689260+00:00"
+        "updated_at": "2026-10-26T18:30:40.926939+00:00"
       }
     },
     {
@@ -1230,7 +1230,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-10-26T17:30:04.689245+00:00",
+      "timestamp": "2026-10-26T18:30:40.926924+00:00",
       "live": {
         "price": 249.82,
         "kind": "stock",
@@ -1507,7 +1507,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:32.979420+00:00",
-        "updated_at": "2026-10-26T17:30:04.689245+00:00"
+        "updated_at": "2026-10-26T18:30:40.926924+00:00"
       }
     },
     {
@@ -1573,7 +1573,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689230+00:00",
+      "timestamp": "2026-10-26T18:30:40.926908+00:00",
       "live": {
         "price": 523.63,
         "kind": "stock",
@@ -1770,7 +1770,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:28.823749+00:00",
-        "updated_at": "2026-10-26T17:30:04.689230+00:00"
+        "updated_at": "2026-10-26T18:30:40.926908+00:00"
       }
     },
     {
@@ -1836,7 +1836,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689319+00:00",
+      "timestamp": "2026-10-26T18:30:40.926993+00:00",
       "live": {
         "price": 69.01,
         "kind": "stock",
@@ -2069,7 +2069,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:53.774471+00:00",
-        "updated_at": "2026-10-26T17:30:04.689319+00:00"
+        "updated_at": "2026-10-26T18:30:40.926993+00:00"
       }
     },
     {
@@ -2135,7 +2135,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689306+00:00",
+      "timestamp": "2026-10-26T18:30:40.926980+00:00",
       "live": {
         "price": 180.32,
         "kind": "stock",
@@ -2364,7 +2364,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:49.612116+00:00",
-        "updated_at": "2026-10-26T17:30:04.689306+00:00"
+        "updated_at": "2026-10-26T18:30:40.926980+00:00"
       }
     },
     {
@@ -2430,7 +2430,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689287+00:00",
+      "timestamp": "2026-10-26T18:30:40.926967+00:00",
       "live": {
         "price": 7.65,
         "kind": "stock",
@@ -2611,7 +2611,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:45.454863+00:00",
-        "updated_at": "2026-10-26T17:30:04.689287+00:00"
+        "updated_at": "2026-10-26T18:30:40.926967+00:00"
       }
     },
     {
@@ -2677,7 +2677,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689273+00:00",
+      "timestamp": "2026-10-26T18:30:40.926953+00:00",
       "live": {
         "price": 343.56,
         "kind": "stock",
@@ -2898,7 +2898,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:41.284063+00:00",
-        "updated_at": "2026-10-26T17:30:04.689273+00:00"
+        "updated_at": "2026-10-26T18:30:40.926953+00:00"
       }
     },
     {
@@ -2968,7 +2968,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689549+00:00",
+      "timestamp": "2026-10-26T18:30:40.927219+00:00",
       "live": {
         "price": 762.46,
         "kind": "stock",
@@ -3145,7 +3145,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:51.864408+00:00",
-        "updated_at": "2026-10-26T17:30:04.689549+00:00"
+        "updated_at": "2026-10-26T18:30:40.927219+00:00"
       }
     },
     {
@@ -3215,7 +3215,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-10-26T17:30:04.689531+00:00",
+      "timestamp": "2026-10-26T18:30:40.927196+00:00",
       "live": {
         "price": 706.72,
         "kind": "stock",
@@ -3444,7 +3444,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:47.725750+00:00",
-        "updated_at": "2026-10-26T17:30:04.689531+00:00"
+        "updated_at": "2026-10-26T18:30:40.927196+00:00"
       }
     },
     {
@@ -3514,7 +3514,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-10-26T17:30:04.689516+00:00",
+      "timestamp": "2026-10-26T18:30:40.927182+00:00",
       "live": {
         "price": 184.11,
         "kind": "stock",
@@ -3759,7 +3759,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:43.576722+00:00",
-        "updated_at": "2026-10-26T17:30:04.689516+00:00"
+        "updated_at": "2026-10-26T18:30:40.927182+00:00"
       }
     },
     {
@@ -3829,7 +3829,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689501+00:00",
+      "timestamp": "2026-10-26T18:30:40.927167+00:00",
       "live": {
         "price": 180.32,
         "kind": "stock",
@@ -4058,7 +4058,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:39.433120+00:00",
-        "updated_at": "2026-10-26T17:30:04.689501+00:00"
+        "updated_at": "2026-10-26T18:30:40.927167+00:00"
       }
     },
     {
@@ -4128,7 +4128,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-10-26T17:30:04.689486+00:00",
+      "timestamp": "2026-10-26T18:30:40.927153+00:00",
       "live": {
         "price": 213.19,
         "kind": "stock",
@@ -4413,7 +4413,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:35.282444+00:00",
-        "updated_at": "2026-10-26T17:30:04.689486+00:00"
+        "updated_at": "2026-10-26T18:30:40.927153+00:00"
       }
     },
     {
@@ -4483,7 +4483,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-10-26T17:30:04.689470+00:00",
+      "timestamp": "2026-10-26T18:30:40.927137+00:00",
       "live": {
         "price": 87.72,
         "kind": "stock",
@@ -4856,7 +4856,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:31.125203+00:00",
-        "updated_at": "2026-10-26T17:30:04.689470+00:00"
+        "updated_at": "2026-10-26T18:30:40.927137+00:00"
       }
     },
     {
@@ -4926,7 +4926,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-10-26T17:30:04.689456+00:00",
+      "timestamp": "2026-10-26T18:30:40.927123+00:00",
       "live": {
         "price": 54.09,
         "kind": "stock",
@@ -5383,7 +5383,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:26.986557+00:00",
-        "updated_at": "2026-10-26T17:30:04.689456+00:00"
+        "updated_at": "2026-10-26T18:30:40.927123+00:00"
       }
     },
     {
@@ -5453,7 +5453,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-10-26T17:30:04.689439+00:00",
+      "timestamp": "2026-10-26T18:30:40.927106+00:00",
       "live": {
         "price": 52.91,
         "kind": "stock",
@@ -5926,7 +5926,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:22.832431+00:00",
-        "updated_at": "2026-10-26T17:30:04.689439+00:00"
+        "updated_at": "2026-10-26T18:30:40.927106+00:00"
       }
     },
     {
@@ -5996,7 +5996,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-10-26T17:30:04.689424+00:00",
+      "timestamp": "2026-10-26T18:30:40.927091+00:00",
       "live": {
         "price": 6.79,
         "kind": "stock",
@@ -6437,7 +6437,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:18.684825+00:00",
-        "updated_at": "2026-10-26T17:30:04.689424+00:00"
+        "updated_at": "2026-10-26T18:30:40.927091+00:00"
       }
     },
     {
@@ -6507,7 +6507,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-10-26T17:30:04.689409+00:00",
+      "timestamp": "2026-10-26T18:30:40.927076+00:00",
       "live": {
         "price": 8.32,
         "kind": "stock",
@@ -6868,7 +6868,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:14.527446+00:00",
-        "updated_at": "2026-10-26T17:30:04.689409+00:00"
+        "updated_at": "2026-10-26T18:30:40.927076+00:00"
       }
     },
     {
@@ -6938,7 +6938,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689392+00:00",
+      "timestamp": "2026-10-26T18:30:40.927053+00:00",
       "live": {
         "price": 762.46,
         "kind": "stock",
@@ -7115,7 +7115,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:10.381520+00:00",
-        "updated_at": "2026-10-26T17:30:04.689392+00:00"
+        "updated_at": "2026-10-26T18:30:40.927053+00:00"
       }
     },
     {
@@ -7185,7 +7185,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689374+00:00",
+      "timestamp": "2026-10-26T18:30:40.927037+00:00",
       "live": {
         "price": 180.32,
         "kind": "stock",
@@ -7414,7 +7414,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:06.237578+00:00",
-        "updated_at": "2026-10-26T17:30:04.689374+00:00"
+        "updated_at": "2026-10-26T18:30:40.927037+00:00"
       }
     },
     {
@@ -7484,7 +7484,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689356+00:00",
+      "timestamp": "2026-10-26T18:30:40.927021+00:00",
       "live": {
         "price": 762.46,
         "kind": "stock",
@@ -7661,7 +7661,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:02.083130+00:00",
-        "updated_at": "2026-10-26T17:30:04.689356+00:00"
+        "updated_at": "2026-10-26T18:30:40.927021+00:00"
       }
     },
     {
@@ -7731,7 +7731,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed before the scheduled macro event (FOMC/CPI/NFP).",
-      "timestamp": "2026-10-26T17:30:04.689335+00:00",
+      "timestamp": "2026-10-26T18:30:40.927006+00:00",
       "live": {
         "price": 180.32,
         "kind": "stock",
@@ -7960,7 +7960,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:57.919823+00:00",
-        "updated_at": "2026-10-26T17:30:04.689335+00:00"
+        "updated_at": "2026-10-26T18:30:40.927006+00:00"
       }
     }
   ]
