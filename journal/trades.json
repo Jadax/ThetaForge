@@ -4,16 +4,15 @@
     "handle": "@thetaforge",
     "tagline": "Defined-risk option seller. Recommendations placed, receipts always."
   },
-  "as_of": "2026-10-24",
+  "as_of": "2026-10-26",
   "account_equity": 25000,
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "ee8e8548a6f591f66062c845424e8afb25b1789c3a6fb90d27b1a8610088959f",
-    "entries_from_ledger": 10,
+    "ledger_sha": "603f8130a44d26142d138637413f490c459894fd1b749de10f48eb5641d62a52",
+    "entries_from_ledger": 24,
     "entries_manual": 0,
-    "entries_carried": 14,
-    "prior_ledger_sha": "f4400d5ee873e5f2501a1d8680fb593711417ec2e69894f17669f9147ea62009"
+    "entries_carried": 0
   },
   "trades": [
     {
@@ -32,6 +31,8 @@
         "realized_pnl": null,
         "reason": null,
         "quantity": 26,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-10-23T14:06:39.242689+00:00",
         "updated_at": "2026-10-23T19:59:09.417748+00:00"
       },
@@ -79,12 +80,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-23T14:31:01.789537+00:00",
       "live": {
-        "price": 55.9,
+        "price": 56.06,
         "kind": "stock",
-        "pnl": -8.32,
-        "pnl_pct": -22.7,
-        "r": -0.227,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -4.16,
+        "pnl_pct": -11.3,
+        "r": -0.113,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -138,6 +139,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 55.9
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 56.06
         }
       ]
     },
@@ -157,6 +162,8 @@
         "realized_pnl": null,
         "reason": null,
         "quantity": 9,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-10-21T14:33:36.176194+00:00",
         "updated_at": "2026-10-21T19:59:37.286441+00:00"
       },
@@ -204,12 +211,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-21T14:38:16.256755+00:00",
       "live": {
-        "price": 32.94,
+        "price": 33.01,
         "kind": "stock",
-        "pnl": -28.53,
-        "pnl_pct": -59.9,
-        "r": -0.599,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -27.9,
+        "pnl_pct": -58.6,
+        "r": -0.586,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -479,6 +486,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 32.94
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 33.01
         }
       ]
     },
@@ -498,6 +509,8 @@
         "realized_pnl": null,
         "reason": null,
         "quantity": 76,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-10-21T13:36:07.739853+00:00",
         "updated_at": "2026-10-21T19:59:37.286408+00:00"
       },
@@ -545,12 +558,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-21T13:37:30.766932+00:00",
       "live": {
-        "price": 9.67,
+        "price": 7.52,
         "kind": "stock",
-        "pnl": -5.32,
-        "pnl_pct": -10.0,
-        "r": -0.1,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -168.72,
+        "pnl_pct": -317.1,
+        "r": -3.171,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -844,6 +857,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 9.67
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 7.52
         }
       ]
     },
@@ -863,6 +880,8 @@
         "realized_pnl": null,
         "reason": null,
         "quantity": 2,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-10-20T16:44:46.295770+00:00",
         "updated_at": "2026-10-22T14:30:17.348087+00:00"
       },
@@ -910,12 +929,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-20T16:45:51.898006+00:00",
       "live": {
-        "price": 521.37,
+        "price": 523.63,
         "kind": "stock",
-        "pnl": -5.54,
-        "pnl_pct": -25.4,
-        "r": -0.254,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -1.02,
+        "pnl_pct": -4.7,
+        "r": -0.047,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -1085,6 +1104,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 521.37
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 523.63
         }
       ]
     },
@@ -1104,6 +1127,8 @@
         "realized_pnl": null,
         "reason": null,
         "quantity": 3,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-10-20T15:12:36.227430+00:00",
         "updated_at": "2026-10-20T19:57:42.080936+00:00"
       },
@@ -1151,12 +1176,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-20T16:45:51.897993+00:00",
       "live": {
-        "price": 248.0,
+        "price": 249.82,
         "kind": "stock",
-        "pnl": -49.26,
-        "pnl_pct": -128.4,
-        "r": -1.284,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -43.8,
+        "pnl_pct": -114.2,
+        "r": -1.142,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -1406,6 +1431,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 248.0
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 249.82
         }
       ]
     },
@@ -1425,6 +1454,8 @@
         "realized_pnl": null,
         "reason": null,
         "quantity": 17,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-10-20T13:53:14.972896+00:00",
         "updated_at": "2026-10-23T13:54:36.344791+00:00"
       },
@@ -1472,12 +1503,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-20T14:21:27.424938+00:00",
       "live": {
-        "price": 88.26,
+        "price": 88.15,
         "kind": "stock",
-        "pnl": 5.61,
-        "pnl_pct": 16.8,
-        "r": 0.168,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": 3.74,
+        "pnl_pct": 11.2,
+        "r": 0.112,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -1639,6 +1670,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 88.26
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 88.15
         }
       ]
     },
@@ -1658,6 +1693,8 @@
         "realized_pnl": null,
         "reason": null,
         "quantity": 19,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-10-16T18:14:24.080225+00:00",
         "updated_at": "2026-10-23T16:34:17.067096+00:00"
       },
@@ -1705,12 +1742,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-16T19:32:59.176489+00:00",
       "live": {
-        "price": 69.33,
+        "price": 69.01,
         "kind": "stock",
-        "pnl": 25.65,
-        "pnl_pct": 51.7,
-        "r": 0.517,
-        "at": "2026-10-24T18:31:30+00:00"
+        "pnl": 19.57,
+        "pnl_pct": 39.5,
+        "r": 0.395,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -1916,6 +1953,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 69.33
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 69.01
         }
       ]
     },
@@ -1935,6 +1976,8 @@
         "realized_pnl": null,
         "reason": null,
         "quantity": 3,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-10-16T18:15:43.462247+00:00",
         "updated_at": "2026-10-23T13:48:26.761675+00:00"
       },
@@ -1982,12 +2025,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-16T18:22:36.598808+00:00",
       "live": {
-        "price": 347.73,
+        "price": 343.56,
         "kind": "stock",
-        "pnl": 15.39,
-        "pnl_pct": 39.2,
-        "r": 0.392,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": 2.88,
+        "pnl_pct": 7.3,
+        "r": 0.073,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -2181,6 +2224,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 347.73
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 343.56
         }
       ]
     },
@@ -2200,6 +2247,8 @@
         "realized_pnl": null,
         "reason": null,
         "quantity": 86,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-10-16T18:15:15.421395+00:00",
         "updated_at": "2026-10-23T19:43:54.245997+00:00"
       },
@@ -2247,12 +2296,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-16T18:16:11.360385+00:00",
       "live": {
-        "price": 7.67,
+        "price": 7.65,
         "kind": "stock",
-        "pnl": 3.44,
-        "pnl_pct": 6.9,
-        "r": 0.069,
-        "at": "2026-10-24T18:31:30+00:00"
+        "pnl": 1.72,
+        "pnl_pct": 3.4,
+        "r": 0.034,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -2406,6 +2455,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 7.67
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 7.65
         }
       ]
     },
@@ -2425,6 +2478,8 @@
         "realized_pnl": null,
         "reason": null,
         "quantity": 8,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-10-16T18:14:46.758266+00:00",
         "updated_at": "2026-10-22T15:41:00.894161+00:00"
       },
@@ -2472,12 +2527,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-16T18:16:11.360379+00:00",
       "live": {
-        "price": 179.28,
+        "price": 180.32,
         "kind": "stock",
-        "pnl": 21.76,
-        "pnl_pct": 48.6,
-        "r": 0.486,
-        "at": "2026-10-24T18:31:30+00:00"
+        "pnl": 30.08,
+        "pnl_pct": 67.1,
+        "r": 0.671,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -2679,6 +2734,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 179.28
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 180.32
         }
       ]
     },
@@ -2688,23 +2747,25 @@
       "source": "ledger",
       "ledger_ref": "0224057e-44bb-4281-b5af-49f1f86162f5",
       "order": {
-        "status": "Submitted",
-        "filled": 0.0,
-        "remaining": 8.0,
-        "average_fill_price": 0.0,
+        "status": "Filled",
+        "filled": 8.0,
+        "remaining": 0.0,
+        "average_fill_price": 170.51,
         "limit_price": 170.51,
         "net_credit": 0.0,
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 8,
+        "quantity": 8.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T19:33:51.598626+00:00",
-        "updated_at": "2026-09-29T19:34:09.739997+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
       "instrument_type": "etf",
-      "shares": 8,
+      "shares": 8.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -2720,17 +2781,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 180.27",
-        "stop": "hard stop at 165.76",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T19:34:09.739997+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -2748,14 +2798,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 180.27",
+        "stop": "hard stop at 165.76",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T19:34:09.739997+00:00",
       "live": {
-        "price": 179.28,
+        "price": 180.32,
         "kind": "stock",
-        "pnl": 70.16,
-        "pnl_pct": 184.6,
-        "r": 1.846,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": 78.48,
+        "pnl_pct": 206.5,
+        "r": 2.065,
+        "at": "2026-10-26T13:30:29+00:00"
       },
       "price_trail": [
         {
@@ -2957,6 +3017,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 179.28
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 180.32
         }
       ]
     },
@@ -2966,23 +3030,25 @@
       "source": "ledger",
       "ledger_ref": "dc3c3ea2-87d2-47e5-bc42-f3a5c5dbd0a4",
       "order": {
-        "status": "Submitted",
-        "filled": 0.0,
-        "remaining": 1.0,
-        "average_fill_price": 0.0,
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 764.42,
         "limit_price": 764.42,
         "net_credit": 0.0,
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 1,
+        "quantity": 1.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T19:33:36.111279+00:00",
-        "updated_at": "2026-09-29T19:34:09.739992+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "SPY",
       "asset_class": "equity",
       "instrument_type": "etf",
-      "shares": 1,
+      "shares": 1.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -2998,17 +3064,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 790.84",
-        "stop": "hard stop at 751.7",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T19:34:09.739992+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -3026,14 +3081,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 790.84",
+        "stop": "hard stop at 751.7",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T19:34:09.739992+00:00",
       "live": {
-        "price": 759.97,
+        "price": 762.46,
         "kind": "stock",
-        "pnl": -4.45,
-        "pnl_pct": -35.0,
-        "r": -0.35,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -1.96,
+        "pnl_pct": -15.4,
+        "r": -0.154,
+        "at": "2026-10-26T13:30:29+00:00"
       },
       "price_trail": [
         {
@@ -3183,6 +3248,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 759.97
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 762.46
         }
       ]
     },
@@ -3201,14 +3270,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 8,
+        "quantity": 8.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T18:40:46.898824+00:00",
-        "updated_at": "2026-09-29T19:34:09.739988+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
       "instrument_type": "etf",
-      "shares": 8,
+      "shares": 8.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -3224,17 +3295,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 180.08",
-        "stop": "hard stop at 165.57",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T18:40:46.898824+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -3252,14 +3312,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 180.08",
+        "stop": "hard stop at 165.57",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T18:40:46.898824+00:00",
       "live": {
-        "price": 179.28,
+        "price": 180.32,
         "kind": "stock",
-        "pnl": 70.56,
-        "pnl_pct": 180.4,
-        "r": 1.804,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": 78.88,
+        "pnl_pct": 201.6,
+        "r": 2.016,
+        "at": "2026-10-26T13:30:29+00:00"
       },
       "price_trail": [
         {
@@ -3461,6 +3531,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 179.28
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 180.32
         }
       ]
     },
@@ -3470,23 +3544,25 @@
       "source": "ledger",
       "ledger_ref": "34b1c0f3-a74d-485c-9029-70d6a6eb0ca3",
       "order": {
-        "status": "Submitted",
-        "filled": 0.0,
-        "remaining": 1.0,
-        "average_fill_price": 0.0,
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 763.94,
         "limit_price": 763.94,
         "net_credit": 0.0,
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 1,
+        "quantity": 1.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T18:40:31.340893+00:00",
-        "updated_at": "2026-09-29T19:34:09.739983+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "SPY",
       "asset_class": "equity",
       "instrument_type": "etf",
-      "shares": 1,
+      "shares": 1.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -3502,17 +3578,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 790.96",
-        "stop": "hard stop at 751.82",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T18:40:46.897956+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -3530,14 +3595,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 790.96",
+        "stop": "hard stop at 751.82",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T18:40:46.897956+00:00",
       "live": {
-        "price": 759.97,
+        "price": 762.46,
         "kind": "stock",
-        "pnl": -3.97,
-        "pnl_pct": -32.8,
-        "r": -0.328,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -1.48,
+        "pnl_pct": -12.2,
+        "r": -0.122,
+        "at": "2026-10-26T13:30:29+00:00"
       },
       "price_trail": [
         {
@@ -3687,6 +3762,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 759.97
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 762.46
         }
       ]
     },
@@ -3705,14 +3784,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 53,
+        "quantity": 53.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T14:18:50.373452+00:00",
-        "updated_at": "2026-09-29T19:34:09.739978+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "NOK",
       "asset_class": "equity",
       "instrument_type": "stock",
-      "shares": 53,
+      "shares": 53.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -3728,17 +3809,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 12.32",
-        "stop": "hard stop at 9.5",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long NOK \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T14:18:50.373452+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -3756,14 +3826,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 12.32",
+        "stop": "hard stop at 9.5",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long NOK \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T14:18:50.373452+00:00",
       "live": {
-        "price": 8.14,
+        "price": 8.32,
         "kind": "stock",
-        "pnl": -118.72,
-        "pnl_pct": -254.5,
-        "r": -2.545,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -109.17,
+        "pnl_pct": -234.1,
+        "r": -2.341,
+        "at": "2026-10-26T13:30:29+00:00"
       },
       "price_trail": [
         {
@@ -4097,6 +4177,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 8.14
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 8.3201
         }
       ]
     },
@@ -4115,14 +4199,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 29,
+        "quantity": 29.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T14:07:16.333593+00:00",
-        "updated_at": "2026-09-29T19:34:09.739974+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "MARA",
       "asset_class": "equity",
       "instrument_type": "stock",
-      "shares": 29,
+      "shares": 29.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -4138,17 +4224,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 15.45",
-        "stop": "hard stop at 10.42",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long MARA \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T14:07:16.333593+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -4166,14 +4241,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 15.45",
+        "stop": "hard stop at 10.42",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long MARA \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T14:07:16.333593+00:00",
       "live": {
-        "price": 7.02,
+        "price": 6.79,
         "kind": "stock",
-        "pnl": -149.93,
-        "pnl_pct": -292.1,
-        "r": -2.921,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -156.6,
+        "pnl_pct": -305.1,
+        "r": -3.051,
+        "at": "2026-10-26T13:30:29+00:00"
       },
       "price_trail": [
         {
@@ -4587,6 +4672,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 7.02
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 6.79
         }
       ]
     },
@@ -4605,14 +4694,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 3,
+        "quantity": 3.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T13:56:35.147834+00:00",
-        "updated_at": "2026-09-29T19:34:09.739969+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "AXTI",
       "asset_class": "equity",
       "instrument_type": "stock",
-      "shares": 3,
+      "shares": 3.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -4628,17 +4719,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 109.44",
-        "stop": "hard stop at 67.23",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long AXTI \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:56:35.147834+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -4656,14 +4736,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 109.44",
+        "stop": "hard stop at 67.23",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long AXTI \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T13:56:35.147834+00:00",
       "live": {
-        "price": 52.08,
+        "price": 52.91,
         "kind": "stock",
-        "pnl": -80.58,
-        "pnl_pct": -229.4,
-        "r": -2.294,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -78.09,
+        "pnl_pct": -222.3,
+        "r": -2.223,
+        "at": "2026-10-26T13:30:29+00:00"
       },
       "price_trail": [
         {
@@ -5109,6 +5199,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 52.08
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 52.91
         }
       ]
     },
@@ -5127,14 +5221,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 2,
+        "quantity": 2.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T13:56:23.152705+00:00",
-        "updated_at": "2026-09-29T19:34:09.739965+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "AEHR",
       "asset_class": "equity",
       "instrument_type": "stock",
-      "shares": 2,
+      "shares": 2.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -5150,17 +5246,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 143.58",
-        "stop": "hard stop at 89.95",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long AEHR \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:56:35.146650+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -5178,14 +5263,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 143.58",
+        "stop": "hard stop at 89.95",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long AEHR \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T13:56:35.146650+00:00",
       "live": {
-        "price": 55.31,
+        "price": 54.91,
         "kind": "stock",
-        "pnl": -97.82,
-        "pnl_pct": -342.7,
-        "r": -3.427,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -98.61,
+        "pnl_pct": -345.5,
+        "r": -3.455,
+        "at": "2026-10-26T13:30:29+00:00"
       },
       "price_trail": [
         {
@@ -5611,6 +5706,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 55.31
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 54.915
         }
       ]
     },
@@ -5629,14 +5728,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 4,
+        "quantity": 4.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T13:43:55.514497+00:00",
-        "updated_at": "2026-09-29T19:34:09.739960+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "INTC",
       "asset_class": "equity",
       "instrument_type": "stock",
-      "shares": 4,
+      "shares": 4.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -5652,17 +5753,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 139.23",
-        "stop": "hard stop at 102.23",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long INTC \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578188+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -5680,14 +5770,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 139.23",
+        "stop": "hard stop at 102.23",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long INTC \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578188+00:00",
       "live": {
-        "price": 86.96,
+        "price": 87.72,
         "kind": "stock",
-        "pnl": -119.52,
-        "pnl_pct": -204.5,
-        "r": -2.045,
-        "at": "2026-10-24T18:31:31+00:00"
+        "pnl": -116.48,
+        "pnl_pct": -199.3,
+        "r": -1.993,
+        "at": "2026-10-26T13:30:29+00:00"
       },
       "price_trail": [
         {
@@ -6033,6 +6133,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 86.96
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 87.72
         }
       ]
     },
@@ -6051,14 +6155,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 4,
+        "quantity": 4.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T13:43:47.021113+00:00",
-        "updated_at": "2026-09-29T19:34:09.739956+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "NVDA",
       "asset_class": "equity",
       "instrument_type": "stock",
-      "shares": 4,
+      "shares": 4.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -6074,17 +6180,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 253.3",
-        "stop": "hard stop at 218.05",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long NVDA \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578184+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -6102,14 +6197,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 253.3",
+        "stop": "hard stop at 218.05",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long NVDA \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578184+00:00",
       "live": {
-        "price": 210.96,
+        "price": 213.19,
         "kind": "stock",
-        "pnl": -80.36,
-        "pnl_pct": -154.5,
-        "r": -1.545,
-        "at": "2026-10-24T18:31:32+00:00"
+        "pnl": -71.44,
+        "pnl_pct": -137.4,
+        "r": -1.374,
+        "at": "2026-10-26T13:30:29+00:00"
       },
       "price_trail": [
         {
@@ -6367,6 +6472,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 210.96
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 213.19
         }
       ]
     },
@@ -6385,14 +6494,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 8,
+        "quantity": 8.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T13:43:38.516260+00:00",
-        "updated_at": "2026-09-29T19:34:09.739951+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
       "instrument_type": "etf",
-      "shares": 8,
+      "shares": 8.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -6408,17 +6519,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 180.16",
-        "stop": "hard stop at 166.27",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578180+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -6436,14 +6536,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 180.16",
+        "stop": "hard stop at 166.27",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long XLV \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578180+00:00",
       "live": {
-        "price": 179.28,
+        "price": 180.32,
         "kind": "stock",
-        "pnl": 63.12,
-        "pnl_pct": 154.1,
-        "r": 1.541,
-        "at": "2026-10-24T18:31:32+00:00"
+        "pnl": 71.44,
+        "pnl_pct": 174.4,
+        "r": 1.744,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -6645,6 +6755,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 179.28
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 180.32
         }
       ]
     },
@@ -6663,14 +6777,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 7,
+        "quantity": 7.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T13:43:30.025051+00:00",
-        "updated_at": "2026-09-29T19:34:09.739946+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "XLK",
       "asset_class": "equity",
       "instrument_type": "etf",
-      "shares": 7,
+      "shares": 7.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -6686,17 +6802,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 207.4",
-        "stop": "hard stop at 188.2",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long XLK \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578176+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -6714,14 +6819,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 207.4",
+        "stop": "hard stop at 188.2",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long XLK \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578176+00:00",
       "live": {
-        "price": 183.23,
+        "price": 184.11,
         "kind": "stock",
-        "pnl": -89.39,
-        "pnl_pct": -163.7,
-        "r": -1.637,
-        "at": "2026-10-24T18:31:32+00:00"
+        "pnl": -83.23,
+        "pnl_pct": -152.4,
+        "r": -1.524,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -6939,6 +7054,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 183.23
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 184.11
         }
       ]
     },
@@ -6957,14 +7076,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 2,
+        "quantity": 2.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T13:43:21.222495+00:00",
-        "updated_at": "2026-09-29T19:34:09.739939+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "QQQ",
       "asset_class": "equity",
       "instrument_type": "etf",
-      "shares": 2,
+      "shares": 2.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -6980,17 +7101,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 774.09",
-        "stop": "hard stop at 717.57",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long QQQ \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578170+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -7008,14 +7118,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 774.09",
+        "stop": "hard stop at 717.57",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long QQQ \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578170+00:00",
       "live": {
-        "price": 704.4,
+        "price": 706.72,
         "kind": "stock",
-        "pnl": -71.06,
-        "pnl_pct": -158.9,
-        "r": -1.589,
-        "at": "2026-10-24T18:31:32+00:00"
+        "pnl": -66.42,
+        "pnl_pct": -148.5,
+        "r": -1.485,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -7217,6 +7337,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 704.4
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 706.72
         }
       ]
     },
@@ -7235,14 +7359,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 1,
+        "quantity": 1.0,
+        "multiplier": null,
+        "sec_type": null,
         "submitted_at": "2026-09-29T13:43:12.061112+00:00",
-        "updated_at": "2026-09-29T19:34:09.739911+00:00"
+        "updated_at": "2026-10-24T19:20:38.652564+00:00"
       },
       "symbol": "SPY",
       "asset_class": "equity",
       "instrument_type": "etf",
-      "shares": 1,
+      "shares": 1.0,
       "opened": "2026-09-29",
       "closed": null,
       "status": "open",
@@ -7258,17 +7384,6 @@
       "max_profit": 0.0,
       "net_pnl": 0.0,
       "net_pnl_pct": 0.0,
-      "management_plan": {
-        "target": "take profit at 2R target 790.62",
-        "stop": "hard stop at 752.67",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u2014 monitoring the position.",
-      "timestamp": "2026-09-29T13:43:59.578141+00:00",
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-09-29",
@@ -7286,14 +7401,24 @@
           "file": "/opt/thetaforge/data/equity_notifications.json"
         }
       },
-      "carried": true,
+      "management_plan": {
+        "target": "take profit at 2R target 790.62",
+        "stop": "hard stop at 752.67",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long SPY \u2014 momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u2014 monitoring the position.",
+      "timestamp": "2026-09-29T13:43:59.578141+00:00",
       "live": {
-        "price": 759.97,
+        "price": 762.46,
         "kind": "stock",
-        "pnl": -6.88,
-        "pnl_pct": -48.5,
-        "r": -0.485,
-        "at": "2026-10-24T18:31:32+00:00"
+        "pnl": -4.39,
+        "pnl_pct": -31.0,
+        "r": -0.31,
+        "at": "2026-10-26T13:30:28+00:00"
       },
       "price_trail": [
         {
@@ -7443,6 +7568,10 @@
         {
           "at": "2026-10-24T18:31:24+00:00",
           "price": 759.97
+        },
+        {
+          "at": "2026-10-26T13:30:21+00:00",
+          "price": 762.46
         }
       ]
     }
