@@ -69,7 +69,7 @@ def test_risk_off_market_vetoes_equity_longs():
 
 
 def test_macro_proximity_vetoes_new_longs():
-    read = analyze(days_to_macro=2)
+    read = analyze(days_to_macro=1)
     assert read.signal == "no_trade"
     assert read.no_trade_reason == "macro_proximity"
 
@@ -239,9 +239,10 @@ def test_stop_hit_closes():
     assert high == 102.0
 
 
-def test_pre_macro_exit():
-    action, reason, _ = _position(days_to_macro=2)
-    assert action == "close_pre_macro"
+def test_macro_print_does_not_flatten_equity_longs():
+    """Oct 26 2026: the old rule sold all 24 longs two days before FOMC."""
+    action, reason, _ = _position(days_to_macro=0)
+    assert action == "hold"
 
 
 def test_pre_earnings_exit():

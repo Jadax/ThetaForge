@@ -80,7 +80,7 @@ def _sellable_brain_inputs(**overrides):
 def test_brain_vetoes_new_positions_inside_macro_blackout():
     brain = AIBrain()
     result = brain._select_best_strategy(
-        **_sellable_brain_inputs(days_to_macro=2),
+        **_sellable_brain_inputs(days_to_macro=MACRO_BLACKOUT_DAYS),
     )
     assert result["strategy"] == "no_trade"
     assert result["reason_code"] == "macro_proximity"
@@ -380,3 +380,32 @@ def test_neutral_premium_still_respects_market_vetoes():
     assert brain._select_best_strategy(**_neutral_premium_inputs(vix=32))["reason_code"] == "high_vix"
     inverted = brain._select_best_strategy(**_neutral_premium_inputs(iv_signal={"eff_iv_rank": 78, "term_structure": "inverted"}))
     assert inverted["reason_code"] == "inverted_term_structure"
+
+
+# ── v1.17.30: fear puts (cash-secured puts into a priced sell-off) ──────────
+
+def _fear_inputs(**overrides):
+    args = dict(
+        signal=SignalStrength.NEUTRAL, trend="bearish", confidence=40,
+        iv_signal={"eff_iv_rank": 70, "ratio": 1.6, "term_structure": "contango"},
+    )
+    args.update(overrides)
+    return _sellable_brain_inputs(**args)
+
+
+def test_brain_sells_a_put_into_a_downtrend_when_fear_is_priced():
+    result = AIBrain()._select_best_strategy(**_fear_inputs())
+    assert result["strategy"] == "cash_secured_put"
+    assert result["reason_code"] == "fear_put"
+
+
+def test_brain_refuses_fear_put_without_rich_iv_over_realized():
+    result = AIBrain()._select_best_strategy(**_sellable_brain_inputs(
+        signal=SignalStrength.NEUTRAL, trend="bearish", confidence=40,
+        iv_signal={"eff_iv_rank": 70, "ratio": 1.1, "term_structure": "contango"}))
+    assert result["strategy"] != "cash_secured_put"
+
+
+def test_brain_never_sells_puts_against_a_sell_signal():
+    result = AIBrain()._select_best_strategy(**_fear_inputs(signal=SignalStrength.WEAK_SELL))
+    assert result["strategy"] != "cash_secured_put"

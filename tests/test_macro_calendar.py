@@ -98,18 +98,38 @@ def test_no_cpi_guess_in_2027():
 # ── blackout window ────────────────────────────────────────────────────────
 
 def test_blackout_inside_window():
-    read = macro_blackout(date(2026, 7, 26))
+    read = macro_blackout(date(2026, 7, 28))  # day before the FOMC
     assert read["in_blackout"] is True
-    assert read["days_until"] == 3
+    assert read["days_until"] == 1
     assert read["next_event"]["kind"] == "FOMC"
     assert "macro" in read["reason"].lower()
 
 
 def test_blackout_on_event_day():
-    read = macro_blackout(date(2026, 8, 12))  # CPI day
+    read = macro_blackout(date(2026, 7, 29))  # FOMC day
     assert read["in_blackout"] is True
     assert read["days_until"] == 0
-    assert read["next_event"]["kind"] == "CPI"
+
+
+def test_cpi_and_nfp_do_not_gate():
+    """CPI/NFP stay on the calendar but never veto: on CPI day the gate
+    looks through to the next FOMC."""
+    assert next_macro_event(date(2026, 8, 12))["kind"] == "CPI"
+    read = macro_blackout(date(2026, 8, 12))
+    assert read["in_blackout"] is False
+    assert read["next_event"]["kind"] == "FOMC"
+    assert macro_days_until(date(2026, 8, 12)) == (date(2026, 9, 16) - date(2026, 8, 12)).days
+    assert macro_days_until(date(2026, 8, 12), kinds=None) == 0
+
+
+def test_gate_blocks_few_trading_days():
+    from datetime import timedelta
+    day, blocked = date(2026, 1, 1), 0
+    while day < date(2026, 12, 31):
+        if day.weekday() < 5 and macro_blackout(day)["in_blackout"]:
+            blocked += 1
+        day += timedelta(days=1)
+    assert blocked <= 16          # was 118 of 260 under the 4-day all-events window
 
 
 def test_blackout_outside_window():
@@ -125,4 +145,4 @@ def test_blackout_with_exhausted_schedule_never_vetoes():
 
 
 def test_blackout_threshold_constant():
-    assert MACRO_BLACKOUT_DAYS == 4
+    assert MACRO_BLACKOUT_DAYS == 1

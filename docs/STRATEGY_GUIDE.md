@@ -169,9 +169,13 @@
 - Short strike >= 0.5x the 1-SD expected move (~25-30 delta), delta <= 0.35,
   probability of touch <= 70%
 - 21-60 DTE (30-45 preferred by the theta score)
-- Credit >= $0.20 and >= 12% annualized on the cash backing
+- Credit >= $0.10 and >= 12% annualized on the cash backing
 - No downtrend, no laggard (6-month RS vs SPY > -10%), no earnings within 7
-  days, no FOMC/CPI/NFP blackout, VIX <= 30, VIX curve not inverted
+  days, not the day before/of an FOMC decision, VIX <= 30, VIX curve not inverted
+- Fear-put exception (CSP only): in a downtrend with IV rank >= 60 and IV/HV
+  >= 1.3, the trend and laggard rules are waived and the strike must instead
+  sit a full 1-SD expected move below spot (~16 delta) -- selling the
+  sell-off's priced fear at a discount, never a bull put spread
 - One option position per underlying; the cash backing may use up to 50% of
   the options book (`MAX_CASH_SECURED_ALLOCATION_PCT`)
 

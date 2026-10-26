@@ -35,10 +35,16 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Dict, List, Optional, Tuple
 
-# How many calendar days before a scheduled macro event the gates act:
-# the Brain refuses new short premium and the manager exits open short-vega
-# positions. 4 days = the Friday before a mid-week print.
-MACRO_BLACKOUT_DAYS = 4
+# How many calendar days before a gating macro event the gates act: the Brain
+# refuses new positions and the manager exits short-dated short premium.
+# 1 = the day before and the day of the print. The old 4-day window over
+# FOMC+CPI+NFP vetoed entries on 45% of trading days and force-closed every
+# 45-DTE position before each print -- a 1-SD, 45-DTE short is built to
+# survive a scheduled print, and the elevated pre-event IV is the edge.
+MACRO_BLACKOUT_DAYS = 1
+# Events that gate trading. CPI/NFP stay on the calendar (next_macro_event
+# with kinds=None) for context, but only the rate decision vetoes.
+GATING_EVENTS = ("FOMC",)
 
 # ── FOMC decision days (second day of each meeting) ────────────────────────
 _FOMC_2026 = [
@@ -120,11 +126,17 @@ def _events() -> List[Tuple[date, str]]:
     return sorted(raw)
 
 
-def next_macro_event(today: Optional[date] = None) -> Optional[Dict]:
-    """Next scheduled macro event on/after ``today``, or None when the
-    embedded schedule is exhausted (never guesses forward)."""
+def next_macro_event(
+    today: Optional[date] = None,
+    kinds: Optional[Tuple[str, ...]] = None,
+) -> Optional[Dict]:
+    """Next scheduled macro event on/after ``today`` (restricted to ``kinds``
+    when given), or None when the embedded schedule is exhausted (never
+    guesses forward)."""
     today = today or date.today()
     for day, kind in _events():
+        if kinds is not None and kind not in kinds:
+            continue
         if day >= today:
             return {
                 "kind": kind,
@@ -135,12 +147,15 @@ def next_macro_event(today: Optional[date] = None) -> Optional[Dict]:
     return None
 
 
-def macro_days_until(today: Optional[date] = None) -> Optional[int]:
+def macro_days_until(
+    today: Optional[date] = None,
+    kinds: Optional[Tuple[str, ...]] = GATING_EVENTS,
+) -> Optional[int]:
     """Calendar days until the next macro event (0 = the event is today).
 
     None means no known future event — callers must fail open (no veto).
     """
-    event = next_macro_event(today)
+    event = next_macro_event(today, kinds)
     return event["days_until"] if event else None
 
 
@@ -155,7 +170,7 @@ def macro_blackout(
     missing calendar can never fabricate a veto.
     """
     today = today or date.today()
-    event = next_macro_event(today)
+    event = next_macro_event(today, GATING_EVENTS)
     if event is None:
         return {
             "in_blackout": False,

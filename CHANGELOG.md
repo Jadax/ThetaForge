@@ -1,5 +1,75 @@
 # ThetaForge Changelog
 
+## v1.17.30 - 2026-10-26
+
+**Fear puts: cash-secured puts are now sold into a downtrend when the sell-off's
+fear is priced, a full expected move below spot.**
+
+The trend veto refused every bull structure in a confirmed downtrend, so a
+rich-IV name after a sell-off (SOFI: IV rank 100, IV/HV 1.44) could never be
+sold a put -- the exact Tastytrade "sell when IV is high" setup. The decision:
+
+- Allowed: a CSP into a downtrend when IV rank >= 60 AND IV/HV >= 1.3, with
+  the short strike >= 1.0x the 1-SD expected move (~16 delta) instead of the
+  wheel's 0.5x. The trend and laggard (relative-strength) vetoes are waived
+  for it; DTE, earnings, macro, VIX, touch, credit/yield and the 50% cash cap
+  all still apply. Brain reason code `fear_put`; shared rule
+  `high_winrate.fear_put_ok`.
+- Why: the short-put edge is the volatility risk premium, widest right after
+  a sell-off spikes IV, and it mean-reverts. Put-writing's worst drawdowns are
+  slow bleeds where realized vol catches IV -- IV/HV >= 1.3 requires the
+  premium to still beat the stock's realized moves, and the doubled strike
+  buffer means assignment happens ~1 SD lower.
+- Not allowed: bull put spreads into a downtrend (a bleed is max loss with no
+  recovery path; an assigned CSP is the wheel's covered-call leg), and puts
+  against any sell signal (that is the bear-call branch's trade).
+- Scoring: a qualifying fear put is scored trend-neutral. Its counter-trend
+  risk is paid for by the doubled buffer; docking the downtrend again in the
+  technical score put exactly the 1-SD strikes under the 70 floor while the
+  nearer strikes cleared it and then failed the buffer.
+- Fix: CSP/CC recommendations reported `net_credit` 0 (single-leg candidates
+  carry their credit as `premium`); the Bridge always priced from live quotes,
+  so orders were unaffected -- the API and dashboard showed $0.
+- Live check on 2026-10-26 closing quotes: SOFI -> sell the Nov-20 12 put
+  (17% below spot, composite 80). F stays refused: at 1 SD its put pays under
+  the $0.10 / 12%-annualized floor.
+
+## v1.17.29 - 2026-10-26
+
+**The macro calendar no longer shuts options trading down for half the month.**
+
+- Found live on 2026-10-26: 37 of 49 scanned symbols were vetoed `macro_proximity`
+  (FOMC on Oct 28), and the equity manager sold all 24 open longs (realized
+  -$660) for the same reason. The 4-day window over FOMC+CPI+NFP refused new
+  options entries on 118 of 260 trading days and force-closed every 45-DTE short
+  before each print, so a CSP or spread rarely lived past two weeks.
+- Gate is now FOMC only, the day before and the day of (16 trading days a year).
+  CPI/NFP stay on the calendar for context (`next_macro_event(kinds=None)`).
+- Options exits: `close_pre_macro` only for positions at <= 14 DTE (earnings
+  plays). Standard 45-DTE premium holds through the print; the 2x-credit stop,
+  50% target and 21-DTE rule still apply.
+- Equity: no forced flatten before macro prints (entry veto unchanged in
+  shape, same shared window); ATR stops and trails still protect.
+
+Why the executor's `/recommend` refused setups the scan liked (traced live)
+- `current_iv` was the median IV of the whole chain: every strike, every
+  expiry, 0-DTE rows and skewed wings. SPY read 21.9% with VIX at 18.3, which
+  pushed the 0.5x expected-move buffer past every spread still paying 25% of
+  its width, inflated touch probabilities, and pinned IV rank at 100 against
+  the ATM-IV history store. IV rank now uses the scanner's front-expiry ATM
+  IV (`_atm_iv`, the store's basis); expected move, touch and edge use the
+  standard-expiry ATM IV the trade is priced at (`trade_iv`).
+- No scorer passed theta, so the theta dimension (30% weight in a neutral
+  regime) sat at baseline for every premium sale and CSPs topped out at ~69
+  against the 70 floor. Net position theta ($/contract/day) is now passed.
+- `CASH_SECURED_PUT` now scores as a bullish structure (it was neutral: no
+  credit in an uptrend), matching `high_winrate._BULL_TYPES`.
+- `MIN_CSP_CREDIT` $0.20 -> $0.10: the flat floor refused every 15-25 delta
+  put on ~$10 wheel names; the 12% annualized floor still enforces yield.
+- Result, live 2026-10-26 near the close: SPY/IWM 1-wide bear-call spreads at
+  72-75% POP (bearish trend). F/SOFI CSPs are refused for their confirmed
+  downtrends; PFE's $29 CSP exceeds the 50% cash-secured cap on $5k.
+
 ## v1.17.28 - 2026-10-25
 
 **Exits are now automatic for every trade type, and the three missing

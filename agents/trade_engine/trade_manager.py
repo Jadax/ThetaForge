@@ -51,9 +51,12 @@ EARNINGS_PLAY_ENTRY_DAYS = 2
 # Fallback when the earnings date is unknown: never carry the event trade
 # into its expiry week's last sessions.
 EARNINGS_PLAY_LAST_DTE = 1
-# Close short premium before a scheduled FOMC/CPI/NFP print inside the macro
-# blackout window (same window the Brain uses to refuse new entries).
+# Close short-dated short premium before a gating macro print (same window the
+# Brain uses to refuse new entries). Standard 45-DTE positions hold through:
+# their strikes sit outside the expected move and the 2x stop still applies;
+# only positions inside MACRO_EXIT_MAX_DTE carry enough gamma to exit.
 MACRO_EXIT_DAYS = MACRO_BLACKOUT_DAYS
+MACRO_EXIT_MAX_DTE = 14
 # Portfolio rules (r/thetagang + Tastytrade sizing guidance).
 MAX_POSITIONS = 8
 MAX_CAPITAL_SLICE_PCT = 0.30
@@ -103,8 +106,9 @@ def _days_to_earnings(days_to_earnings: Optional[int]) -> bool:
     return days_to_earnings is not None and 0 < days_to_earnings <= EARNINGS_EXIT_DAYS
 
 
-def _days_to_macro(days_to_macro: Optional[int]) -> bool:
-    return days_to_macro is not None and 0 <= days_to_macro <= MACRO_EXIT_DAYS
+def _days_to_macro(days_to_macro: Optional[int], dte: Optional[int]) -> bool:
+    return (days_to_macro is not None and 0 <= days_to_macro <= MACRO_EXIT_DAYS
+            and dte is not None and dte <= MACRO_EXIT_MAX_DTE)
 
 
 def evaluate_position(
@@ -170,7 +174,7 @@ def evaluate_position(
         action = "close_pre_earnings"
         reason = f"earnings in {days_to_earnings} days — no short premium through the event"
         urgency = "high"
-    elif _days_to_macro(days_to_macro):
+    elif _days_to_macro(days_to_macro, position.dte):
         action = "close_pre_macro"
         reason = (
             f"scheduled macro event in {days_to_macro} day"

@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 
 from agents.trade_engine.high_winrate import (
     is_premium_selling,
+    fear_put_ok as hw_fear_put_ok,
     relative_strength_ok as hw_relative_strength_ok,
     strategy_bias as hw_strategy_bias,
 )
@@ -997,6 +998,26 @@ class AIBrain:
                 ),
             }
 
+        # Rich-IV downtrend = the one bull trade allowed against the trend: a
+        # cash-secured put a full 1-SD below spot, when IV rank and IV/HV show
+        # the sell-off's fear is priced (see high_winrate.fear_put_ok for the
+        # reasoning). Never against a sell signal: a bearish read in a
+        # downtrend is the bear-call branch's trade, not a put sale.
+        if (
+            trend == "bearish"
+            and signal not in (SignalStrength.SELL, SignalStrength.STRONG_SELL, SignalStrength.WEAK_SELL)
+            and hw_fear_put_ok("cash_secured_put", trend, ivr, iv_signal.get("ratio"))
+        ):
+            return {
+                "strategy": "cash_secured_put",
+                "reason_code": "fear_put",
+                "reasoning": (
+                    f"IVR {ivr:.0f}, IV/HV {float(iv_signal.get('ratio')):.2f} in a downtrend → "
+                    "sell a cash-secured put a full expected move below spot; the "
+                    "sell-off's fear premium is the edge"
+                ),
+            }
+
         if confidence < self.MIN_STRATEGY_CONFIDENCE:
             return {
                 "strategy": "no_trade",
@@ -1120,7 +1141,7 @@ class AIBrain:
         if days_to_macro is not None and 0 <= days_to_macro <= macro_calendar.MACRO_BLACKOUT_DAYS:
             macro_label = "scheduled macro event"
             try:
-                event = macro_calendar.next_macro_event()
+                event = macro_calendar.next_macro_event(kinds=macro_calendar.GATING_EVENTS)
                 if event:
                     macro_label = event["label"]
             except Exception:

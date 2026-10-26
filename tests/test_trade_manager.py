@@ -62,9 +62,9 @@ def test_pre_earnings_exit_for_short_premium():
     assert result["action"] == "close_pre_earnings"
 
 
-def test_pre_macro_exit_for_short_premium():
+def test_pre_macro_exit_for_short_dated_premium():
     result = evaluate_position(
-        _position(short_leg_value=1.0),
+        _position(short_leg_value=1.0, strategy="earnings_iron_condor", dte=10),
         days_to_macro=MACRO_EXIT_DAYS,
     )
     assert result["action"] == "close_pre_macro"
@@ -72,8 +72,14 @@ def test_pre_macro_exit_for_short_premium():
 
 
 def test_macro_exit_fires_on_the_event_day():
-    result = evaluate_position(_position(short_leg_value=1.0), days_to_macro=0)
+    result = evaluate_position(
+        _position(short_leg_value=1.0, strategy="earnings_iron_condor", dte=10), days_to_macro=0)
     assert result["action"] == "close_pre_macro"
+
+
+def test_standard_dte_premium_holds_through_the_print():
+    result = evaluate_position(_position(short_leg_value=1.0, dte=40), days_to_macro=0)
+    assert result["action"] == "hold"
 
 
 def test_macro_exit_holds_outside_the_window():

@@ -29,12 +29,14 @@ TRAIL_ATR_MULTIPLIER = 2.0
 # Max hold window before the time exit fires (trading days).
 MAX_HOLD_DAYS = 60
 # Event blackout windows in calendar days.
+# No macro exit: a scheduled FOMC/CPI/NFP print is routine for a trend long
+# with an ATR stop (the entry veto in equity_brain stands aside new buys);
+# flattening the book before every print churned it for no edge.
 EARNINGS_BLACKOUT_DAYS = 2
-MACRO_BLACKOUT_DAYS = 2
 
 CLOSE_ACTIONS = {
     "close_stop", "close_trail", "close_profit", "close_time",
-    "close_pre_earnings", "close_pre_macro",
+    "close_pre_earnings",
 }
 
 
@@ -65,11 +67,6 @@ def evaluate_position(
 
     if price <= stop:
         return "close_stop", f"{symbol} at {price:.2f} hit the {stop:.2f} stop", updated_high
-
-    if days_to_macro is not None and days_to_macro <= MACRO_BLACKOUT_DAYS:
-        return "close_pre_macro", (
-            f"Scheduled macro print in {days_to_macro}d; standing aside"
-        ), updated_high
 
     if days_to_earnings is not None and days_to_earnings <= EARNINGS_BLACKOUT_DAYS:
         return "close_pre_earnings", (

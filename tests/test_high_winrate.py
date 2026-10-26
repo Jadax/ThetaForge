@@ -182,3 +182,20 @@ def test_cash_secured_uses_wheel_expected_move_band():
     assert expected_move_buffer_ok("csp", 18.0, 20.0, 3.5)[0]
     assert not expected_move_buffer_ok("iron_condor", 18.0, 20.0, 3.5)[0]  # condors keep 1.0x
     assert not expected_move_buffer_ok("csp", 19.0, 20.0, 3.5)[0]        # 0.29x: too close
+
+
+# ── v1.17.30: fear puts ─────────────────────────────────────────────────────
+
+def test_fear_put_trades_the_trend_veto_for_a_full_expected_move_buffer():
+    from agents.trade_engine.high_winrate import evaluate_entry, fear_put_ok
+    rich = dict(trend="bearish", spot=100.0, expected_move_1sd=10.0, dte=35,
+                rs_126=-0.30, iv_rank=70, iv_hv_ratio=1.5)
+    assert fear_put_ok("csp", "bearish", 70, 1.5)
+    assert evaluate_entry("csp", short_strike=89.0, **rich)[0]          # 1.1x the move
+    ok, why = evaluate_entry("csp", short_strike=95.0, **rich)          # 0.5x: wheel band, not enough here
+    assert not ok and "expected move" in why
+    # Spreads keep the veto; so does a CSP whose premium isn't rich.
+    assert not evaluate_entry("bull_put", short_strike=89.0, **rich)[0]
+    assert not evaluate_entry("csp", short_strike=89.0, **{**rich, "iv_hv_ratio": 1.1})[0]
+    assert not evaluate_entry("csp", short_strike=89.0, **{**rich, "iv_rank": 55})[0]
+    assert not fear_put_ok("csp", "bearish", None, 1.5)

@@ -204,8 +204,11 @@ class StrategyScorer:
         bullish_tech = (trend == "bullish" or macd_signal == "bullish")
         bearish_tech = (trend == "bearish" or macd_signal == "bearish")
 
+        # A CSP is a bullish structure (high_winrate._BULL_TYPES agrees); scoring
+        # it as neutral gave it no credit in an uptrend and +15 only when flat.
         bullish_strats = {StrategyType.BULL_PUT_CREDIT, StrategyType.CALL_DEBIT_SPREAD,
-                          StrategyType.LONG_CALL, StrategyType.WHEEL_CSP}
+                          StrategyType.LONG_CALL, StrategyType.WHEEL_CSP,
+                          StrategyType.CASH_SECURED_PUT}
         bearish_strats = {StrategyType.BEAR_CALL_CREDIT, StrategyType.PUT_DEBIT_SPREAD,
                           StrategyType.LONG_PUT}
 

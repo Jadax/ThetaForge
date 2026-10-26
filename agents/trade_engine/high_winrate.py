@@ -57,6 +57,21 @@ _CASH_SECURED_TYPES = {"csp", "cc", "cash_secured_put", "covered_call", "wheel"}
 # strangle/condor convention; Tastytrade's defined-risk vertical is a ~30-delta
 # short collecting about a third of the width. Condors keep 1.0x.
 VERTICAL_SPREAD_EXPECTED_MOVE_MULTIPLE = 0.5
+# Selling puts into weakness ("fear puts"). The trend veto below refuses bull
+# structures in a confirmed downtrend; the one exception is a cash-secured put
+# when the fear is priced: the short-put edge is the volatility risk premium,
+# which is widest right after a sell-off spikes IV and mean-reverts (the
+# Tastytrade "sell when IV is high" case). Put-writing's worst drawdowns come
+# from slow bleeds where realized vol catches IV, so the exception requires
+# IV/HV >= 1.3 (premium still beats the stock's realized moves) on top of a
+# rich IV rank, and the strike a full 1-SD expected move away (~16 delta)
+# instead of the wheel's 0.5x. CSP only: a fear put that goes wrong is shares
+# ~1 SD lower plus the premium (the wheel's covered-call leg); a bull put
+# spread in a bleed is max loss with no recovery path, so spreads keep the veto.
+FEAR_PUT_MIN_IV_RANK = 60
+FEAR_PUT_MIN_IV_HV_RATIO = 1.3
+FEAR_PUT_EXPECTED_MOVE_MULTIPLE = 1.0
+_FEAR_PUT_TYPES = {"csp", "cash_secured_put"}
 _VERTICAL_SPREAD_TYPES = {"bull_put", "bear_call", "bull_put_credit", "bear_call_credit", "credit_spread_weekly"}
 
 # No NEW short-premium entries with earnings within this many days. The
@@ -119,6 +134,25 @@ def is_premium_selling(strategy: str) -> bool:
     return (strategy or "").lower() in _SELL_PREMIUM_TYPES
 
 
+def fear_put_ok(
+    strategy: str,
+    trend: Optional[str],
+    iv_rank: Optional[float],
+    iv_hv_ratio: Optional[float],
+) -> bool:
+    """A cash-secured put into a confirmed downtrend whose fear is priced.
+
+    Missing IV rank or IV/HV never qualifies -- the exception only loosens a
+    veto on real evidence of rich premium.
+    """
+    return (
+        (strategy or "").lower() in _FEAR_PUT_TYPES
+        and (trend or "").lower() == "bearish"
+        and iv_rank is not None and float(iv_rank) >= FEAR_PUT_MIN_IV_RANK
+        and iv_hv_ratio is not None and float(iv_hv_ratio) >= FEAR_PUT_MIN_IV_HV_RATIO
+    )
+
+
 def trend_alignment_ok(strategy: str, trend: Optional[str]) -> Tuple[bool, str]:
     """A directional structure must not fight the prevailing trend.
 
@@ -141,6 +175,7 @@ def expected_move_buffer_ok(
     short_strike: Optional[float],
     spot: Optional[float],
     expected_move_1sd: Optional[float],
+    floor: Optional[float] = None,
 ) -> Tuple[bool, str]:
     """Short premium strikes must sit at/outside the 1-SD expected move.
 
@@ -154,7 +189,7 @@ def expected_move_buffer_ok(
         return True, ""  # no strike data → not our gate to veto on
     distance = abs(spot - short_strike)
     multiple = distance / expected_move_1sd
-    floor = expected_move_multiple_for(strategy)
+    floor = expected_move_multiple_for(strategy) if floor is None else floor
     if multiple < floor:
         return (
             False,
@@ -240,18 +275,24 @@ def evaluate_entry(
     dte: Optional[int] = None,
     days_to_earnings: Optional[int] = None,
     rs_126: Optional[float] = None,
+    iv_rank: Optional[float] = None,
+    iv_hv_ratio: Optional[float] = None,
 ) -> Tuple[bool, str]:
     """Run every high-win-rate gate. Returns (pass, reason).
 
     First failure wins so the reason is specific and actionable. No gate is
     skipped on missing data except relative-strength, which is a soft signal.
+    A qualifying fear put (fear_put_ok) trades the trend and laggard vetoes
+    for a full 1-SD strike buffer; every other gate still applies.
     """
+    fear_put = fear_put_ok(strategy, trend, iv_rank, iv_hv_ratio)
     for ok, reason in (
-        trend_alignment_ok(strategy, trend),
-        expected_move_buffer_ok(strategy, short_strike, spot, expected_move_1sd),
+        (True, "") if fear_put else trend_alignment_ok(strategy, trend),
+        expected_move_buffer_ok(strategy, short_strike, spot, expected_move_1sd,
+                                FEAR_PUT_EXPECTED_MOVE_MULTIPLE if fear_put else None),
         entry_dte_ok(strategy, dte),
         earnings_window_ok(strategy, days_to_earnings, dte),
-        relative_strength_ok(strategy, rs_126),
+        (True, "") if fear_put else relative_strength_ok(strategy, rs_126),
     ):
         if not ok:
             return False, reason

@@ -570,7 +570,7 @@ const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "r
 // the one authoritative gate (BackgroundBrainScanner._passes_notification_floor
 // — IV rank for premium sales, |score| for directional picks). A second floor
 // here drifted from it twice and hid exactly the signals the executor acts on.
-const VERSION = "v1.17.28";
+const VERSION = "v1.17.30";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");

@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from agents.backtest.advanced_backtest import SignalEngine
+from agents.trade_engine.macro_calendar import MACRO_BLACKOUT_DAYS
 from agents.equity_trader.equity_signals import (
     atr,
     rate_of_change,
@@ -134,12 +135,10 @@ class EquityBrain:
                                                 breakout, market_risk_tilt, days_to_earnings,
                                                 days_to_macro))
 
-        # Macro proximity: within the FOMC/CPI/NFP blackout window the options
-        # engine refuses new premium; equities are cash-bought longs so the
-        # risk is a gap against the trend rather than undefined loss. Stand
-        # aside when a print lands within 2 trading days -- a surprise can gap
-        # right through an ATR stop.
-        if days_to_macro is not None and days_to_macro <= 2:
+        # Macro proximity: the same gating window (FOMC, day before + day of)
+        # the options engine uses -- a rate surprise can gap right through an
+        # ATR stop on a fresh entry.
+        if days_to_macro is not None and 0 <= days_to_macro <= MACRO_BLACKOUT_DAYS:
             return self._reject(symbol, "macro_proximity",
                                 f"Major macro print in {days_to_macro}d; standing aside.",
                                 read=self._read(symbol, price, rsi_14, adx, sma_50, sma_200,

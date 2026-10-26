@@ -1140,3 +1140,62 @@ def test_edge_score_counts_volatility_premium_in_points():
     assert rich - flat == pytest.approx(25.0)   # capped premium-selling bonus
     debit = scorer._score_edge(StrategyType.CALL_DEBIT_SPREAD, {"iv_rank": 50, "hv_20": 0.35}, {"iv": 0.50}, {})
     assert debit < flat                           # buying rich vol is penalised
+
+
+# ── v1.17.29: scoring inputs that kept premium sales just under the floor ────
+
+def test_premium_sales_pass_their_theta_to_the_scorer():
+    from agents.trade_engine.recommender import TradeRecommender
+    legs = [{"theta": -0.012, "action": "SELL"}, {"theta": -0.007, "action": "BUY"}]
+    assert TradeRecommender._theta_per_day(legs) == pytest.approx(0.5)   # $/contract/day
+    assert TradeRecommender._theta_per_day([{"theta": -0.01, "action": "BUY"}]) == 0.0
+
+
+def test_cash_secured_put_scores_as_a_bullish_structure():
+    from agents.trade_engine.models import StrategyType
+    from agents.trade_engine.strategy_scorer import StrategyScorer
+    scorer = StrategyScorer()
+    up = scorer._score_technical(StrategyType.CASH_SECURED_PUT, {"trend": "bullish"})
+    down = scorer._score_technical(StrategyType.CASH_SECURED_PUT, {"trend": "bearish"})
+    assert up > 50 > down
+
+
+def test_cheap_wheel_name_put_clears_the_credit_floor():
+    from agents.trade_engine import recommender
+    # F at $11.59: the 0.21-delta 10.5 put paid $0.14 (~19% annualized).
+    assert recommender.MIN_CSP_CREDIT <= 0.14
+
+
+def test_single_leg_sale_reports_its_credit():
+    """CSP candidates carry their credit as "premium"; the API showed $0."""
+    best = _wheel_recommend(20.0)[0]
+    assert best.strategy_type == StrategyType.CASH_SECURED_PUT
+    assert best.net_credit > 0
+
+
+def test_wheel_csp_in_a_downtrend_only_as_a_fear_put():
+    """Rich IV over realized in a downtrend: a CSP a full 1-SD below spot."""
+    calm = _wheel_recommend(20.0, trend="bearish", iv=0.50, hv=0.45, iv_rank=70)
+    assert not any(r.strategy_type == StrategyType.CASH_SECURED_PUT for r in calm)
+
+
+def test_fear_put_strike_sits_a_full_expected_move_below_spot():
+    """A sold-off name with IV 0.85 over realized 0.55 (rank 70) in a
+    downtrend: the CSP is sold a full 1-SD expected move below spot."""
+    import math
+    chain = _wheel_chain(20.0, iv=0.85)
+    for row in chain:                      # live chains carry theta
+        row["theta"] = -round(row["last"] / 45 * 0.7, 4)
+    output = TradeRecommender().generate_recommendations(
+        account=AccountInfo(total_equity=5000, buying_power=5000, cash_available=5000,
+                            risk_tolerance=RiskTolerance.MODERATE, max_positions=3),
+        market_data={"vix": 19, "XYZ_price": 20.0}, option_chains={"XYZ": chain},
+        technical_data={"XYZ": {"trend": "bearish"}}, flow_data={},
+        volatility_data={"XYZ": {"iv": 0.85, "hv_20": 0.55, "iv_rank": 70, "dte": 45}},
+        diversify_underlyings=False,
+    )
+    csps = [r for r in output.recommendations if r.strategy_type == StrategyType.CASH_SECURED_PUT]
+    assert csps, "expected a fear put on a rich-IV downtrend"
+    one_sd = 20.0 * 0.85 * math.sqrt(45 / 365)
+    assert all(20.0 - r.legs[0].contract.strike >= one_sd for r in csps)
+    assert all(r.net_credit > 0 for r in csps)

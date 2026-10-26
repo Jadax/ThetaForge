@@ -27,7 +27,9 @@ from agents.trade_engine.roi_calculator import ROICalculator
 from agents.trade_engine.analytics import OptionsAnalytics
 from agents.trade_engine.strategy_scorer import StrategyScorer
 from agents.trade_engine.theoretical_edge import estimate_structure_value
-from agents.trade_engine.high_winrate import evaluate_entry as hw_evaluate_entry, is_premium_selling
+from agents.trade_engine.high_winrate import (
+    evaluate_entry as hw_evaluate_entry, fear_put_ok, is_premium_selling,
+)
 from agents.risk_management.kelly_calculator import calculate_kelly
 from agents.risk_management.portfolio_limits import RiskManager
 
@@ -59,9 +61,11 @@ CASH_SECURED_TYPES = ("csp", "cc")
 # Premium-quality floors for a CSP: the cash backing is locked for the whole
 # trade, so a far-OTM put paying pennies (e.g. $0.03 against $1,500 of cash)
 # is refused even when every probability gate likes it. ~1%/month on the
-# backing is the conventional wheel hurdle; $0.20 keeps the credit clear of
-# round-trip commissions. MAX_CSP_DELTA keeps strikes off the money.
-MIN_CSP_CREDIT = 0.20
+# backing is the conventional wheel hurdle (MIN_CSP_ANNUALIZED_RETURN_PCT);
+# $0.10 keeps the credit clear of round-trip commissions. A flat $0.20 floor
+# refused every 15-25 delta put on a ~$10 wheel name (F at $11.59: the 10.5
+# put paid $0.14, ~19% annualized). MAX_CSP_DELTA keeps strikes off the money.
+MIN_CSP_CREDIT = 0.10
 # Earnings IV-crush condor (Tastytrade's defined-risk earnings play): entered
 # the session before the print on the first expiry after it, both short
 # strikes outside the market's own implied earnings move, closed after the
@@ -556,6 +560,16 @@ class TradeRecommender:
             total += -value if leg.get("action") == "SELL" else value
         return total
 
+    @classmethod
+    def _theta_per_day(cls, legs: List[Dict[str, Any]]) -> float:
+        """Position theta the seller collects, dollars per contract per day.
+
+        The scorer's theta dimension divides theta x DTE by the credit in
+        dollars; no opt_ctx carried theta before, so every premium sale sat at
+        that dimension's baseline (it is weighted 30% in a neutral regime).
+        """
+        return max(0.0, cls._net_leg_greek(legs, "theta"))
+
     @staticmethod
     def _strategy_market_context(nvrp: Dict[str, Any], tech: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize the actual per-symbol volatility and technical context."""
@@ -734,6 +748,8 @@ class TradeRecommender:
         iv = float(nvrp.get("iv", 0.20) or 0.20)
         dte = int(candidate.get("dte", 30) or 30)
         rs_126 = candidate.get("relative_strength")
+        hv_20 = float(nvrp.get("hv_20") or 0)
+        iv_hv_ratio = iv / hv_20 if hv_20 > 0 else None
 
         expected_move_1sd = None
         if stock_price > 0 and iv > 0 and dte > 0:
@@ -759,6 +775,8 @@ class TradeRecommender:
                 expected_move_1sd=expected_move_1sd,
                 dte=dte,
                 rs_126=rs_126,
+                iv_rank=nvrp.get("iv_rank"),
+                iv_hv_ratio=iv_hv_ratio,
             )
             if not ok:
                 return False
@@ -917,7 +935,17 @@ class TradeRecommender:
             "open_interest": put.get("open_interest", 0), "bid": put.get("bid", 0),
             "ask": put.get("ask", 0), "credit": premium, "max_profit": premium * 100,
             "max_loss": capital_needed - premium * 100,
+            "theta": self._theta_per_day([{**put, "action": "SELL"}]),
         }
+        # A qualifying fear put already pays for its counter-trend risk with a
+        # doubled strike buffer (high_winrate); docking the downtrend again in
+        # the technical score pushed exactly the 1-SD strikes under the floor
+        # while nearer strikes cleared it and then failed the buffer.
+        hv_20 = float(nvrp.get("hv_20") or 0)
+        if fear_put_ok("csp", tech.get("trend", nvrp.get("trend")), nvrp.get("iv_rank"),
+                       float(nvrp.get("iv", 0) or 0) / hv_20 if hv_20 > 0 else None):
+            tech = {**tech, "trend": "neutral"}
+            market_ctx = {**market_ctx, "trend": "neutral"}
         score = self.scorer.score_strategy(StrategyType.CASH_SECURED_PUT, market_ctx, opt_ctx, tech, flow)
 
         if not self._passes_quality_gate(score, roi, "csp", nvrp):
@@ -965,6 +993,7 @@ class TradeRecommender:
             "open_interest": call.get("open_interest", 0), "bid": call.get("bid", 0),
             "ask": call.get("ask", 0), "credit": premium, "max_profit": (strike - stock_price + premium) * 100,
             "max_loss": (stock_price - premium) * 100,
+            "theta": self._theta_per_day([{**call, "action": "SELL"}]),
         }
         score = self.scorer.score_strategy(StrategyType.COVERED_CALL, market_ctx, opt_ctx, tech, flow)
 
@@ -1024,6 +1053,7 @@ class TradeRecommender:
             "volume": short_put.get("volume", 0), "open_interest": short_put.get("open_interest", 0),
             "bid": short_put.get("bid", 0), "ask": short_put.get("ask", 0),
             "credit": credit, "max_profit": credit * 100, "max_loss": (width - credit) * 100,
+            "theta": self._theta_per_day([{**short_put, "action": "SELL"}, {**long_put, "action": "BUY"}]),
         }
         score = self.scorer.score_strategy(StrategyType.BULL_PUT_CREDIT, market_ctx, opt_ctx, tech, flow)
 
@@ -1083,6 +1113,7 @@ class TradeRecommender:
             "volume": short_call.get("volume", 0), "open_interest": short_call.get("open_interest", 0),
             "bid": short_call.get("bid", 0), "ask": short_call.get("ask", 0),
             "credit": credit, "max_profit": credit * 100, "max_loss": (width - credit) * 100,
+            "theta": self._theta_per_day([{**short_call, "action": "SELL"}, {**long_call, "action": "BUY"}]),
         }
         score = self.scorer.score_strategy(StrategyType.BEAR_CALL_CREDIT, market_ctx, opt_ctx, tech, flow)
 
@@ -1184,6 +1215,10 @@ class TradeRecommender:
             "volume": put_short.get("volume", 0), "open_interest": put_short.get("open_interest", 0),
             "bid": put_short.get("bid", 0), "ask": put_short.get("ask", 0),
             "credit": total_credit, "max_profit": total_credit * 100, "max_loss": max_loss,
+            "theta": self._theta_per_day([
+                {**put_short, "action": "SELL"}, {**put_long, "action": "BUY"},
+                {**call_short, "action": "SELL"}, {**call_long, "action": "BUY"},
+            ]),
         }
         score = self.scorer.score_strategy(StrategyType.IRON_CONDOR, market_ctx, opt_ctx, tech, flow)
 
@@ -1567,7 +1602,8 @@ class TradeRecommender:
             underlying_price=candidate.get("stock_price", 0),
             legs=legs,
             quantity=1,
-            net_credit=candidate.get("credit", 0),
+            # Single-leg sales (CSP/CC) carry their credit as "premium".
+            net_credit=candidate.get("credit", candidate.get("premium", 0)),
             net_debit=candidate.get("debit", 0),
             max_profit=max_profit,
             max_loss=max_loss,

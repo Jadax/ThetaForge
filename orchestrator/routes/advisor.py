@@ -36,7 +36,7 @@ from agents.flow_analysis.gex_engine import GEXEngine
 from agents.trade_engine.alerts import AlertEngine, AlertPriority, AlertType
 from agents.trade_engine.signal_tracker import SignalTracker
 from agents.trade_engine.background_scanner import (
-    get_background_scanner, LIQUID_OPTIONS_UNIVERSE, SCAN_RESULTS_FILE,
+    _atm_iv, get_background_scanner, LIQUID_OPTIONS_UNIVERSE, SCAN_RESULTS_FILE,
 )
 from agents.trade_engine.futures_options import (
     FUTURES_ALLOWED_TYPES, FUTURES_OPTION_ROOTS, atm_implied_vol, index_iv_rank,
@@ -162,12 +162,25 @@ async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, 
     else:
         hv_20 = 0.18
 
-    implied_vols = [
-        float(option.get("implied_volatility", 0))
-        for option in option_chain
-        if isinstance(option.get("implied_volatility", 0), (int, float)) and option.get("implied_volatility", 0) > 0
-    ]
-    current_iv = statistics.median(implied_vols) if implied_vols else max(hv_20, 0.20)
+    # ATM IV, the same front-expiry estimate the Brain's scan uses and the IV
+    # history store records -- the basis IV rank must be computed on. The
+    # whole-chain median it replaced was pulled up by skewed
+    # far-OTM wings and 0-DTE rows (SPY read 21.9% with VIX at 18.3), which
+    # inflated the expected move past every spread worth selling, inflated
+    # touch probabilities, and pinned IV rank at 100 against ATM history.
+    current_iv = _atm_iv(option_chain)
+    if not current_iv:
+        implied_vols = [
+            float(option.get("implied_volatility", 0))
+            for option in option_chain
+            if isinstance(option.get("implied_volatility", 0), (int, float)) and option.get("implied_volatility", 0) > 0
+        ]
+        current_iv = statistics.median(implied_vols) if implied_vols else max(hv_20, 0.20)
+    # The IV the trade is priced at: ATM of the standard (>= 21 DTE) expiries
+    # the recommender sells. Front-expiry IV is the wrong input for a 30-50
+    # DTE expected move -- a 0-DTE SPY row or a weekly straddling earnings
+    # (SOFI front week read 110%) would size every strike buffer off noise.
+    trade_iv = atm_implied_vol(option_chain, stock_price) or current_iv
     iv_52w_high = max(hv_history + [current_iv]) if hv_history else current_iv
     iv_52w_low = min(hv_history + [current_iv]) if hv_history else current_iv
     flow_data = None
@@ -223,6 +236,7 @@ async def _market_snapshot(symbol: str, supplied_price: float = 0) -> Dict[str, 
         "high_prices": high_prices or historical,
         "low_prices": low_prices or historical,
         "current_iv": current_iv,
+        "trade_iv": trade_iv,
         "hv_20": hv_20,
         # Historical IV is not available from the free provider. Historical
         # realized volatility provides a clearly labelled IV-rank proxy rather
@@ -332,7 +346,7 @@ async def brain_analyze(request: BrainAnalysisRequest):
     snapshot = await _market_snapshot(symbol, request.stock_price)
 
     # Run Brain
-    brain_snapshot = {key: value for key, value in snapshot.items() if key != "technical_data"}
+    brain_snapshot = {key: value for key, value in snapshot.items() if key not in ("technical_data", "trade_iv")}
     try:
         days_to_macro = macro_days_until()
     except Exception:
@@ -1299,7 +1313,7 @@ async def get_recommendations(request: AdvisoryRequest):
             except Exception:
                 logger.debug("IV-store rank enrichment unavailable for %s", symbol)
             volatility_data[symbol] = {
-                "iv": snapshot["current_iv"],
+                "iv": snapshot["trade_iv"],
                 "hv_20": snapshot["hv_20"],
                 "iv_rank": snapshot_rank,
                 "dte": 30,
