@@ -27,6 +27,10 @@ failed with curl exit 28 (timeout).
   never wrote the market-data proxy settings; both fixed. Watchdog, supervisor
   and setup defaults point at the Oracle IPs; dashboard default Advisor URL
   too. Runbook: `docs/ORACLE_FREE_DEPLOYMENT.md` (GCP doc marked historical).
+- Executor venv now gets `yfinance`/`pandas`/`numpy` from
+  `bridge_vm_setup.sh`: the journal's live-mark refresh imports
+  `free_data.py`, and without them it failed soft every hour (open positions
+  showed no live price). The GCP box had them installed by hand.
 
 ## v1.17.30 - 2026-10-26
 

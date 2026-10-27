@@ -98,14 +98,17 @@ else
     echo "         journal_sync_push.sh cannot publish until it is installed." >&2
 fi
 
-# --- 5. venv: only what the four VM services import (see their import
-#        headers -- nothing here touches pandas/the agents/ tree) ---
+# --- 5. venv: what the VM services import, plus the journal live-mark
+#        refresh (journal_sync_push.sh prices -> sync_journal.py imports
+#        agents/data_ingestion/free_data.py: yfinance + pandas). Without
+#        them the refresh fails soft and live marks silently never update
+#        (found on the Oracle rebuild, 2026-10-27). ---
 if [ ! -d "$BRIDGE_ROOT/venv" ]; then
     python3 -m venv "$BRIDGE_ROOT/venv"
 fi
 "$BRIDGE_ROOT/venv/bin/pip" install -q --upgrade pip
 "$BRIDGE_ROOT/venv/bin/pip" install -q 'fastapi>=0.104' 'uvicorn[standard]>=0.24' \
-    'pydantic>=2.5' 'ib_insync>=0.9.86' 'httpx>=0.25'
+    'pydantic>=2.5' 'ib_insync>=0.9.86' 'httpx>=0.25'     'yfinance>=0.2.31' 'pandas>=2.1.0' 'numpy>=1.26.0'
 echo "venv ready"
 
 # --- 6. Flat service copies (the VM runs copies, not a live checkout;
