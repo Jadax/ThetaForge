@@ -4,15 +4,16 @@
     "handle": "@thetaforge",
     "tagline": "Defined-risk option seller. Recommendations placed, receipts always."
   },
-  "as_of": "2026-10-26",
+  "as_of": "2026-10-27",
   "account_equity": 25000,
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8",
-    "entries_from_ledger": 51,
+    "ledger_sha": "ead25a9c5aed538b2d455ea9ee277ba196b162be1519c2bcc63f992ccaa50c1d",
+    "entries_from_ledger": 3,
     "entries_manual": 0,
-    "entries_carried": 0
+    "entries_carried": 24,
+    "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
   "trades": [
     {
@@ -30,16 +31,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 17,
+        "quantity": 17.0,
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:41:19.724770+00:00",
-        "updated_at": "2026-10-26T19:41:29.901828+00:00"
+        "updated_at": "2026-10-27T14:10:00.706384+00:00"
       },
       "symbol": "XLE",
       "asset_class": "equity",
       "instrument_type": "etf",
-      "shares": 17,
+      "shares": 17.0,
       "opened": "2026-10-26",
       "closed": null,
       "status": "open",
@@ -95,16 +96,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 26,
+        "quantity": 26.0,
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:41:05.952145+00:00",
-        "updated_at": "2026-10-26T19:41:29.901816+00:00"
+        "updated_at": "2026-10-27T14:10:00.706384+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
       "instrument_type": "etf",
-      "shares": 26,
+      "shares": 26.0,
       "opened": "2026-10-26",
       "closed": null,
       "status": "open",
@@ -160,16 +161,16 @@
         "cost_to_close": null,
         "realized_pnl": null,
         "reason": null,
-        "quantity": 2,
+        "quantity": 2.0,
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:40:33.035301+00:00",
-        "updated_at": "2026-10-26T19:41:29.901803+00:00"
+        "updated_at": "2026-10-27T14:10:00.706384+00:00"
       },
       "symbol": "DIA",
       "asset_class": "equity",
       "instrument_type": "etf",
-      "shares": 2,
+      "shares": 2.0,
       "opened": "2026-10-26",
       "closed": null,
       "status": "open",
@@ -355,7 +356,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:16.005341+00:00",
         "updated_at": "2026-10-26T19:41:29.901057+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "65056a05-985a-460f-9aee-8e1306c4cf07",
@@ -742,7 +744,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:24.664700+00:00",
         "updated_at": "2026-10-26T19:41:29.901173+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "d7a4d4c3-2d61-402c-978f-d458abb97fe7",
@@ -1105,7 +1108,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:20.517791+00:00",
         "updated_at": "2026-10-26T19:41:29.901142+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "f9bc5f86-cbb1-4066-8111-bef7ab040897",
@@ -1360,7 +1364,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:37.139740+00:00",
         "updated_at": "2026-10-26T19:41:29.901252+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "a00d582c-ac49-4ef2-86d6-3c9373b73e5a",
@@ -1703,7 +1708,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:32.979420+00:00",
         "updated_at": "2026-10-26T19:41:29.901226+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "c8da8593-8900-4ece-9d4f-0b908f8f30a1",
@@ -1966,7 +1972,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:28.823749+00:00",
         "updated_at": "2026-10-26T19:41:29.901201+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "2b1d5932-ce79-41a2-8c32-a96321dd2a36",
@@ -2265,7 +2272,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:53.774471+00:00",
         "updated_at": "2026-10-26T19:41:29.901343+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "1d454fcd-f5b4-45e9-bb6d-aa0097745baf",
@@ -2560,7 +2568,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:49.612116+00:00",
         "updated_at": "2026-10-26T19:41:29.901321+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "df39a659-18d5-4221-9211-6dc31dbca0e4",
@@ -2807,7 +2816,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:45.454863+00:00",
         "updated_at": "2026-10-26T19:41:29.901299+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "e0267e3d-bd95-436d-ae4d-eefade32ad01",
@@ -3094,7 +3104,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:41.284063+00:00",
         "updated_at": "2026-10-26T19:41:29.901275+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "f7d9c1b7-b9a4-44d1-8e83-f03ffddeb8fe",
@@ -3341,7 +3352,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:51.864408+00:00",
         "updated_at": "2026-10-26T19:41:29.901779+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "64421085-a32e-4427-84ed-13cae0f073af",
@@ -3640,7 +3652,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:47.725750+00:00",
         "updated_at": "2026-10-26T19:41:29.901754+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "d774aa85-ceef-42f8-a0a0-b1352ec16837",
@@ -3955,7 +3968,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:43.576722+00:00",
         "updated_at": "2026-10-26T19:41:29.901729+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "8e73b9a3-bfbb-44c4-9c06-49bbfbfc08da",
@@ -4254,7 +4268,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:39.433120+00:00",
         "updated_at": "2026-10-26T19:41:29.901704+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "5a6b5b34-214a-4b33-ac7c-69d51348a2c7",
@@ -4609,7 +4624,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:35.282444+00:00",
         "updated_at": "2026-10-26T19:41:29.901679+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "80f99cc2-d763-486e-8e25-326b2afe8a92",
@@ -5052,7 +5068,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:31.125203+00:00",
         "updated_at": "2026-10-26T19:41:29.901639+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "c3484efc-c3b4-4531-9629-67abe0acb0c8",
@@ -5579,7 +5596,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:26.986557+00:00",
         "updated_at": "2026-10-26T19:41:29.901585+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "0282450e-6c96-4fd0-b43e-ec320c4086c3",
@@ -6122,7 +6140,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:22.832431+00:00",
         "updated_at": "2026-10-26T19:41:29.901552+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "18c5b3ae-4226-48c8-81b5-0fe2b325f0b4",
@@ -6633,7 +6652,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:18.684825+00:00",
         "updated_at": "2026-10-26T19:41:29.901519+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "9e9789a8-d0fb-4503-88ef-030626c0fef4",
@@ -7064,7 +7084,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:14.527446+00:00",
         "updated_at": "2026-10-26T19:41:29.901482+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "34b1c0f3-a74d-485c-9029-70d6a6eb0ca3",
@@ -7311,7 +7332,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:10.381520+00:00",
         "updated_at": "2026-10-26T19:41:29.901455+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "82ed07ee-c5e4-452e-b82b-36e417e8a915",
@@ -7610,7 +7632,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:06.237578+00:00",
         "updated_at": "2026-10-26T19:41:29.901427+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "dc3c3ea2-87d2-47e5-bc42-f3a5c5dbd0a4",
@@ -7857,7 +7880,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:37:02.083130+00:00",
         "updated_at": "2026-10-26T19:41:29.901391+00:00"
-      }
+      },
+      "carried": true
     },
     {
       "id": "0224057e-44bb-4281-b5af-49f1f86162f5",
@@ -8156,7 +8180,8 @@
         "sec_type": null,
         "submitted_at": "2026-10-26T13:36:57.919823+00:00",
         "updated_at": "2026-10-26T19:41:29.901365+00:00"
-      }
+      },
+      "carried": true
     }
   ]
 }
