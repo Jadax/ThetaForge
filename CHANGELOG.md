@@ -1,5 +1,33 @@
 # ThetaForge Changelog
 
+## v1.17.31 - 2026-10-27
+
+**Hosting is now genuinely $0: the whole stack moved to Oracle Cloud Always
+Free.** GCP's Always Free tier covers one e2-micro per billing account and
+ThetaForge ran two; on 2026-10-27 the GCP billing account closed, which stops
+every VM in the project (free ones included) -- the GitHub health watchdog
+failed with curl exit 28 (timeout).
+
+- Two Oracle `VM.Standard.E2.1.Micro` instances (the Always Free allowance,
+  $0 forever on a Free Tier tenancy): Advisor `84.12.87.139` / 10.0.0.161,
+  executor `92.4.132.188` / 10.0.0.78 (the Oracle-era bridge VM, restarted;
+  its IBC config already held the paper credentials). A1/ARM was tried first
+  and is still "Out of host capacity" in af-johannesburg-1.
+- Exposure matches the GCP posture: only 22/80/8000 public; Bridge 8002 and
+  market data 8003 are VCN-only in both the security list and iptables
+  (8003 had been internet-open on the old Oracle VM).
+- Fresh Bridge ledger (the Sep-29 Oracle ledger is kept as
+  `paper_order_ledger.pre-oracle-20261027.json`); journal history carried,
+  DIA/XLF/XLE re-adopted from IBKR and managed again.
+- Fix: `adopt_orphan_positions.py` matched carried entries oldest-first
+  without skipping closed ones, so yesterday's closed XLF/DIA exits were
+  picked over today's open buys of the same size. Closed receipts are now
+  never adopted.
+- `provision_gcp.sh` wrote `.env` without sudo (only worked as root) and
+  never wrote the market-data proxy settings; both fixed. Watchdog, supervisor
+  and setup defaults point at the Oracle IPs; dashboard default Advisor URL
+  too. Runbook: `docs/ORACLE_FREE_DEPLOYMENT.md` (GCP doc marked historical).
+
 ## v1.17.30 - 2026-10-26
 
 **Fear puts: cash-secured puts are now sold into a downtrend when the sell-off's

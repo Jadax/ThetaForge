@@ -60,6 +60,9 @@ def adoption_records(
         (
             trade for trade in journal_trades
             if trade.get("carried") and trade.get("asset_class") == "equity"
+            # A closed receipt's shares were sold; matching it (oldest first)
+            # re-opened yesterday's exits in place of today's open buys.
+            and trade.get("status") != "closed"
             and str(trade.get("source_id")) not in known_ids
         ),
         key=lambda trade: str((trade.get("order") or {}).get("submitted_at") or trade.get("opened", "")),

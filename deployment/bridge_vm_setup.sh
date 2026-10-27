@@ -33,7 +33,7 @@ BRIDGE_ROOT="/opt/thetaforge-bridge"
 # real boundary (no public ingress rule for 8002 exists), and BRIDGE_ACCESS_TOKEN
 # still guards every call. 0.0.0.0 also keeps on-box 127.0.0.1 curls working.
 BRIDGE_HOST="${BRIDGE_HOST:-127.0.0.1}"
-ADVISOR_URL="${ADVISOR_URL:-http://35.212.227.109:8000}"
+ADVISOR_URL="${ADVISOR_URL:-http://10.0.0.161:8000}"
 ADVISOR_TOKEN="${ADVISOR_TOKEN:-aqMnE8q5WFeGCevbHW1ru-zt7bguZyFCdrsyhBJ4ioQ}"
 BRIDGE_TOKEN="${BRIDGE_TOKEN:-}"
 IBC_VERSION="3.24.2"

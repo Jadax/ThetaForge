@@ -13,7 +13,7 @@
 # truth for "is the market open" across the whole system.
 set -uo pipefail
 
-ADVISOR_URL="${ADVISOR_URL:-https://thetaforge-advisor.onrender.com}"
+ADVISOR_URL="${ADVISOR_URL:-http://10.0.0.161:8000}"
 ADVISOR_TOKEN="${ADVISOR_TOKEN:-aqMnE8q5WFeGCevbHW1ru-zt7bguZyFCdrsyhBJ4ioQ}"
 LOG_TAG="market-hours-supervisor"
 

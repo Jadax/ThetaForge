@@ -564,13 +564,13 @@ const gexHeatBucket = (value: number) => {
 };
 
 const quoteKey = (symbol: string, expiry: string, strike: number, right: string) => `${symbol}|${expiry}|${strike}|${right}`;
-const DEFAULT_ADVISOR_API = "https://thetaforge-advisor.onrender.com";
+const DEFAULT_ADVISOR_API = "http://84.12.87.139:8000";
 const NON_ACTIONABLE_STRATEGIES = new Set(["no_trade", "avoid_new_positions", "roll_or_close"]);
 // No score floor here: the Advisor's notifications endpoint already applies
 // the one authoritative gate (BackgroundBrainScanner._passes_notification_floor
 // — IV rank for premium sales, |score| for directional picks). A second floor
 // here drifted from it twice and hid exactly the signals the executor acts on.
-const VERSION = "v1.17.30";
+const VERSION = "v1.17.31";
 
 export default function Home() {
   const [symbol, setSymbol] = useState("SPY");
@@ -1593,7 +1593,7 @@ export default function Home() {
           <summary>Advisor API address and token</summary>
           <input className="api" value={apiBase} onChange={(event) => setApiBase(event.target.value)} aria-label="Local Brain address" />
           <input className="api" type="password" value={advisorToken} onChange={(event) => setAdvisorToken(event.target.value)} aria-label="Advisor API token" placeholder="Advisor API token — saved on this device" />
-          <p>Use your Render service URL here for live analysis. The token must match <code>ADVISOR_API_TOKEN</code> on that service. This terminal runs locally and is not deployed publicly, so both this and the Bridge token below are saved in this browser's local storage on this device rather than re-entered every session — use "Forget saved tokens" if you ever share this machine. Your IBKR paper-trading Bridge remains local to your trading computer.</p>
+          <p>Use your Advisor URL here for live analysis. The token must match <code>ADVISOR_API_TOKEN</code> on that service. This terminal runs locally and is not deployed publicly, so both this and the Bridge token below are saved in this browser's local storage on this device rather than re-entered every session — use "Forget saved tokens" if you ever share this machine. Your IBKR paper-trading Bridge remains local to your trading computer.</p>
           <button type="button" onClick={forgetSavedTokens}>Forget saved tokens</button>
         </details>
         {!advisorToken && <p className="error">Enter your Advisor API token to load market analysis.</p>}

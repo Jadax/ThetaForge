@@ -17,17 +17,21 @@ before touching anything volatility-, CBOE-, or scanner-related — several
 
 ```
 Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
-  -> Advisor (GCP free e2-micro VM, orchestrator/main.py, 10-min background scans)
+  -> Advisor (Oracle Always Free E2.1.Micro, orchestrator/main.py, 10-min background scans)
      -> Paper Bridge (bridge/main.py) -> IB Gateway (TWS API)
         The Bridge is OUR FastAPI service — it is NOT TWS, and it is
-        never reachable from the public internet (VPC firewall + token). It
+        never reachable from the public internet (VCN security list + iptables + token). It
         connects only to the headless IB Gateway daemon on the same
-        always-on GCP executor VM (thetaforge-executor — the broker
+        always-on Oracle Always Free executor VM (thetaforge-bridge-vm — the broker
         session; desktop TWS is not used). A headless auto-executor on that VM
         (deployment/vm_auto_executor.py) autonomously submits qualifying paper
         orders through the Bridge; a market-hours supervisor starts and stops
         the whole stack around the real NYSE session.
 ```
+
+Hosting: both VMs are Oracle Cloud Always Free E2.1.Micro instances ($0) --
+see `docs/ORACLE_FREE_DEPLOYMENT.md` (IPs, firewall, rebuild runbook). GCP was
+retired 2026-10-27 (Always Free covers one e2-micro; ThetaForge needs two).
 
 - `agents/trade_engine/` is the authoritative recommendation path for options.
 - `agents/equity_trader/` is the parallel engine for long stock/ETF momentum.
@@ -72,7 +76,7 @@ Dashboard (Next.js, GitHub Pages/localhost, or hosted terminal)
 | `bridge/main.py` | Paper-only IBKR order checks and submission: `POST /orders/submit-combo` (entries), `POST /orders/close-combo` (exits — mirrors the parent's own ledger record, re-verifies live quotes, never reserves new capital), `POST /orders/stock` (long-only, stop-defined risk), `POST /orders/close-stock`, `POST /orders/{ledger_id}/position-meta` (metadata-only trailing-stop anchor ratchet) |
 | `dashboard/app/page.tsx` | Private terminal — local, or hosted on Cloudflare Pages behind Cloudflare Access (never on the public journal's GitHub Pages) |
 | `deployment/cloudflare_deploy_terminal.ps1` | Builds and deploys the private terminal to Cloudflare Pages |
-| `deployment/vm_auto_executor.py` | Autonomous paper-order executor (entries), runs on the GCP executor VM beside the Bridge; handles both options and equity notifications |
+| `deployment/vm_auto_executor.py` | Autonomous paper-order executor (entries), runs on the executor VM beside the Bridge; handles both options and equity notifications |
 | `deployment/vm_auto_manager.py` | Autonomous paper position manager (exits) — asks the Advisor for management decisions (options incl. futures options + equity), submits closes via the Bridge; `AUTO_CLOSE_ENABLED=true` on the VM since v1.17.28 (all trade types); `review_tested` is never auto-submitted |
 | `deployment/vm_market_data_service.py` | Read-only IBKR market-data proxy (own port 8003, own client id, own token): `/option-chain`, `/futures-option-chain` (MES/MNQ), `/stock`, `/stock-history`; standard-monthly + short expiry, strike ladder, tick-101 open interest |
 | `deployment/market_hours_supervisor.sh` | Starts/stops Gateway+Bridge+executors on the VM around real market hours |

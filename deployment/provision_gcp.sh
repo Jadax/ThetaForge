@@ -1,5 +1,6 @@
 #!/bin/bash
-# ThetaForge Advisor provisioning on GCP e2-micro (Ubuntu 24.04, 1GB RAM).
+# ThetaForge Advisor provisioning on a 1 GB Ubuntu 24.04 VM (Oracle Always Free
+# E2.1.Micro since 2026-10-27; written for the former GCP e2-micro).
 # Direct Python + systemd (no Docker) to conserve the 1GB memory budget.
 # Usage: scp deploy key + this script to VM, then: bash provision_gcp.sh
 set -euo pipefail
@@ -12,7 +13,11 @@ ADVISOR_TOKEN="${ADVISOR_TOKEN:-aqMnE8q5WFeGCevbHW1ru-zt7bguZyFCdrsyhBJ4ioQ}"
 # Deliberately no default here: pass it via env at deploy time, or the .env will
 # carry an empty bridge token (bridge universe discovery simply fails open).
 BRIDGE_TOKEN="${BRIDGE_TOKEN:-}"
-BRIDGE_URL="${BRIDGE_URL:-http://92.4.132.188:8002}"
+BRIDGE_URL="${BRIDGE_URL:-http://10.0.0.78:8002}"
+# Read-only IBKR market-data proxy on the executor VM (token printed by
+# bridge_vm_setup.sh; /opt/thetaforge-bridge/.market_data_token there).
+IBKR_MARKET_DATA_URL="${IBKR_MARKET_DATA_URL:-http://10.0.0.78:8003}"
+IBKR_MARKET_DATA_TOKEN="${IBKR_MARKET_DATA_TOKEN:-}"
 DASHBOARD_ORIGINS="${DASHBOARD_ORIGINS:-https://thetaforge-terminal.pages.dev,http://localhost:3000,http://127.0.0.1:3000}"
 
 echo "=== ThetaForge GCP provisioning ==="
@@ -75,15 +80,17 @@ sudo mkdir -p "$APP_DIR/data"
 sudo chown -R "$RUN_USER:$RUN_USER" "$APP_DIR/data"
 
 # --- .env ---
-cat > "$APP_DIR/.env" <<EOF
+sudo tee "$APP_DIR/.env" >/dev/null <<EOF
 ADVISOR_API_TOKEN=${ADVISOR_TOKEN}
 BROKER_ACCESS_TOKEN=${ADVISOR_TOKEN}
 BRIDGE_ACCESS_TOKEN=${BRIDGE_TOKEN}
 BRIDGE_URL=${BRIDGE_URL}
 DASHBOARD_ORIGINS=${DASHBOARD_ORIGINS}
+IBKR_MARKET_DATA_URL=${IBKR_MARKET_DATA_URL}
+IBKR_MARKET_DATA_TOKEN=${IBKR_MARKET_DATA_TOKEN}
 EOF
-chown "$RUN_USER:$RUN_USER" "$APP_DIR/.env"
-chmod 600 "$APP_DIR/.env"
+sudo chown "$RUN_USER:$RUN_USER" "$APP_DIR/.env"
+sudo chmod 600 "$APP_DIR/.env"
 echo ".env written"
 
 # --- systemd unit ---
@@ -114,5 +121,5 @@ echo "systemd unit started"
 
 echo ""
 echo "=== Setup Complete ==="
-echo "Advisor at: http://35.212.227.109:8000"
-echo "Health:     http://35.212.227.109:8000/health"
+echo "Advisor at: http://<public-ip>:8000 (Oracle: 84.12.87.139)"
+echo "Health:     http://<public-ip>:8000/health/"

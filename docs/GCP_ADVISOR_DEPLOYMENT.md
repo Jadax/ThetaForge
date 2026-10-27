@@ -1,4 +1,8 @@
-# Google Cloud (GCP) Advisor Deployment
+# Google Cloud (GCP) Advisor Deployment -- HISTORICAL
+
+> Retired 2026-10-27: the GCP billing account closed, which stops every VM
+> in the project (Always Free covers only one e2-micro; ThetaForge ran two).
+> Current host: `docs/ORACLE_FREE_DEPLOYMENT.md`.
 
 Free, proven fallback for the Advisor while Oracle ARM capacity in
 af-johannesburg-1 remains exhausted. Deployed 2026-09-06.

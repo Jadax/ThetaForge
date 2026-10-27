@@ -55,3 +55,12 @@ def test_dry_run_leaves_ledger_untouched(tmp_path):
     assert json.loads(ledger_path.read_text()) == []
     assert adopt.main(args + ["--apply"]) == 0
     assert [r["id"] for r in json.loads(ledger_path.read_text())] == ["a"]
+
+
+def test_never_adopts_a_closed_receipt():
+    """Oct 27 2026 Oracle move: yesterday's closed XLF exit (older) was matched
+    ahead of today's open XLF buy of the same size."""
+    closed = {**_carried("old", "XLF", 26, 50.0, 48.0, submitted="2026-10-01T13:43:00+00:00"), "status": "closed"}
+    live = _carried("new", "XLF", 26, 56.22, 54.81, submitted="2026-10-26T19:40:00+00:00")
+    adopted = adopt.adoption_records([], [closed, live], {"XLF": 26.0}, "2026-10-27T14:30:00+00:00")
+    assert [record["id"] for record in adopted] == ["new"]

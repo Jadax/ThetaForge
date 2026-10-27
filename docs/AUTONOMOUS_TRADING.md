@@ -1,4 +1,9 @@
-# Autonomous Paper Trading (GCP executor VM)
+# Autonomous Paper Trading (Oracle Always Free executor VM)
+
+> **Host moved 2026-10-27** to Oracle Cloud Always Free (two E2.1.Micro VMs,
+> $0) after the GCP billing account closed. Current IPs, firewall and rebuild
+> runbook: `docs/ORACLE_FREE_DEPLOYMENT.md`. The service layout below is
+> unchanged; GCP names/IPs in the rest of this doc are historical.
 
 This documents the always-on stack that runs the full pipeline —
 IB Gateway login, the Bridge, and autonomous order placement — without
@@ -12,10 +17,10 @@ all. See `docs/HOSTED_TERMINAL.md` for the (separate, optional) hosted
 ## What's running, and where
 
 ```
-GCP Always-Free e2-micro (thetaforge-executor, us-west1-b)
-  internal 10.138.0.3, external 8.231.58.224 (egress only; the project's
-  firewall has no ingress rule for 8002/8003, so nothing is internet-exposed)
-  1 vCPU / 1GB RAM + 2GB swap, Ubuntu 24.04 LTS (ubuntu-2404-lts-amd64)
+Oracle Always Free E2.1.Micro (thetaforge-bridge-vm, af-johannesburg-1)
+  private 10.0.0.78, public 92.4.132.188 (SSH/egress only; 8002/8003 are
+  open to the VCN 10.0.0.0/16 only, in both the security list and iptables)
+  1GB RAM + 2GB swap, Ubuntu
 
   xvfb.service              — virtual display :1 (IB Gateway is a GUI app)
   ibgateway.service         — IB Gateway via IBC, auto-login, paper mode only
@@ -190,9 +195,9 @@ curl -s -H "X-Market-Data-Token: <token>" http://127.0.0.1:8003/health
 From the advisor VM (cross-VPC-internal, what the scanners actually use):
 
 ```bash
-gcloud compute ssh thetaforge-advisor --zone=us-west1-b
-curl -s http://10.138.0.3:8002/health
-curl -s -H "X-Market-Data-Token: <token>" http://10.138.0.3:8003/health
+ssh -i ~/.ssh/thetaforge_vm ubuntu@84.12.87.139
+curl -s http://10.0.0.78:8002/health
+curl -s -H "X-Market-Data-Token: <token>" http://10.0.0.78:8003/health
 ```
 
 ## Redeploying Bridge code changes

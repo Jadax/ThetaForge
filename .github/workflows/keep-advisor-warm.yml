@@ -1,6 +1,6 @@
 name: Advisor health monitor
 
-# The Advisor runs on Google Cloud (always-free e2-micro, never sleeps), so a
+# The Advisor runs on Oracle Cloud Always Free (E2.1.Micro, never sleeps), so a
 # warm-up ping is unnecessary. This workflow is now a watchdog: it probes the
 # public /health endpoint every 10 minutes from GitHub's runners and fails
 # (notifying on the repository's commit/status page) the moment the Advisor
@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Ping the Advisor health probe
         run: |
-          url="http://35.212.227.109:8000/health/"
+          url="http://84.12.87.139:8000/health/"
           status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$url")
           echo "GET $url -> $status"
           if [ "$status" != "200" ]; then
