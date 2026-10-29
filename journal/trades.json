@@ -9,13 +9,175 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "2c75ca690ad7210828b3aab998bd12651c53e1a358d56c1ddf87c9a1b401e3c3",
-    "entries_from_ledger": 12,
+    "ledger_sha": "7ca640825ad534fa03888261f87a71447d89111b37b1f84a49496fda418fa231",
+    "entries_from_ledger": 14,
     "entries_manual": 0,
     "entries_carried": 24,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
   "trades": [
+    {
+      "id": "6567e64a-a7a3-4140-ac56-aac592cf538c",
+      "source_id": "6567e64a-a7a3-4140-ac56-aac592cf538c",
+      "source": "ledger",
+      "ledger_ref": "6567e64a-a7a3-4140-ac56-aac592cf538c",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": -0.25,
+        "limit_price": -0.25,
+        "net_credit": 0.25,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-10-29T18:09:22.162157+00:00",
+        "updated_at": "2026-10-29T18:09:55.334625+00:00"
+      },
+      "symbol": "HOOD",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-10-29",
+      "closed": null,
+      "status": "open",
+      "strategy": "bear_call_credit",
+      "legs": [
+        {
+          "action": "SELL",
+          "type": "CALL",
+          "strike": 97.0,
+          "expiry": "2026-11-20",
+          "dte": 22
+        },
+        {
+          "action": "BUY",
+          "type": "CALL",
+          "strike": 98.0,
+          "expiry": "2026-11-20",
+          "dte": 22
+        }
+      ],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": 22,
+      "entry_price": -0.25,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 75.0,
+      "max_profit": 25.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-10-29",
+        "regime": "neutral",
+        "vix": 16.98,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 73.8,
+        "confidence_score": 70.2,
+        "pop": 71.5,
+        "edge_pct": 0.0,
+        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Strong liquidity ensures clean fills | Composite score: 73.8/100 | Win rate: 73.8% | Excellent annualized return: 414.8%",
+        "entry_rules": {
+          "preferred_dte": "22 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "Close at 50% of max profit ($0.12 credit collected)",
+          "stop_loss": "Close at 2-3x credit received",
+          "time_exit": "Close at 1 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "adjustment": "If short strike tested, roll up/down the tested side"
+        }
+      },
+      "management_plan": {
+        "target": "take profit at 50% of max credit",
+        "stop": "roll the tested side at 2x the original credit",
+        "time": "manage/close at 21 DTE",
+        "event": "close before earnings if within 7 days"
+      },
+      "reason": "Bear Call Credit on HOOD, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-10-29T18:09:55.334625+00:00"
+    },
+    {
+      "id": "26617011-ccad-4f21-8afc-f2fa8292c015",
+      "source_id": "26617011-ccad-4f21-8afc-f2fa8292c015",
+      "source": "ledger",
+      "ledger_ref": "26617011-ccad-4f21-8afc-f2fa8292c015",
+      "order": {
+        "status": "Filled",
+        "filled": 26.0,
+        "remaining": 0.0,
+        "average_fill_price": 11.85,
+        "limit_price": 11.96,
+        "net_credit": 0.0,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 26,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-10-29T18:04:21.747670+00:00",
+        "updated_at": "2026-10-29T18:09:55.334620+00:00"
+      },
+      "symbol": "PURR",
+      "asset_class": "equity",
+      "instrument_type": "stock",
+      "shares": 26,
+      "opened": "2026-10-29",
+      "closed": null,
+      "status": "open",
+      "strategy": "equity_momentum",
+      "legs": [],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": null,
+      "entry_price": 11.96,
+      "stop_price": 10.03,
+      "target_price": 15.61,
+      "capital_at_risk": 50.18,
+      "max_profit": 0.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-10-29",
+        "score": 80.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 59.7,
+        "adx_14": 25.0,
+        "atr_14": 0.93,
+        "price": 11.89,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 60; 6m strong; volume confirmed. Position sized for 1% account risk (50.00) at a 2x ATR stop (10.03), 2R target 15.61."
+      },
+      "management_plan": {
+        "target": "take profit at 2R target 15.61",
+        "stop": "hard stop at 10.03",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long PURR, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-10-29T18:09:55.334620+00:00"
+    },
     {
       "id": "fe8e6559-9e48-4bbd-95cb-8880e95e0099",
       "source_id": "fe8e6559-9e48-4bbd-95cb-8880e95e0099",
@@ -35,7 +197,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T18:03:59.767041+00:00",
-        "updated_at": "2026-10-29T18:04:21.745392+00:00"
+        "updated_at": "2026-10-29T18:09:55.334615+00:00"
       },
       "symbol": "PATH",
       "asset_class": "equity",
@@ -100,7 +262,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:43:45.444565+00:00",
-        "updated_at": "2026-10-29T18:04:21.745381+00:00"
+        "updated_at": "2026-10-29T18:09:55.334605+00:00"
       },
       "symbol": "QQQ",
       "asset_class": "options",
@@ -223,7 +385,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:05:30.776957+00:00",
-        "updated_at": "2026-10-29T18:04:21.745375+00:00"
+        "updated_at": "2026-10-29T18:09:55.334601+00:00"
       },
       "symbol": "AAL",
       "asset_class": "options",
@@ -343,7 +505,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:47:02.796924+00:00",
-        "updated_at": "2026-10-29T18:04:21.745351+00:00"
+        "updated_at": "2026-10-29T18:09:55.334580+00:00"
       },
       "symbol": "GEN",
       "asset_class": "equity",
@@ -438,7 +600,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:25.691384+00:00",
-        "updated_at": "2026-10-29T18:04:21.745302+00:00"
+        "updated_at": "2026-10-29T18:09:55.334539+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -533,7 +695,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:04:42.995970+00:00",
-        "updated_at": "2026-10-29T18:04:21.745369+00:00"
+        "updated_at": "2026-10-29T18:09:55.334595+00:00"
       },
       "symbol": "F",
       "asset_class": "options",
@@ -653,7 +815,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:00:30.978103+00:00",
-        "updated_at": "2026-10-29T18:04:21.745363+00:00"
+        "updated_at": "2026-10-29T18:09:55.334590+00:00"
       },
       "symbol": "PATH",
       "asset_class": "options",
@@ -773,7 +935,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:58.953028+00:00",
-        "updated_at": "2026-10-29T18:04:21.745332+00:00"
+        "updated_at": "2026-10-29T18:09:55.334563+00:00"
       },
       "symbol": "IOVA",
       "asset_class": "equity",
@@ -868,7 +1030,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:46.334864+00:00",
-        "updated_at": "2026-10-29T18:04:21.745323+00:00"
+        "updated_at": "2026-10-29T18:09:55.334555+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
