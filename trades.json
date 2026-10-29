@@ -4,7 +4,7 @@
     "handle": "@thetaforge",
     "tagline": "Defined-risk option seller. Recommendations placed, receipts always."
   },
-  "as_of": "2026-10-28",
+  "as_of": "2026-10-29",
   "account_equity": 25000,
   "verification": {
     "generator": "scripts/sync_journal.py",
@@ -81,12 +81,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-26T19:41:29.901828+00:00",
       "live": {
-        "price": 68.57,
+        "price": 69.08,
         "kind": "stock",
-        "pnl": -24.99,
-        "pnl_pct": -45.0,
-        "r": -0.45,
-        "at": "2026-10-28T19:31:24+00:00"
+        "pnl": -16.32,
+        "pnl_pct": -29.4,
+        "r": -0.294,
+        "at": "2026-10-29T13:30:23+00:00"
       },
       "price_trail": [
         {
@@ -144,6 +144,10 @@
         {
           "at": "2026-10-28T19:31:21+00:00",
           "price": 68.57
+        },
+        {
+          "at": "2026-10-29T13:30:20+00:00",
+          "price": 69.08
         }
       ]
     },
@@ -212,12 +216,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-26T19:41:29.901816+00:00",
       "live": {
-        "price": 56.09,
+        "price": 56.71,
         "kind": "stock",
-        "pnl": -6.63,
-        "pnl_pct": -15.0,
-        "r": -0.15,
-        "at": "2026-10-28T19:31:24+00:00"
+        "pnl": 9.62,
+        "pnl_pct": 21.8,
+        "r": 0.218,
+        "at": "2026-10-29T13:30:22+00:00"
       },
       "price_trail": [
         {
@@ -275,6 +279,10 @@
         {
           "at": "2026-10-28T19:31:21+00:00",
           "price": 56.085
+        },
+        {
+          "at": "2026-10-29T13:30:20+00:00",
+          "price": 56.71
         }
       ]
     },
@@ -343,12 +351,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-26T19:41:29.901803+00:00",
       "live": {
-        "price": 523.82,
+        "price": 521.76,
         "kind": "stock",
-        "pnl": -2.94,
-        "pnl_pct": -11.2,
-        "r": -0.112,
-        "at": "2026-10-28T19:31:24+00:00"
+        "pnl": -7.06,
+        "pnl_pct": -26.8,
+        "r": -0.268,
+        "at": "2026-10-29T13:30:22+00:00"
       },
       "price_trail": [
         {
@@ -406,6 +414,10 @@
         {
           "at": "2026-10-28T19:31:21+00:00",
           "price": 523.82
+        },
+        {
+          "at": "2026-10-29T13:30:20+00:00",
+          "price": 521.76
         }
       ]
     },
