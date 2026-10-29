@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "843f04b4c2d6d1f3de96c644600faee56fa40b0b2d7f43d6cfc652a1aff4f9c3",
+    "ledger_sha": "0f8f1deae06e73c042fc42ebb348ef68075520d8944aee96074c54af5615d13c",
     "entries_from_ledger": 15,
     "entries_manual": 0,
     "entries_carried": 24,
@@ -35,7 +35,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:45:43.788635+00:00",
-        "updated_at": "2026-10-29T19:29:54.049513+00:00"
+        "updated_at": "2026-10-29T19:50:18.050241+00:00"
       },
       "symbol": "MARA",
       "asset_class": "options",
@@ -147,7 +147,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T18:09:22.162157+00:00",
-        "updated_at": "2026-10-29T19:29:54.049528+00:00"
+        "updated_at": "2026-10-29T19:50:18.050256+00:00"
       },
       "symbol": "HOOD",
       "asset_class": "options",
@@ -266,7 +266,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T18:04:21.747670+00:00",
-        "updated_at": "2026-10-29T19:29:54.049523+00:00"
+        "updated_at": "2026-10-29T19:50:18.050251+00:00"
       },
       "symbol": "PURR",
       "asset_class": "equity",
@@ -353,7 +353,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T18:03:59.767041+00:00",
-        "updated_at": "2026-10-29T19:29:54.049518+00:00"
+        "updated_at": "2026-10-29T19:50:18.050246+00:00"
       },
       "symbol": "PATH",
       "asset_class": "equity",
@@ -440,7 +440,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:43:45.444565+00:00",
-        "updated_at": "2026-10-29T19:29:54.049508+00:00"
+        "updated_at": "2026-10-29T19:50:18.050235+00:00"
       },
       "symbol": "QQQ",
       "asset_class": "options",
@@ -571,7 +571,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:05:30.776957+00:00",
-        "updated_at": "2026-10-29T19:29:54.049502+00:00"
+        "updated_at": "2026-10-29T19:50:18.050229+00:00"
       },
       "symbol": "AAL",
       "asset_class": "options",
@@ -699,7 +699,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:47:02.796924+00:00",
-        "updated_at": "2026-10-29T19:29:54.049480+00:00"
+        "updated_at": "2026-10-29T19:50:18.050204+00:00"
       },
       "symbol": "GEN",
       "asset_class": "equity",
@@ -802,7 +802,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:25.691384+00:00",
-        "updated_at": "2026-10-29T19:29:54.049438+00:00"
+        "updated_at": "2026-10-29T19:50:51.610601+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -905,7 +905,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:04:42.995970+00:00",
-        "updated_at": "2026-10-29T19:29:54.049497+00:00"
+        "updated_at": "2026-10-29T19:50:18.050223+00:00"
       },
       "symbol": "F",
       "asset_class": "options",
@@ -1033,7 +1033,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:00:30.978103+00:00",
-        "updated_at": "2026-10-29T19:29:54.049491+00:00"
+        "updated_at": "2026-10-29T19:50:18.050217+00:00"
       },
       "symbol": "PATH",
       "asset_class": "options",
@@ -1161,7 +1161,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:58.953028+00:00",
-        "updated_at": "2026-10-29T19:29:54.049462+00:00"
+        "updated_at": "2026-10-29T19:50:18.050185+00:00"
       },
       "symbol": "IOVA",
       "asset_class": "equity",
@@ -1264,7 +1264,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:46.334864+00:00",
-        "updated_at": "2026-10-29T19:29:54.049453+00:00"
+        "updated_at": "2026-10-29T19:50:18.050177+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
