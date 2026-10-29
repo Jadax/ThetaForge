@@ -9,13 +9,110 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "afeccd14bdd9d5a58180512032767762b75d2b707a27c30530aa3d23c365437d",
-    "entries_from_ledger": 10,
+    "ledger_sha": "545c4898df7c691f6b5c87b84cddf9bd5a9495d7d838a87d833c9772932f93e5",
+    "entries_from_ledger": 11,
     "entries_manual": 0,
     "entries_carried": 24,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
   "trades": [
+    {
+      "id": "93bfdb87-5818-4b3e-b0e4-8ec33ac592be",
+      "source_id": "93bfdb87-5818-4b3e-b0e4-8ec33ac592be",
+      "source": "ledger",
+      "ledger_ref": "93bfdb87-5818-4b3e-b0e4-8ec33ac592be",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": -0.29,
+        "limit_price": -0.29,
+        "net_credit": 0.29,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-10-29T14:43:45.444565+00:00",
+        "updated_at": "2026-10-29T14:49:17.317348+00:00"
+      },
+      "symbol": "QQQ",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-10-29",
+      "closed": null,
+      "status": "open",
+      "strategy": "bear_call_credit",
+      "legs": [
+        {
+          "action": "SELL",
+          "type": "CALL",
+          "strike": 735.0,
+          "expiry": "2026-11-20",
+          "dte": 22
+        },
+        {
+          "action": "BUY",
+          "type": "CALL",
+          "strike": 736.0,
+          "expiry": "2026-11-20",
+          "dte": 22
+        }
+      ],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": 22,
+      "entry_price": -0.29,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 71.0,
+      "max_profit": 29.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-10-29",
+        "regime": "neutral",
+        "vix": 16.72,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 72.3,
+        "confidence_score": 60.5,
+        "pop": 70.6,
+        "edge_pct": 0.0,
+        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Time decay working in our favor | Strong liquidity ensures clean fills | Composite score: 72.3/100 | Win rate: 72.3% | Excellent annualized return: 481.1%",
+        "entry_rules": {
+          "preferred_dte": "22 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "Close at 75% of max profit ($0.22 credit collected)",
+          "stop_loss": "Close at 2-3x credit received",
+          "time_exit": "Close at 1 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "adjustment": "If short strike tested, roll up/down the tested side"
+        }
+      },
+      "management_plan": {
+        "target": "take profit at 50% of max credit",
+        "stop": "roll the tested side at 2x the original credit",
+        "time": "manage/close at 21 DTE",
+        "event": "close before earnings if within 7 days"
+      },
+      "reason": "Bear Call Credit on QQQ, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-10-29T14:49:17.317348+00:00"
+    },
     {
       "id": "08deac2e-528b-4679-bef5-3f97559a7bec",
       "source_id": "08deac2e-528b-4679-bef5-3f97559a7bec",
@@ -35,7 +132,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:05:30.776957+00:00",
-        "updated_at": "2026-10-29T14:28:51.123924+00:00"
+        "updated_at": "2026-10-29T14:49:17.317342+00:00"
       },
       "symbol": "AAL",
       "asset_class": "options",
@@ -143,7 +240,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:47:02.796924+00:00",
-        "updated_at": "2026-10-29T14:28:51.123904+00:00"
+        "updated_at": "2026-10-29T14:49:17.317320+00:00"
       },
       "symbol": "GEN",
       "asset_class": "equity",
@@ -226,7 +323,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:25.691384+00:00",
-        "updated_at": "2026-10-29T14:28:51.123870+00:00"
+        "updated_at": "2026-10-29T14:49:17.317279+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -309,7 +406,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:04:42.995970+00:00",
-        "updated_at": "2026-10-29T14:28:51.123919+00:00"
+        "updated_at": "2026-10-29T14:49:17.317337+00:00"
       },
       "symbol": "F",
       "asset_class": "options",
@@ -417,7 +514,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:00:30.978103+00:00",
-        "updated_at": "2026-10-29T14:28:51.123914+00:00"
+        "updated_at": "2026-10-29T14:49:17.317331+00:00"
       },
       "symbol": "PATH",
       "asset_class": "options",
@@ -525,7 +622,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:58.953028+00:00",
-        "updated_at": "2026-10-29T14:28:51.123890+00:00"
+        "updated_at": "2026-10-29T14:49:17.317302+00:00"
       },
       "symbol": "IOVA",
       "asset_class": "equity",
@@ -608,7 +705,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:46.334864+00:00",
-        "updated_at": "2026-10-29T14:28:51.123884+00:00"
+        "updated_at": "2026-10-29T14:49:17.317294+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
