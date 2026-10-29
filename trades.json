@@ -9,13 +9,103 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "5777f03aeb8425e1c4758f7e94059a3eb1edf9678263d82bfb77f0254446caa5",
-    "entries_from_ledger": 5,
+    "ledger_sha": "8a7c33a021ea10c84cca068e0256a0b1da779b2001d698d28dcb4d636b5294b3",
+    "entries_from_ledger": 6,
     "entries_manual": 0,
     "entries_carried": 24,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
   "trades": [
+    {
+      "id": "e1fdfbd9-1e61-423a-8996-2e45004e4963",
+      "source_id": "e1fdfbd9-1e61-423a-8996-2e45004e4963",
+      "source": "ledger",
+      "ledger_ref": "e1fdfbd9-1e61-423a-8996-2e45004e4963",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.1,
+        "limit_price": 0.1,
+        "net_credit": 0.1,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-10-29T14:00:30.978103+00:00",
+        "updated_at": "2026-10-29T14:02:21.893171+00:00"
+      },
+      "symbol": "PATH",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-10-29",
+      "closed": null,
+      "status": "open",
+      "strategy": "cash_secured_put",
+      "legs": [
+        {
+          "action": "SELL",
+          "type": "PUT",
+          "strike": 12.0,
+          "expiry": "2026-11-20",
+          "dte": 22
+        }
+      ],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": 22,
+      "entry_price": 0.1,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 1190.0,
+      "max_profit": 10.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-10-29",
+        "regime": "neutral",
+        "vix": 16.94,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 72.8,
+        "confidence_score": 82.6,
+        "pop": 79.7,
+        "edge_pct": 0.0,
+        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Time decay working in our favor | Composite score: 72.8/100 | Win rate: 78.0%",
+        "entry_rules": {
+          "preferred_dte": "22 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 1 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "assignment": "If assigned, own the shares and sell covered calls against them"
+        }
+      },
+      "management_plan": {
+        "target": "close at 50% of max credit",
+        "stop": "roll or close if short strike is breached decisively",
+        "time": "manage at 21 DTE",
+        "event": "close before earnings"
+      },
+      "reason": "Cash Secured Put on PATH, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-10-29T14:02:21.893171+00:00"
+    },
     {
       "id": "e72348e2-fe63-474a-a9c3-e69f1a6a822c",
       "source_id": "e72348e2-fe63-474a-a9c3-e69f1a6a822c",
@@ -35,7 +125,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:58.953028+00:00",
-        "updated_at": "2026-10-29T13:47:15.572499+00:00"
+        "updated_at": "2026-10-29T14:02:21.893107+00:00"
       },
       "symbol": "IOVA",
       "asset_class": "equity",
@@ -100,7 +190,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:46.334864+00:00",
-        "updated_at": "2026-10-29T13:47:15.572491+00:00"
+        "updated_at": "2026-10-29T14:02:21.893100+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -300,7 +390,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:41:05.952145+00:00",
-        "updated_at": "2026-10-29T13:35:37.095561+00:00"
+        "updated_at": "2026-10-29T13:49:10.685769+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
