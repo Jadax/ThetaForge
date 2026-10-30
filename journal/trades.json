@@ -12,7 +12,7 @@
     "ledger_sha": "91c293ca799beddd981e11e9214940dae4eb971b6c83b954a0f1d15719c70d5a",
     "entries_from_ledger": 16,
     "entries_manual": 0,
-    "entries_carried": 24,
+    "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
   "trades": [
