@@ -9,13 +9,110 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "b9b8edffba67eed49cdda34b0c3d9b06d5d4f6f7de134ec4302d0d0da0c1c571",
-    "entries_from_ledger": 16,
+    "ledger_sha": "48facca536a0dcf04842bee4c7cc333c06ef6fd1e4b4e8bd2e9b4a5f58e41e38",
+    "entries_from_ledger": 17,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
   "trades": [
+    {
+      "id": "ba76dca8-6849-4f11-bf1d-9e32acce3312",
+      "source_id": "ba76dca8-6849-4f11-bf1d-9e32acce3312",
+      "source": "ledger",
+      "ledger_ref": "ba76dca8-6849-4f11-bf1d-9e32acce3312",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.45,
+        "limit_price": 0.45,
+        "net_credit": -0.45,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-11-02T14:53:00.062409+00:00",
+        "updated_at": "2026-11-02T15:24:36.738088+00:00"
+      },
+      "symbol": "NCLH",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-11-02",
+      "closed": null,
+      "status": "open",
+      "strategy": "call_debit_spread",
+      "legs": [
+        {
+          "action": "BUY",
+          "type": "CALL",
+          "strike": 18.0,
+          "expiry": "2026-11-20",
+          "dte": 18
+        },
+        {
+          "action": "SELL",
+          "type": "CALL",
+          "strike": 18.5,
+          "expiry": "2026-11-20",
+          "dte": 18
+        }
+      ],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": 18,
+      "entry_price": 0.45,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 45.0,
+      "max_profit": 5.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-11-02",
+        "regime": "neutral",
+        "vix": 19.2,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 70.0,
+        "confidence_score": 77.3,
+        "pop": 53.2,
+        "edge_pct": 0.0,
+        "reasoning": "Realized volatility exceeds IV (negative NVRP) \u2192 edge in buying options | Strong liquidity ensures clean fills | Composite score: 70.0/100 | Win rate: 48.0%",
+        "entry_rules": {
+          "preferred_dte": "18 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 11 DTE",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "trailing_stop": "Consider selling at 50-100% profit"
+        }
+      },
+      "management_plan": {
+        "target": "take profit at +50-100% of debit paid",
+        "stop": "exit if the spread breaks break-even",
+        "time": "hold to expiry or 50% of DTE",
+        "event": "exit before earnings"
+      },
+      "reason": "Call Debit Spread on NCLH, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-11-02T15:24:36.738088+00:00"
+    },
     {
       "id": "58379bdb-106c-4458-afa5-2db5f8972815",
       "source_id": "58379bdb-106c-4458-afa5-2db5f8972815",
@@ -1012,7 +1109,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:47:02.796924+00:00",
-        "updated_at": "2026-11-02T14:53:16.986431+00:00"
+        "updated_at": "2026-11-02T14:57:48.301726+00:00"
       },
       "symbol": "GEN",
       "asset_class": "equity",
@@ -2091,7 +2188,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:41:05.952145+00:00",
-        "updated_at": "2026-11-02T14:56:20.362483+00:00"
+        "updated_at": "2026-11-02T15:21:33.873524+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
