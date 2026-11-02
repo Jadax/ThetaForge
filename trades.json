@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "f2e2a081638cb3771a2c3cb03b13703262b4ba15d6897982cb404e57fb441762",
+    "ledger_sha": "b9b8edffba67eed49cdda34b0c3d9b06d5d4f6f7de134ec4302d0d0da0c1c571",
     "entries_from_ledger": 16,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -1012,7 +1012,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:47:02.796924+00:00",
-        "updated_at": "2026-11-02T14:44:20.431881+00:00"
+        "updated_at": "2026-11-02T14:53:16.986431+00:00"
       },
       "symbol": "GEN",
       "asset_class": "equity",
@@ -1757,7 +1757,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:46.334864+00:00",
-        "updated_at": "2026-11-02T14:38:25.820365+00:00"
+        "updated_at": "2026-11-02T14:53:16.996405+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -2091,7 +2091,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:41:05.952145+00:00",
-        "updated_at": "2026-10-29T14:06:44.831742+00:00"
+        "updated_at": "2026-11-02T14:56:20.362483+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
