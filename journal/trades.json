@@ -9,13 +9,78 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "7595a8920440eb10d268cbbfc5a90d1ab2737a4ecaea9c05926363785363e868",
-    "entries_from_ledger": 21,
+    "ledger_sha": "54cc825a5addc41db3d0b0767a8410660cff9324a4d8efb811e2ed9b9bd2b41d",
+    "entries_from_ledger": 22,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
   "trades": [
+    {
+      "id": "5f65f357-626e-47ae-8e5e-7d6707613ac3",
+      "source_id": "5f65f357-626e-47ae-8e5e-7d6707613ac3",
+      "source": "ledger",
+      "ledger_ref": "5f65f357-626e-47ae-8e5e-7d6707613ac3",
+      "order": {
+        "status": "Filled",
+        "filled": 18.0,
+        "remaining": 0.0,
+        "average_fill_price": 23.98,
+        "limit_price": 23.98,
+        "net_credit": 0.0,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 18,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-02T14:45:23.711242+00:00",
+        "updated_at": "2026-11-02T17:48:56.504615+00:00"
+      },
+      "symbol": "AYA",
+      "asset_class": "equity",
+      "instrument_type": "stock",
+      "shares": 18,
+      "opened": "2026-11-02",
+      "closed": null,
+      "status": "open",
+      "strategy": "equity_momentum",
+      "legs": [],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": null,
+      "entry_price": 23.98,
+      "stop_price": 20.25,
+      "target_price": 28.55,
+      "capital_at_risk": 67.14,
+      "max_profit": 0.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-11-02",
+        "score": 70.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 36.0,
+        "adx_14": 25.0,
+        "atr_14": 1.38,
+        "price": 23.02,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; 6m strong; volume confirmed. Position sized for 1% account risk (50.00) at a 2x ATR stop (20.25), 2R target 28.55."
+      },
+      "management_plan": {
+        "target": "take profit at 2R target 28.55",
+        "stop": "hard stop at 20.25",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long AYA, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-11-02T17:48:56.504615+00:00"
+    },
     {
       "id": "49bff611-aa32-4553-8626-5998e2796e22",
       "source_id": "49bff611-aa32-4553-8626-5998e2796e22",
@@ -35,7 +100,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T17:30:57.037760+00:00",
-        "updated_at": "2026-11-02T17:31:48.565512+00:00"
+        "updated_at": "2026-11-02T17:48:56.504655+00:00"
       },
       "symbol": "PFE",
       "asset_class": "options",
@@ -150,7 +215,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T17:10:25.833068+00:00",
-        "updated_at": "2026-11-02T17:31:48.565507+00:00"
+        "updated_at": "2026-11-02T17:48:56.504648+00:00"
       },
       "symbol": "IOVA",
       "asset_class": "equity",
@@ -233,7 +298,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T16:11:20.318454+00:00",
-        "updated_at": "2026-11-02T17:31:48.565502+00:00"
+        "updated_at": "2026-11-02T17:48:56.504641+00:00"
       },
       "symbol": "KHC",
       "asset_class": "options",
@@ -345,7 +410,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T15:19:26.944503+00:00",
-        "updated_at": "2026-11-02T17:31:48.565497+00:00"
+        "updated_at": "2026-11-02T17:48:56.504634+00:00"
       },
       "symbol": "LYFT",
       "asset_class": "options",
@@ -457,7 +522,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T14:53:00.062409+00:00",
-        "updated_at": "2026-11-02T17:31:48.565492+00:00"
+        "updated_at": "2026-11-02T17:48:56.504625+00:00"
       },
       "symbol": "NCLH",
       "asset_class": "options",
@@ -978,7 +1043,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T18:04:21.747670+00:00",
-        "updated_at": "2026-10-29T19:59:42.428039+00:00"
+        "updated_at": "2026-11-02T17:49:02.058886+00:00"
       },
       "symbol": "PURR",
       "asset_class": "equity",
