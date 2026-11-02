@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "19d60c45ba64c1e809adfb166306171db9a65ba03721c6903045b24cad97bca2",
+    "ledger_sha": "438471ee7c25d0dc3c296439d877262071b4a0f78f1dfe7e028992318194709a",
     "entries_from_ledger": 19,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -35,7 +35,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T16:11:20.318454+00:00",
-        "updated_at": "2026-11-02T16:30:19.095054+00:00"
+        "updated_at": "2026-11-02T17:10:25.812320+00:00"
       },
       "symbol": "KHC",
       "asset_class": "options",
@@ -143,7 +143,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T15:19:26.944503+00:00",
-        "updated_at": "2026-11-02T16:30:19.095049+00:00"
+        "updated_at": "2026-11-02T17:10:25.812314+00:00"
       },
       "symbol": "LYFT",
       "asset_class": "options",
@@ -251,7 +251,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T14:53:00.062409+00:00",
-        "updated_at": "2026-11-02T16:30:19.095041+00:00"
+        "updated_at": "2026-11-02T17:10:25.812308+00:00"
       },
       "symbol": "NCLH",
       "asset_class": "options",
@@ -2508,7 +2508,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:41:05.952145+00:00",
-        "updated_at": "2026-11-02T16:07:13.465688+00:00"
+        "updated_at": "2026-11-02T16:49:55.487126+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
