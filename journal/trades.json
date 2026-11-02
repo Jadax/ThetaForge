@@ -9,13 +9,193 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "b10bfc03e13fc2d9dcdb33beb7679dfdccf8ab09f6d04190c16f0ae191f37dc7",
-    "entries_from_ledger": 17,
+    "ledger_sha": "7c202e74b1eca17bdc7fb8cb80e8ba1350d782e3eff3f222136dc3a281ba1ce1",
+    "entries_from_ledger": 19,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
   "trades": [
+    {
+      "id": "0dc5a6c8-87d9-4f81-9f7c-6d7feb214f71",
+      "source_id": "0dc5a6c8-87d9-4f81-9f7c-6d7feb214f71",
+      "source": "ledger",
+      "ledger_ref": "0dc5a6c8-87d9-4f81-9f7c-6d7feb214f71",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.35,
+        "limit_price": 0.35,
+        "net_credit": 0.35,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-11-02T16:11:20.318454+00:00",
+        "updated_at": "2026-11-02T16:12:40.771698+00:00"
+      },
+      "symbol": "KHC",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-11-02",
+      "closed": null,
+      "status": "open",
+      "strategy": "cash_secured_put",
+      "legs": [
+        {
+          "action": "SELL",
+          "type": "PUT",
+          "strike": 22.5,
+          "expiry": "2026-12-18",
+          "dte": 46
+        }
+      ],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": 46,
+      "entry_price": 0.35,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 2215.0,
+      "max_profit": 35.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-11-02",
+        "regime": "neutral",
+        "vix": 18.44,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 78.6,
+        "confidence_score": 90.0,
+        "pop": 67.2,
+        "edge_pct": 0.0,
+        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Time decay working in our favor | Strong liquidity ensures clean fills | Composite score: 78.6/100 | Win rate: 84.2%",
+        "entry_rules": {
+          "preferred_dte": "46 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 25 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "assignment": "If assigned, own the shares and sell covered calls against them"
+        }
+      },
+      "management_plan": {
+        "target": "close at 50% of max credit",
+        "stop": "roll or close if short strike is breached decisively",
+        "time": "manage at 21 DTE",
+        "event": "close before earnings"
+      },
+      "reason": "Cash Secured Put on KHC, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-11-02T16:12:40.771698+00:00"
+    },
+    {
+      "id": "1d355284-14f8-4a5f-9fe1-0c0874f0aa19",
+      "source_id": "1d355284-14f8-4a5f-9fe1-0c0874f0aa19",
+      "source": "ledger",
+      "ledger_ref": "1d355284-14f8-4a5f-9fe1-0c0874f0aa19",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.34,
+        "limit_price": 0.34,
+        "net_credit": 0.34,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-11-02T15:19:26.944503+00:00",
+        "updated_at": "2026-11-02T16:12:40.771693+00:00"
+      },
+      "symbol": "LYFT",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-11-02",
+      "closed": null,
+      "status": "open",
+      "strategy": "cash_secured_put",
+      "legs": [
+        {
+          "action": "SELL",
+          "type": "PUT",
+          "strike": 14.0,
+          "expiry": "2026-12-18",
+          "dte": 46
+        }
+      ],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": 46,
+      "entry_price": 0.34,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 1366.0,
+      "max_profit": 34.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-11-02",
+        "regime": "neutral",
+        "vix": 18.64,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 74.9,
+        "confidence_score": 90.0,
+        "pop": 80.6,
+        "edge_pct": 0.0,
+        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Time decay working in our favor | Strong liquidity ensures clean fills | Composite score: 74.9/100 | Win rate: 80.2%",
+        "entry_rules": {
+          "preferred_dte": "46 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 25 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "assignment": "If assigned, own the shares and sell covered calls against them"
+        }
+      },
+      "management_plan": {
+        "target": "close at 50% of max credit",
+        "stop": "roll or close if short strike is breached decisively",
+        "time": "manage at 21 DTE",
+        "event": "close before earnings"
+      },
+      "reason": "Cash Secured Put on LYFT, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-11-02T16:12:40.771693+00:00"
+    },
     {
       "id": "ba76dca8-6849-4f11-bf1d-9e32acce3312",
       "source_id": "ba76dca8-6849-4f11-bf1d-9e32acce3312",
@@ -35,7 +215,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T14:53:00.062409+00:00",
-        "updated_at": "2026-11-02T15:30:01.341698+00:00"
+        "updated_at": "2026-11-02T16:12:40.771687+00:00"
       },
       "symbol": "NCLH",
       "asset_class": "options",
@@ -1133,7 +1313,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:47:02.796924+00:00",
-        "updated_at": "2026-11-02T14:57:48.301726+00:00"
+        "updated_at": "2026-11-02T16:07:13.455931+00:00"
       },
       "symbol": "GEN",
       "asset_class": "equity",
@@ -2240,7 +2420,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:41:05.952145+00:00",
-        "updated_at": "2026-11-02T15:26:02.963551+00:00"
+        "updated_at": "2026-11-02T16:07:13.465688+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
