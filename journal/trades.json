@@ -9,13 +9,78 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "ad5f5ea657064d39dbf88d32dced27a577d4d67dd1f031bb1f1fc7a4f91a61e9",
-    "entries_from_ledger": 29,
+    "ledger_sha": "9f4e8ba37fcb1a60fb3c2631c37788fac2d7b9fda17a1c939b61423d416cced6",
+    "entries_from_ledger": 30,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
   "trades": [
+    {
+      "id": "cb909035-5a8d-4498-84aa-b1c1fbeb9354",
+      "source_id": "cb909035-5a8d-4498-84aa-b1c1fbeb9354",
+      "source": "ledger",
+      "ledger_ref": "cb909035-5a8d-4498-84aa-b1c1fbeb9354",
+      "order": {
+        "status": "Filled",
+        "filled": 2.0,
+        "remaining": 0.0,
+        "average_fill_price": 171.23,
+        "limit_price": 171.28,
+        "net_credit": 0.0,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 2,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-03T14:42:52.160656+00:00",
+        "updated_at": "2026-11-03T14:44:52.693979+00:00"
+      },
+      "symbol": "PLTR",
+      "asset_class": "equity",
+      "instrument_type": "stock",
+      "shares": 2,
+      "opened": "2026-11-03",
+      "closed": null,
+      "status": "open",
+      "strategy": "equity_momentum",
+      "legs": [],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": null,
+      "entry_price": 171.28,
+      "stop_price": 161.61,
+      "target_price": 211.8,
+      "capital_at_risk": 19.34,
+      "max_profit": 0.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-11-03",
+        "score": 70.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 37.7,
+        "adx_14": 25.0,
+        "atr_14": 8.36,
+        "price": 178.34,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; 6m strong; volume confirmed. Position sized for 1% account risk (50.00) at a 2x ATR stop (161.61), 2R target 211.80."
+      },
+      "management_plan": {
+        "target": "take profit at 2R target 211.8",
+        "stop": "hard stop at 161.61",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long PLTR, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-11-03T14:44:52.693979+00:00"
+    },
     {
       "id": "84edd933-5aac-4c9e-a830-23ace9d2a1f1",
       "source_id": "84edd933-5aac-4c9e-a830-23ace9d2a1f1",
@@ -35,7 +100,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:42:39.257140+00:00",
-        "updated_at": "2026-11-03T14:42:52.158630+00:00"
+        "updated_at": "2026-11-03T14:44:52.693974+00:00"
       },
       "symbol": "AAPL",
       "asset_class": "equity",
@@ -100,7 +165,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:42:26.656855+00:00",
-        "updated_at": "2026-11-03T14:42:52.158625+00:00"
+        "updated_at": "2026-11-03T14:44:52.693969+00:00"
       },
       "symbol": "LYFT",
       "asset_class": "equity",
@@ -165,7 +230,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:42:14.060161+00:00",
-        "updated_at": "2026-11-03T14:42:52.158618+00:00"
+        "updated_at": "2026-11-03T14:44:56.955068+00:00"
       },
       "symbol": "KHC",
       "asset_class": "equity",
@@ -230,7 +295,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:40:58.775943+00:00",
-        "updated_at": "2026-11-03T14:42:52.158612+00:00"
+        "updated_at": "2026-11-03T14:44:52.693958+00:00"
       },
       "symbol": "XLE",
       "asset_class": "equity",
@@ -1017,7 +1082,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-03T14:42:52.158601+00:00",
+      "timestamp": "2026-11-03T14:44:52.693947+00:00",
       "live": {
         "price": 8.16,
         "kind": "stock",
@@ -1134,7 +1199,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:37:24.448550+00:00",
-        "updated_at": "2026-11-03T14:42:52.158601+00:00"
+        "updated_at": "2026-11-03T14:44:52.693947+00:00"
       }
     },
     {
@@ -3230,7 +3295,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-03T14:42:52.158574+00:00",
+      "timestamp": "2026-11-03T14:44:52.693927+00:00",
       "live": {
         "price": 66.83,
         "kind": "stock",
@@ -3403,7 +3468,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:32:20.301723+00:00",
-        "updated_at": "2026-11-03T14:42:52.158574+00:00"
+        "updated_at": "2026-11-03T14:44:52.693927+00:00"
       }
     },
     {
