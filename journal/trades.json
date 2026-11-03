@@ -9,8 +9,8 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "408085778e0b219d0745c517a76b3575676b2b0755979e23b80cc17696f571bb",
-    "entries_from_ledger": 23,
+    "ledger_sha": "d9b2fb668d118d905f21362ebe4575e6ca3d9239d9a77c43cfc34d922b8c462a",
+    "entries_from_ledger": 24,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
@@ -261,7 +261,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T17:10:25.833068+00:00",
-        "updated_at": "2026-11-03T14:32:10.897692+00:00"
+        "updated_at": "2026-11-03T14:34:10.997607+00:00"
       },
       "symbol": "IOVA",
       "asset_class": "equity",
@@ -2576,7 +2576,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:58.953028+00:00",
-        "updated_at": "2026-11-03T14:31:37.518689+00:00"
+        "updated_at": "2026-11-03T14:37:24.448550+00:00"
       },
       "symbol": "IOVA",
       "asset_class": "equity",
@@ -2917,8 +2917,8 @@
       "instrument_type": "etf",
       "shares": 17.0,
       "opened": "2026-10-26",
-      "closed": null,
-      "status": "open",
+      "closed": "2026-11-03",
+      "status": "closed",
       "strategy": "etf_rotation",
       "legs": [],
       "entry_ivr": null,
@@ -2929,8 +2929,8 @@
       "target_price": 75.32,
       "capital_at_risk": 55.59,
       "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
+      "net_pnl": -45.9,
+      "net_pnl_pct": -0.8257,
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-10-26",
@@ -2953,8 +2953,8 @@
       "reason": "Long XLE, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-10-26T19:41:29.901828+00:00",
+      "exit_note": "Auto-closed at the 2x-ATR hard stop.",
+      "timestamp": "2026-11-03T14:37:20.192270+00:00",
       "live": {
         "price": 66.83,
         "kind": "stock",
@@ -3112,7 +3112,23 @@
           "at": "2026-11-03T14:30:56+00:00",
           "price": 66.83
         }
-      ]
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 17.0,
+        "remaining": 0.0,
+        "average_fill_price": 66.84,
+        "limit_price": 66.24,
+        "net_credit": null,
+        "cost_to_close": 1126.08,
+        "realized_pnl": -45.9,
+        "reason": "close_stop",
+        "quantity": 17,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-03T14:32:20.301723+00:00",
+        "updated_at": "2026-11-03T14:37:20.192270+00:00"
+      }
     },
     {
       "id": "44ed655f-06f1-4ba9-a17f-ea548f8b45e3",
