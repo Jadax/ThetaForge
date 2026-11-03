@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "0fb060434e3e0dda014f9f72cf2f63d3a47457fb10f0f9ff7e83f0df5680a8df",
+    "ledger_sha": "408085778e0b219d0745c517a76b3575676b2b0755979e23b80cc17696f571bb",
     "entries_from_ledger": 23,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -261,7 +261,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T17:10:25.833068+00:00",
-        "updated_at": "2026-11-02T20:58:48.141589+00:00"
+        "updated_at": "2026-11-03T14:32:10.897692+00:00"
       },
       "symbol": "IOVA",
       "asset_class": "equity",
@@ -2576,7 +2576,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:58.953028+00:00",
-        "updated_at": "2026-11-02T14:36:31.493832+00:00"
+        "updated_at": "2026-11-03T14:31:37.518689+00:00"
       },
       "symbol": "IOVA",
       "asset_class": "equity",
@@ -2910,7 +2910,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:41:19.724770+00:00",
-        "updated_at": "2026-10-27T14:10:00.706384+00:00"
+        "updated_at": "2026-11-03T14:32:20.301723+00:00"
       },
       "symbol": "XLE",
       "asset_class": "equity",
