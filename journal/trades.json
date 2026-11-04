@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "11b83e40ba2d984c63cceae107bd489d42d3112b3d1ba68c8f23078bf3b58704",
+    "ledger_sha": "e9570e266f2884eea6b0839ffa527f582fc892f056b37a6fba3936ae3263ea9d",
     "entries_from_ledger": 38,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -35,7 +35,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T16:19:51.791378+00:00",
-        "updated_at": "2026-11-04T16:31:09.118432+00:00"
+        "updated_at": "2026-11-04T16:41:50.202056+00:00"
       },
       "symbol": "XLE",
       "asset_class": "equity",
@@ -118,7 +118,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T14:57:46.539622+00:00",
-        "updated_at": "2026-11-04T16:31:09.118411+00:00"
+        "updated_at": "2026-11-04T16:41:50.202030+00:00"
       },
       "symbol": "KHC",
       "asset_class": "equity",
@@ -249,7 +249,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-04T16:31:09.118422+00:00",
+      "timestamp": "2026-11-04T16:41:50.202043+00:00",
       "live": {
         "price": 64.95,
         "kind": "stock",
@@ -306,7 +306,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T15:03:30.942207+00:00",
-        "updated_at": "2026-11-04T16:31:09.118422+00:00"
+        "updated_at": "2026-11-04T16:41:50.202043+00:00"
       }
     },
     {
@@ -801,7 +801,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T14:45:23.711242+00:00",
-        "updated_at": "2026-11-04T14:45:14.025338+00:00"
+        "updated_at": "2026-11-04T16:41:50.168913+00:00"
       },
       "symbol": "AYA",
       "asset_class": "equity",
@@ -1703,7 +1703,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-04T16:31:09.118382+00:00",
+      "timestamp": "2026-11-04T16:41:50.201979+00:00",
       "live": {
         "price": 30.45,
         "kind": "stock",
@@ -1848,7 +1848,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T14:38:34.686480+00:00",
-        "updated_at": "2026-11-04T16:31:09.118382+00:00"
+        "updated_at": "2026-11-04T16:41:50.201979+00:00"
       }
     },
     {
@@ -4037,7 +4037,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:46.334864+00:00",
-        "updated_at": "2026-11-04T16:05:18.073698+00:00"
+        "updated_at": "2026-11-04T16:41:50.178272+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -4479,7 +4479,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:41:05.952145+00:00",
-        "updated_at": "2026-11-04T16:13:34.901671+00:00"
+        "updated_at": "2026-11-04T16:41:54.503759+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
@@ -4738,7 +4738,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:40:33.035301+00:00",
-        "updated_at": "2026-11-04T16:00:23.711297+00:00"
+        "updated_at": "2026-11-04T16:41:54.512122+00:00"
       },
       "symbol": "DIA",
       "asset_class": "equity",
