@@ -9,13 +9,128 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "0eb39a86babe12ee54d3ebf72600afbe145eee08ce8f56c968051ecec91bdc62",
-    "entries_from_ledger": 39,
+    "ledger_sha": "2b8d63076281d5390df43e1264638b553a4e299520219057b2fe71291412d17f",
+    "entries_from_ledger": 40,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
   "trades": [
+    {
+      "id": "bebad1b1-a5ee-45f2-804c-b7f72c02d9ea",
+      "source_id": "bebad1b1-a5ee-45f2-804c-b7f72c02d9ea",
+      "source": "ledger",
+      "ledger_ref": "bebad1b1-a5ee-45f2-804c-b7f72c02d9ea",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": -0.35,
+        "limit_price": -0.3,
+        "net_credit": 0.3,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-11-04T16:42:51.211126+00:00",
+        "updated_at": "2026-11-04T17:29:30.020436+00:00"
+      },
+      "symbol": "SPY",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-11-04",
+      "closed": null,
+      "status": "open",
+      "strategy": "bear_call_credit",
+      "legs": [
+        {
+          "action": "SELL",
+          "type": "CALL",
+          "strike": 785.0,
+          "expiry": "2026-12-18",
+          "dte": 44
+        },
+        {
+          "action": "BUY",
+          "type": "CALL",
+          "strike": 786.0,
+          "expiry": "2026-12-18",
+          "dte": 44
+        }
+      ],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": 44,
+      "entry_price": -0.35,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 70.0,
+      "max_profit": 30.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-11-04",
+        "regime": "neutral",
+        "vix": 18.12,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 77.8,
+        "confidence_score": 70.0,
+        "pop": 70.8,
+        "edge_pct": 0.0,
+        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Time decay working in our favor | Strong liquidity ensures clean fills | Composite score: 77.8/100 | Win rate: 77.8% | Excellent annualized return: 298.6%",
+        "entry_rules": {
+          "preferred_dte": "44 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "Close at 75% of max profit ($0.27 credit collected)",
+          "stop_loss": "Close at 2-3x credit received",
+          "time_exit": "Close at 23 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "adjustment": "If short strike tested, roll up/down the tested side"
+        }
+      },
+      "management_plan": {
+        "target": "take profit at 50% of max credit",
+        "stop": "roll the tested side at 2x the original credit",
+        "time": "manage/close at 21 DTE",
+        "event": "close before earnings if within 7 days"
+      },
+      "reason": "Bear Call Credit on SPY, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-11-04T17:29:30.020436+00:00",
+      "live": {
+        "price": 0.4,
+        "kind": "spread",
+        "pnl": -10.0,
+        "pnl_pct": -14.3,
+        "r": -0.143,
+        "at": "2026-11-04T17:31:16+00:00"
+      },
+      "price_trail": [
+        {
+          "at": "2026-11-04",
+          "price": 0.3
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.4
+        }
+      ]
+    },
     {
       "id": "0b9e26e6-9088-4c60-b001-aa4ba01414dc",
       "source_id": "0b9e26e6-9088-4c60-b001-aa4ba01414dc",
@@ -35,7 +150,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T16:19:51.791378+00:00",
-        "updated_at": "2026-11-04T16:46:22.641270+00:00"
+        "updated_at": "2026-11-04T17:29:30.020424+00:00"
       },
       "symbol": "XLE",
       "asset_class": "equity",
@@ -81,12 +196,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-04T16:31:09.118432+00:00",
       "live": {
-        "price": 63.52,
+        "price": 62.87,
         "kind": "stock",
-        "pnl": -9.15,
-        "pnl_pct": -18.3,
-        "r": -0.183,
-        "at": "2026-11-04T16:32:12+00:00"
+        "pnl": -18.9,
+        "pnl_pct": -37.8,
+        "r": -0.378,
+        "at": "2026-11-04T17:31:13+00:00"
       },
       "price_trail": [
         {
@@ -96,6 +211,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 63.5203
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 62.87
         }
       ]
     },
@@ -118,7 +237,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T14:57:46.539622+00:00",
-        "updated_at": "2026-11-04T16:46:22.641249+00:00"
+        "updated_at": "2026-11-04T17:29:30.020402+00:00"
       },
       "symbol": "KHC",
       "asset_class": "equity",
@@ -164,12 +283,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-04T15:30:24.354977+00:00",
       "live": {
-        "price": 26.11,
+        "price": 25.86,
         "kind": "stock",
-        "pnl": 17.58,
-        "pnl_pct": 34.9,
-        "r": 0.349,
-        "at": "2026-11-04T16:32:12+00:00"
+        "pnl": 8.69,
+        "pnl_pct": 17.3,
+        "r": 0.173,
+        "at": "2026-11-04T17:31:13+00:00"
       },
       "price_trail": [
         {
@@ -183,6 +302,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 26.105
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 25.865
         }
       ]
     },
@@ -249,7 +372,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-04T16:46:22.641260+00:00",
+      "timestamp": "2026-11-04T17:29:30.020413+00:00",
       "live": {
         "price": 64.95,
         "kind": "stock",
@@ -306,7 +429,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T15:03:30.942207+00:00",
-        "updated_at": "2026-11-04T16:46:22.641260+00:00"
+        "updated_at": "2026-11-04T17:29:30.020413+00:00"
       }
     },
     {
@@ -617,12 +740,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-03T14:44:52.693979+00:00",
       "live": {
-        "price": 170.29,
+        "price": 170.51,
         "kind": "stock",
-        "pnl": -1.98,
-        "pnl_pct": -10.2,
-        "r": -0.102,
-        "at": "2026-11-04T16:32:12+00:00"
+        "pnl": -1.53,
+        "pnl_pct": -7.9,
+        "r": -0.079,
+        "at": "2026-11-04T17:31:13+00:00"
       },
       "price_trail": [
         {
@@ -664,6 +787,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 170.29
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 170.515
         }
       ]
     },
@@ -686,7 +813,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:42:39.257140+00:00",
-        "updated_at": "2026-11-04T16:02:02.182396+00:00"
+        "updated_at": "2026-11-04T17:16:46.629249+00:00"
       },
       "symbol": "AAPL",
       "asset_class": "equity",
@@ -732,12 +859,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-03T14:42:52.158630+00:00",
       "live": {
-        "price": 351.05,
+        "price": 352.95,
         "kind": "stock",
-        "pnl": 63.15,
-        "pnl_pct": 368.0,
-        "r": 3.68,
-        "at": "2026-11-04T16:32:12+00:00"
+        "pnl": 68.85,
+        "pnl_pct": 401.2,
+        "r": 4.012,
+        "at": "2026-11-04T17:31:13+00:00"
       },
       "price_trail": [
         {
@@ -779,6 +906,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 351.05
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 352.95
         }
       ]
     },
@@ -801,7 +932,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T14:45:23.711242+00:00",
-        "updated_at": "2026-11-04T16:47:03.823861+00:00"
+        "updated_at": "2026-11-04T16:55:12.600158+00:00"
       },
       "symbol": "AYA",
       "asset_class": "equity",
@@ -847,12 +978,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:48:56.504615+00:00",
       "live": {
-        "price": 25.0,
+        "price": 25.49,
         "kind": "stock",
-        "pnl": 18.36,
-        "pnl_pct": 27.3,
-        "r": 0.273,
-        "at": "2026-11-04T16:32:06+00:00"
+        "pnl": 27.18,
+        "pnl_pct": 40.5,
+        "r": 0.405,
+        "at": "2026-11-04T17:31:06+00:00"
       },
       "price_trail": [
         {
@@ -910,6 +1041,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 25.0
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 25.49
         }
       ]
     },
@@ -1010,12 +1145,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:31:48.565512+00:00",
       "live": {
-        "price": 0.28,
+        "price": 0.255,
         "kind": "spread",
-        "pnl": -3.0,
-        "pnl_pct": -4.0,
-        "r": -0.04,
-        "at": "2026-11-04T16:32:11+00:00"
+        "pnl": -0.5,
+        "pnl_pct": -0.7,
+        "r": -0.007,
+        "at": "2026-11-04T17:31:12+00:00"
       },
       "price_trail": [
         {
@@ -1077,6 +1212,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 0.28
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.255
         }
       ]
     },
@@ -1145,12 +1284,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:31:48.565507+00:00",
       "live": {
-        "price": 8.56,
+        "price": 8.54,
         "kind": "stock",
-        "pnl": 11.6,
-        "pnl_pct": 23.7,
-        "r": 0.237,
-        "at": "2026-11-04T16:32:10+00:00"
+        "pnl": 11.2,
+        "pnl_pct": 22.9,
+        "r": 0.229,
+        "at": "2026-11-04T17:31:10+00:00"
       },
       "price_trail": [
         {
@@ -1212,6 +1351,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 8.56
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 8.54
         }
       ]
     },
@@ -1305,12 +1448,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T16:12:40.771698+00:00",
       "live": {
-        "price": 0.125,
+        "price": 0.135,
         "kind": "spread",
-        "pnl": 22.5,
+        "pnl": 21.5,
         "pnl_pct": 1.0,
         "r": 0.01,
-        "at": "2026-11-04T16:32:10+00:00"
+        "at": "2026-11-04T17:31:10+00:00"
       },
       "price_trail": [
         {
@@ -1376,6 +1519,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 0.125
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.135
         }
       ]
     },
@@ -1469,12 +1616,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T16:12:40.771693+00:00",
       "live": {
-        "price": 0.14,
+        "price": 0.165,
         "kind": "spread",
-        "pnl": 20.0,
-        "pnl_pct": 1.5,
-        "r": 0.015,
-        "at": "2026-11-04T16:32:09+00:00"
+        "pnl": 17.5,
+        "pnl_pct": 1.3,
+        "r": 0.013,
+        "at": "2026-11-04T17:31:08+00:00"
       },
       "price_trail": [
         {
@@ -1540,6 +1687,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 0.14
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.165
         }
       ]
     },
@@ -1703,7 +1854,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-04T16:46:22.641222+00:00",
+      "timestamp": "2026-11-04T17:29:30.020329+00:00",
       "live": {
         "price": 30.45,
         "kind": "stock",
@@ -1848,7 +1999,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T14:38:34.686480+00:00",
-        "updated_at": "2026-11-04T16:46:22.641222+00:00"
+        "updated_at": "2026-11-04T17:29:30.020329+00:00"
       }
     },
     {
@@ -2372,12 +2523,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-29T18:30:17.677250+00:00",
       "live": {
-        "price": 0.165,
+        "price": 0.155,
         "kind": "spread",
-        "pnl": -3.5,
-        "pnl_pct": -0.7,
-        "r": -0.007,
-        "at": "2026-11-04T16:32:03+00:00"
+        "pnl": -2.5,
+        "pnl_pct": -0.5,
+        "r": -0.005,
+        "at": "2026-11-04T17:31:03+00:00"
       },
       "price_trail": [
         {
@@ -2491,6 +2642,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 0.165
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.155
         }
       ]
     },
@@ -2596,7 +2751,7 @@
         "pnl": 6.0,
         "pnl_pct": 8.0,
         "r": 0.08,
-        "at": "2026-11-04T16:32:04+00:00"
+        "at": "2026-11-04T17:31:04+00:00"
       },
       "price_trail": [
         {
@@ -2710,6 +2865,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 0.19
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.19
         }
       ]
     },
@@ -2778,12 +2937,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-29T18:04:21.745392+00:00",
       "live": {
-        "price": 13.39,
+        "price": 13.45,
         "kind": "stock",
-        "pnl": -17.43,
-        "pnl_pct": -32.4,
-        "r": -0.324,
-        "at": "2026-11-04T16:32:03+00:00"
+        "pnl": -15.09,
+        "pnl_pct": -28.1,
+        "r": -0.281,
+        "at": "2026-11-04T17:31:04+00:00"
       },
       "price_trail": [
         {
@@ -2897,6 +3056,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 13.395
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 13.4507
         }
       ]
     },
@@ -2997,12 +3160,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-29T14:49:17.317348+00:00",
       "live": {
-        "price": 0.105,
+        "price": 0.115,
         "kind": "spread",
-        "pnl": 18.5,
-        "pnl_pct": 26.1,
-        "r": 0.261,
-        "at": "2026-11-04T16:32:01+00:00"
+        "pnl": 17.5,
+        "pnl_pct": 24.6,
+        "r": 0.246,
+        "at": "2026-11-04T17:31:02+00:00"
       },
       "price_trail": [
         {
@@ -3128,6 +3291,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 0.105
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.115
         }
       ]
     },
@@ -3221,12 +3388,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-29T14:28:51.123924+00:00",
       "live": {
-        "price": 0.13,
+        "price": 0.105,
         "kind": "spread",
-        "pnl": 11.0,
-        "pnl_pct": 0.9,
-        "r": 0.009,
-        "at": "2026-11-04T16:32:00+00:00"
+        "pnl": 13.5,
+        "pnl_pct": 1.1,
+        "r": 0.011,
+        "at": "2026-11-04T17:31:01+00:00"
       },
       "price_trail": [
         {
@@ -3356,6 +3523,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 0.13
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.105
         }
       ]
     },
@@ -3378,7 +3549,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:25.691384+00:00",
-        "updated_at": "2026-11-04T14:35:05.317267+00:00"
+        "updated_at": "2026-11-04T17:30:06.678519+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -3424,12 +3595,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-29T14:28:51.123870+00:00",
       "live": {
-        "price": 188.01,
+        "price": 189.01,
         "kind": "stock",
-        "pnl": 34.16,
-        "pnl_pct": 43.8,
-        "r": 0.438,
-        "at": "2026-11-04T16:31:54+00:00"
+        "pnl": 42.16,
+        "pnl_pct": 54.1,
+        "r": 0.541,
+        "at": "2026-11-04T17:30:56+00:00"
       },
       "price_trail": [
         {
@@ -3559,6 +3730,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 188.0101
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 189.01
         }
       ]
     },
@@ -3652,12 +3827,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-29T14:06:22.603661+00:00",
       "live": {
-        "price": 0.075,
+        "price": 0.065,
         "kind": "spread",
-        "pnl": 11.5,
-        "pnl_pct": 1.0,
-        "r": 0.01,
-        "at": "2026-11-04T16:31:58+00:00"
+        "pnl": 12.5,
+        "pnl_pct": 1.1,
+        "r": 0.011,
+        "at": "2026-11-04T17:30:59+00:00"
       },
       "price_trail": [
         {
@@ -3787,6 +3962,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 0.075
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.065
         }
       ]
     },
@@ -3880,12 +4059,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-29T14:02:21.893171+00:00",
       "live": {
-        "price": 0.15,
+        "price": 0.17,
         "kind": "spread",
-        "pnl": -5.0,
-        "pnl_pct": -0.4,
-        "r": -0.004,
-        "at": "2026-11-04T16:31:57+00:00"
+        "pnl": -7.0,
+        "pnl_pct": -0.6,
+        "r": -0.006,
+        "at": "2026-11-04T17:30:58+00:00"
       },
       "price_trail": [
         {
@@ -4015,6 +4194,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 0.15
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.17
         }
       ]
     },
@@ -4083,12 +4266,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-29T13:47:15.572491+00:00",
       "live": {
-        "price": 92.17,
+        "price": 92.3,
         "kind": "stock",
-        "pnl": 70.46,
-        "pnl_pct": 162.5,
-        "r": 1.625,
-        "at": "2026-11-04T16:31:54+00:00"
+        "pnl": 72.59,
+        "pnl_pct": 167.5,
+        "r": 1.675,
+        "at": "2026-11-04T17:30:56+00:00"
       },
       "price_trail": [
         {
@@ -4218,6 +4401,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 92.175
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 92.3
         }
       ]
     },
@@ -4284,7 +4471,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-04T16:46:22.641276+00:00",
+      "timestamp": "2026-11-04T17:29:30.020429+00:00",
       "live": {
         "price": 58.63,
         "kind": "stock",
@@ -4493,7 +4680,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T16:41:54.503759+00:00",
-        "updated_at": "2026-11-04T16:46:22.641276+00:00"
+        "updated_at": "2026-11-04T17:29:30.020429+00:00"
       }
     },
     {
@@ -4754,7 +4941,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:40:33.035301+00:00",
-        "updated_at": "2026-11-04T16:47:03.902653+00:00"
+        "updated_at": "2026-11-04T16:55:12.612717+00:00"
       },
       "symbol": "DIA",
       "asset_class": "equity",
@@ -4800,12 +4987,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-10-26T19:41:29.901803+00:00",
       "live": {
-        "price": 529.69,
+        "price": 532.11,
         "kind": "stock",
-        "pnl": 8.8,
-        "pnl_pct": 33.4,
-        "r": 0.334,
-        "at": "2026-11-04T16:31:54+00:00"
+        "pnl": 13.64,
+        "pnl_pct": 51.7,
+        "r": 0.517,
+        "at": "2026-11-04T17:30:56+00:00"
       },
       "price_trail": [
         {
@@ -4991,6 +5178,10 @@
         {
           "at": "2026-11-04T16:31:50+00:00",
           "price": 529.69
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 532.11
         }
       ]
     },
