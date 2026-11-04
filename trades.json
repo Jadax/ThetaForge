@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "4e96dce3aca607ad2c26697c0b13981149d5baaaa5e34121e99a0565392f9a91",
+    "ledger_sha": "63ef7a5c7b9335111875602aabd15ed829e96c61efb985f7cc73b9c34ab51082",
     "entries_from_ledger": 37,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -35,7 +35,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T14:57:46.539622+00:00",
-        "updated_at": "2026-11-04T15:30:24.354977+00:00"
+        "updated_at": "2026-11-04T16:19:51.769784+00:00"
       },
       "symbol": "KHC",
       "asset_class": "equity",
@@ -162,7 +162,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-04T15:30:24.354989+00:00",
+      "timestamp": "2026-11-04T16:19:51.769796+00:00",
       "live": {
         "price": 64.95,
         "kind": "stock",
@@ -219,7 +219,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T15:03:30.942207+00:00",
-        "updated_at": "2026-11-04T15:30:24.354989+00:00"
+        "updated_at": "2026-11-04T16:19:51.769796+00:00"
       }
     },
     {
@@ -484,7 +484,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:42:52.160656+00:00",
-        "updated_at": "2026-11-04T15:16:25.874075+00:00"
+        "updated_at": "2026-11-04T15:39:11.916943+00:00"
       },
       "symbol": "PLTR",
       "asset_class": "equity",
@@ -595,7 +595,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:42:39.257140+00:00",
-        "updated_at": "2026-11-04T15:31:06.053747+00:00"
+        "updated_at": "2026-11-04T16:02:02.182396+00:00"
       },
       "symbol": "AAPL",
       "asset_class": "equity",
@@ -1588,7 +1588,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-04T15:30:24.354943+00:00",
+      "timestamp": "2026-11-04T16:19:51.769750+00:00",
       "live": {
         "price": 30.45,
         "kind": "stock",
@@ -1733,7 +1733,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T14:38:34.686480+00:00",
-        "updated_at": "2026-11-04T15:30:24.354943+00:00"
+        "updated_at": "2026-11-04T16:19:51.769750+00:00"
       }
     },
     {
@@ -3890,7 +3890,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:46.334864+00:00",
-        "updated_at": "2026-11-04T15:03:30.961529+00:00"
+        "updated_at": "2026-11-04T16:05:18.073698+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -4328,7 +4328,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:41:05.952145+00:00",
-        "updated_at": "2026-11-04T14:36:48.798050+00:00"
+        "updated_at": "2026-11-04T16:13:34.901671+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
@@ -4583,7 +4583,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:40:33.035301+00:00",
-        "updated_at": "2026-11-04T14:45:14.040850+00:00"
+        "updated_at": "2026-11-04T16:00:23.711297+00:00"
       },
       "symbol": "DIA",
       "asset_class": "equity",
