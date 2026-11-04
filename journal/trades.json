@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "ee0b966d5079eb0104dff57165aed2f79ddcaea75af27a43bb7fcaf721fa16fc",
+    "ledger_sha": "21d93f6a1fb49910aed69d82d160d48e64c296a5b4683c3b5eab1510ea6134a1",
     "entries_from_ledger": 35,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -385,7 +385,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:42:39.257140+00:00",
-        "updated_at": "2026-11-04T14:50:09.599189+00:00"
+        "updated_at": "2026-11-04T15:01:42.110390+00:00"
       },
       "symbol": "AAPL",
       "asset_class": "equity",
@@ -492,7 +492,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:40:58.775943+00:00",
-        "updated_at": "2026-11-03T20:58:57.332496+00:00"
+        "updated_at": "2026-11-04T15:03:30.942207+00:00"
       },
       "symbol": "XLE",
       "asset_class": "equity",
@@ -1461,7 +1461,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-04T14:57:59.443239+00:00",
+      "timestamp": "2026-11-04T15:03:26.507786+00:00",
       "live": {
         "price": 30.45,
         "kind": "stock",
@@ -1606,7 +1606,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T14:38:34.686480+00:00",
-        "updated_at": "2026-11-04T14:57:59.443239+00:00"
+        "updated_at": "2026-11-04T15:03:26.507786+00:00"
       }
     },
     {
@@ -3731,7 +3731,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:46.334864+00:00",
-        "updated_at": "2026-11-04T14:56:51.951372+00:00"
+        "updated_at": "2026-11-04T15:03:30.961529+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
