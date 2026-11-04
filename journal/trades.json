@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "9798a06b553f214c0945a0942cdb01915fa49ca54c01d3aae733cc5a8b2b1951",
+    "ledger_sha": "05171f513c88c85e971f6714ee877e4947f198e76ebdf03e6fe44c007b2b2279",
     "entries_from_ledger": 34,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -385,7 +385,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:42:39.257140+00:00",
-        "updated_at": "2026-11-03T20:58:57.332512+00:00"
+        "updated_at": "2026-11-04T14:33:11.508370+00:00"
       },
       "symbol": "AAPL",
       "asset_class": "equity",
@@ -599,7 +599,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T14:45:23.711242+00:00",
-        "updated_at": "2026-11-02T20:58:48.141566+00:00"
+        "updated_at": "2026-11-04T14:36:48.710639+00:00"
       },
       "symbol": "AYA",
       "asset_class": "equity",
@@ -881,7 +881,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T17:10:25.833068+00:00",
-        "updated_at": "2026-11-03T20:57:57.275340+00:00"
+        "updated_at": "2026-11-04T14:38:30.023615+00:00"
       },
       "symbol": "IOVA",
       "asset_class": "equity",
@@ -2885,7 +2885,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:47:02.796924+00:00",
-        "updated_at": "2026-11-02T16:07:13.455931+00:00"
+        "updated_at": "2026-11-04T14:38:34.686480+00:00"
       },
       "symbol": "GEN",
       "asset_class": "equity",
@@ -3080,7 +3080,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:25.691384+00:00",
-        "updated_at": "2026-10-30T13:33:59.000172+00:00"
+        "updated_at": "2026-11-04T14:35:05.317267+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -3715,7 +3715,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:46.334864+00:00",
-        "updated_at": "2026-11-02T20:57:48.018069+00:00"
+        "updated_at": "2026-11-04T14:35:05.312085+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -4149,7 +4149,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:41:05.952145+00:00",
-        "updated_at": "2026-11-02T18:14:18.117931+00:00"
+        "updated_at": "2026-11-04T14:36:48.798050+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
@@ -4400,7 +4400,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:40:33.035301+00:00",
-        "updated_at": "2026-10-27T14:10:00.706384+00:00"
+        "updated_at": "2026-11-04T14:35:05.394967+00:00"
       },
       "symbol": "DIA",
       "asset_class": "equity",
