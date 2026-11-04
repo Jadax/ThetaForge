@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "14c05f57d5910e1a4b4c4a22a972868c420897983601f0414ab6d14ff7adbabd",
+    "ledger_sha": "ee0b966d5079eb0104dff57165aed2f79ddcaea75af27a43bb7fcaf721fa16fc",
     "entries_from_ledger": 35,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -385,7 +385,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:42:39.257140+00:00",
-        "updated_at": "2026-11-04T14:33:11.508370+00:00"
+        "updated_at": "2026-11-04T14:50:09.599189+00:00"
       },
       "symbol": "AAPL",
       "asset_class": "equity",
@@ -599,7 +599,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T14:45:23.711242+00:00",
-        "updated_at": "2026-11-04T14:36:48.710639+00:00"
+        "updated_at": "2026-11-04T14:45:14.025338+00:00"
       },
       "symbol": "AYA",
       "asset_class": "equity",
@@ -881,7 +881,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T17:10:25.833068+00:00",
-        "updated_at": "2026-11-04T14:38:30.023615+00:00"
+        "updated_at": "2026-11-04T14:55:14.472833+00:00"
       },
       "symbol": "IOVA",
       "asset_class": "equity",
@@ -1461,7 +1461,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-04T14:42:50.495857+00:00",
+      "timestamp": "2026-11-04T14:57:59.443239+00:00",
       "live": {
         "price": 30.45,
         "kind": "stock",
@@ -1606,7 +1606,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T14:38:34.686480+00:00",
-        "updated_at": "2026-11-04T14:42:50.495857+00:00"
+        "updated_at": "2026-11-04T14:57:59.443239+00:00"
       }
     },
     {
@@ -3731,7 +3731,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:46.334864+00:00",
-        "updated_at": "2026-11-04T14:35:05.312085+00:00"
+        "updated_at": "2026-11-04T14:56:51.951372+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -4416,7 +4416,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:40:33.035301+00:00",
-        "updated_at": "2026-11-04T14:35:05.394967+00:00"
+        "updated_at": "2026-11-04T14:45:14.040850+00:00"
       },
       "symbol": "DIA",
       "asset_class": "equity",
