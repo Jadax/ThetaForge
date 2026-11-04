@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "2b8d63076281d5390df43e1264638b553a4e299520219057b2fe71291412d17f",
+    "ledger_sha": "2881f52831d488c62d4a71cc059ddf8dc97d725192fbbc8cefc6e5a26f5a3dea",
     "entries_from_ledger": 40,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -35,7 +35,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-04T16:42:51.211126+00:00",
-        "updated_at": "2026-11-04T17:29:30.020436+00:00"
+        "updated_at": "2026-11-04T17:40:38.611103+00:00"
       },
       "symbol": "SPY",
       "asset_class": "options",
@@ -150,7 +150,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T16:19:51.791378+00:00",
-        "updated_at": "2026-11-04T17:29:30.020424+00:00"
+        "updated_at": "2026-11-04T17:40:38.611089+00:00"
       },
       "symbol": "XLE",
       "asset_class": "equity",
@@ -237,7 +237,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T14:57:46.539622+00:00",
-        "updated_at": "2026-11-04T17:29:30.020402+00:00"
+        "updated_at": "2026-11-04T17:40:38.611066+00:00"
       },
       "symbol": "KHC",
       "asset_class": "equity",
@@ -372,7 +372,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-04T17:29:30.020413+00:00",
+      "timestamp": "2026-11-04T17:40:38.611078+00:00",
       "live": {
         "price": 64.95,
         "kind": "stock",
@@ -429,7 +429,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T15:03:30.942207+00:00",
-        "updated_at": "2026-11-04T17:29:30.020413+00:00"
+        "updated_at": "2026-11-04T17:40:38.611078+00:00"
       }
     },
     {
@@ -1854,7 +1854,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-04T17:29:30.020329+00:00",
+      "timestamp": "2026-11-04T17:40:38.611032+00:00",
       "live": {
         "price": 30.45,
         "kind": "stock",
@@ -1999,7 +1999,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T14:38:34.686480+00:00",
-        "updated_at": "2026-11-04T17:29:30.020329+00:00"
+        "updated_at": "2026-11-04T17:40:38.611032+00:00"
       }
     },
     {
@@ -3549,7 +3549,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-29T13:45:25.691384+00:00",
-        "updated_at": "2026-11-04T17:30:06.678519+00:00"
+        "updated_at": "2026-11-04T17:40:06.197025+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -4471,7 +4471,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-04T17:29:30.020429+00:00",
+      "timestamp": "2026-11-04T17:40:38.611095+00:00",
       "live": {
         "price": 58.63,
         "kind": "stock",
@@ -4680,7 +4680,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T16:41:54.503759+00:00",
-        "updated_at": "2026-11-04T17:29:30.020429+00:00"
+        "updated_at": "2026-11-04T17:40:38.611095+00:00"
       }
     },
     {
