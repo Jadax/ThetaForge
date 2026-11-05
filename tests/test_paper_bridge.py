@@ -239,3 +239,32 @@ def test_close_records_inherit_the_parent_bucket(monkeypatch):
     _result, placed = _close_harness(monkeypatch, parent, [(0.60, 0.65), (0.20, 0.25)])
     close = next(r for r in placed["written"] if r.get("close_of") == parent["id"])
     assert close["bucket"] == "infinity_1k"
+
+
+def test_gateway_replay_never_erases_a_recorded_fill(monkeypatch):
+    """Nov 5 2026: after a Gateway restart IBKR replayed completed orders with
+    filled=0/avg=0, and five open positions vanished from management."""
+    from types import SimpleNamespace
+    import bridge.main as bridge
+
+    record = {"id": "e1", "symbol": "PFE", "asset_class": "equity", "status": "Filled",
+              "filled": 39.0, "remaining": 0.0, "average_fill_price": 31.34, "quantity": 39}
+    replay = SimpleNamespace(
+        order=SimpleNamespace(orderRef="e1", permId=0, orderId=29),
+        contract=SimpleNamespace(symbol="PFE", secType="STK"),
+        orderStatus=SimpleNamespace(status="Filled", filled=0, remaining=0, avgFillPrice=0),
+    )
+    written = []
+
+    class FakeIB:
+        def isConnected(self):
+            return True
+
+        def trades(self):
+            return [replay]
+
+    monkeypatch.setattr(bridge, "ib", FakeIB())
+    monkeypatch.setattr(bridge, "_read_order_ledger", lambda: [record])
+    monkeypatch.setattr(bridge, "_write_order_ledger", lambda r: written.append(r))
+    [synced] = bridge._sync_order_ledger()
+    assert synced["filled"] == 39.0 and synced["average_fill_price"] == 31.34

@@ -459,11 +459,24 @@ def _sync_order_ledger() -> list[dict[str, Any]]:
             continue
         perm_now = int(getattr(trade.order, "permId", 0) or 0)
         status = str(trade.orderStatus.status or "Unknown")
+        filled = float(trade.orderStatus.filled or 0)
+        remaining = float(trade.orderStatus.remaining or 0)
+        average = float(trade.orderStatus.avgFillPrice or 0)
+        # Fills are monotonic. After a Gateway restart IBKR replays the
+        # session's completed orders with an EMPTY fill block (filled 0, avg
+        # 0); copying that over the record erased real fills (Nov 5 2026: five
+        # open stock positions went invisible to the manager and the journal).
+        recorded_fill = float(record.get("filled", 0) or 0)
+        if filled < recorded_fill:
+            filled = recorded_fill
+            remaining = float(record.get("remaining", 0) or 0)
+        if average <= 0 < float(record.get("average_fill_price", 0) or 0):
+            average = float(record["average_fill_price"])
         update = {
             "status": status,
-            "filled": float(trade.orderStatus.filled or 0),
-            "remaining": float(trade.orderStatus.remaining or 0),
-            "average_fill_price": float(trade.orderStatus.avgFillPrice or 0),
+            "filled": filled,
+            "remaining": remaining,
+            "average_fill_price": average,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         if perm_now and perm_now != int(record.get("ibkr_perm_id", 0) or 0):
