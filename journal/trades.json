@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "848dc0f3cf2b88e17ab4e17dbd2dcd0781be278583c450846526dd79f5a54379",
+    "ledger_sha": "10fa20f995d50e20ab07d521a7d15edd58612acf3dc8cc3ebf996c391d731537",
     "entries_from_ledger": 48,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-05T17:27:01Z",
+    "generated_at": "2026-11-05T17:28:43Z",
     "window_days": 120,
     "closed_learnable": 13,
     "setups": [
@@ -192,7 +192,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-05T15:01:29.644354+00:00",
-        "updated_at": "2026-11-05T17:27:00.045440+00:00"
+        "updated_at": "2026-11-05T17:28:35.960240+00:00"
       },
       "symbol": "U",
       "asset_class": "equity",
@@ -258,7 +258,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-05T15:01:15.276689+00:00",
-        "updated_at": "2026-11-05T17:27:00.045434+00:00"
+        "updated_at": "2026-11-05T17:28:40.395785+00:00"
       },
       "symbol": "LYFT",
       "asset_class": "equity",
@@ -324,7 +324,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-05T15:00:27.616384+00:00",
-        "updated_at": "2026-11-05T17:27:00.045426+00:00"
+        "updated_at": "2026-11-05T17:28:35.960229+00:00"
       },
       "symbol": "PFE",
       "asset_class": "equity",
@@ -390,7 +390,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-05T15:00:15.025345+00:00",
-        "updated_at": "2026-11-05T17:27:00.045421+00:00"
+        "updated_at": "2026-11-05T17:28:35.960224+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -456,7 +456,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-05T15:00:02.400938+00:00",
-        "updated_at": "2026-11-05T17:27:00.045414+00:00"
+        "updated_at": "2026-11-05T17:28:35.960218+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -2738,7 +2738,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-05T17:27:00.045405+00:00",
+      "timestamp": "2026-11-05T17:28:35.960209+00:00",
       "live": {
         "price": 190.87,
         "kind": "stock",
@@ -2911,7 +2911,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-05T14:56:26.799223+00:00",
-        "updated_at": "2026-11-05T17:27:00.045405+00:00"
+        "updated_at": "2026-11-05T17:28:35.960209+00:00"
       },
       "review": {
         "verdict": "win",
@@ -2987,7 +2987,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-05T17:27:00.045391+00:00",
+      "timestamp": "2026-11-05T17:28:35.960192+00:00",
       "live": {
         "price": 92.52,
         "kind": "stock",
@@ -3160,7 +3160,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-05T14:38:32.489968+00:00",
-        "updated_at": "2026-11-05T17:27:00.045391+00:00"
+        "updated_at": "2026-11-05T17:28:35.960192+00:00"
       },
       "review": {
         "verdict": "win",
