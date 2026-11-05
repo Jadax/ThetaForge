@@ -9,448 +9,13 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "aa87ed26a8d6fd452b12598be32fbafadb3eb7f3e5555eb03624f3ebb27e2fab",
-    "entries_from_ledger": 48,
+    "ledger_sha": "377a9bc92bf618ed11bd5dd795c9b487cf52404db3b4e213482c12894a2f6b89",
+    "entries_from_ledger": 41,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
   "trades": [
-    {
-      "id": "16f79cde-102a-4e62-bf1c-691c0ae1bcfc",
-      "source_id": "16f79cde-102a-4e62-bf1c-691c0ae1bcfc",
-      "source": "ledger",
-      "ledger_ref": "16f79cde-102a-4e62-bf1c-691c0ae1bcfc",
-      "order": {
-        "status": "Filled",
-        "filled": 9.0,
-        "remaining": 0.0,
-        "average_fill_price": 46.83,
-        "limit_price": 47.68,
-        "net_credit": 0.0,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 9,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-05T15:01:29.644354+00:00",
-        "updated_at": "2026-11-05T16:30:34.959389+00:00"
-      },
-      "symbol": "U",
-      "asset_class": "equity",
-      "instrument_type": "stock",
-      "shares": 9,
-      "opened": "2026-11-05",
-      "closed": null,
-      "status": "open",
-      "strategy": "equity_momentum",
-      "legs": [],
-      "entry_ivr": null,
-      "expected_move_pct": null,
-      "dte_at_entry": null,
-      "entry_price": 47.68,
-      "stop_price": 42.21,
-      "target_price": 57.33,
-      "capital_at_risk": 49.23,
-      "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "equity",
-        "captured_at": "2026-11-05",
-        "score": 100.0,
-        "signal": "buy",
-        "trend": "above_200d",
-        "rsi_14": 65.6,
-        "adx_14": 25.0,
-        "atr_14": 2.52,
-        "price": 47.25,
-        "risk_tilt": "mixed",
-        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 66; 1m positive; 6m strong; 20d breakout; near 52w high; volume confirmed. Position sized for 1% account risk (50.00) at a 2x ATR stop (42.21), 2R target 57.33."
-      },
-      "management_plan": {
-        "target": "take profit at 2R target 57.33",
-        "stop": "hard stop at 42.21",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long U, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-05T15:29:22.638953+00:00",
-      "live": {
-        "price": 47.24,
-        "kind": "stock",
-        "pnl": -3.95,
-        "pnl_pct": -8.0,
-        "r": -0.08,
-        "at": "2026-11-05T16:31:16+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-11-05",
-          "price": 47.68
-        },
-        {
-          "at": "2026-11-05T15:31:11+00:00",
-          "price": 47.28
-        },
-        {
-          "at": "2026-11-05T16:30:50+00:00",
-          "price": 47.241
-        }
-      ]
-    },
-    {
-      "id": "a4d3693b-69a9-4d7f-9440-1cad84e0595d",
-      "source_id": "a4d3693b-69a9-4d7f-9440-1cad84e0595d",
-      "source": "ledger",
-      "ledger_ref": "a4d3693b-69a9-4d7f-9440-1cad84e0595d",
-      "order": {
-        "status": "Filled",
-        "filled": 39.0,
-        "remaining": 0.0,
-        "average_fill_price": 31.34,
-        "limit_price": 31.34,
-        "net_credit": 0.0,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 39,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-05T15:00:27.616384+00:00",
-        "updated_at": "2026-11-05T16:30:34.959379+00:00"
-      },
-      "symbol": "PFE",
-      "asset_class": "equity",
-      "instrument_type": "stock",
-      "shares": 39,
-      "opened": "2026-11-05",
-      "closed": null,
-      "status": "open",
-      "strategy": "equity_momentum",
-      "legs": [],
-      "entry_ivr": null,
-      "expected_move_pct": null,
-      "dte_at_entry": null,
-      "entry_price": 31.34,
-      "stop_price": 29.89,
-      "target_price": 33.72,
-      "capital_at_risk": 56.55,
-      "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "equity",
-        "captured_at": "2026-11-05",
-        "score": 100.0,
-        "signal": "buy",
-        "trend": "above_200d",
-        "rsi_14": 67.1,
-        "adx_14": 25.0,
-        "atr_14": 0.64,
-        "price": 31.17,
-        "risk_tilt": "mixed",
-        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 67; 1m positive; 6m strong; 20d breakout; near 52w high. Position sized for 1% account risk (50.00) at a 2x ATR stop (29.89), 2R target 33.72."
-      },
-      "management_plan": {
-        "target": "take profit at 2R target 33.72",
-        "stop": "hard stop at 29.89",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long PFE, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-05T15:29:22.638931+00:00",
-      "live": {
-        "price": 30.7,
-        "kind": "stock",
-        "pnl": -25.15,
-        "pnl_pct": -44.5,
-        "r": -0.445,
-        "at": "2026-11-05T16:31:15+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-11-05",
-          "price": 31.34
-        },
-        {
-          "at": "2026-11-05T15:31:11+00:00",
-          "price": 31.31
-        },
-        {
-          "at": "2026-11-05T16:30:50+00:00",
-          "price": 30.695
-        }
-      ]
-    },
-    {
-      "id": "f453da41-24bd-42a0-b77a-c811fd936476",
-      "source_id": "f453da41-24bd-42a0-b77a-c811fd936476",
-      "source": "ledger",
-      "ledger_ref": "f453da41-24bd-42a0-b77a-c811fd936476",
-      "order": {
-        "status": "Filled",
-        "filled": 35.0,
-        "remaining": 0.0,
-        "average_fill_price": 18.12,
-        "limit_price": 18.48,
-        "net_credit": 0.0,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 35,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-05T15:01:15.276689+00:00",
-        "updated_at": "2026-11-05T16:30:34.959384+00:00"
-      },
-      "symbol": "LYFT",
-      "asset_class": "equity",
-      "instrument_type": "stock",
-      "shares": 35,
-      "opened": "2026-11-05",
-      "closed": null,
-      "status": "open",
-      "strategy": "equity_momentum",
-      "legs": [],
-      "entry_ivr": null,
-      "expected_move_pct": null,
-      "dte_at_entry": null,
-      "entry_price": 18.48,
-      "stop_price": 16.86,
-      "target_price": 21.04,
-      "capital_at_risk": 56.7,
-      "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "equity",
-        "captured_at": "2026-11-05",
-        "score": 85.0,
-        "signal": "buy",
-        "trend": "above_200d",
-        "rsi_14": 64.4,
-        "adx_14": 25.0,
-        "atr_14": 0.7,
-        "price": 18.25,
-        "risk_tilt": "mixed",
-        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 64; 1m positive; 6m strong; 20d breakout. Position sized for 1% account risk (50.00) at a 2x ATR stop (16.86), 2R target 21.04."
-      },
-      "management_plan": {
-        "target": "take profit at 2R target 21.04",
-        "stop": "hard stop at 16.86",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long LYFT, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-05T15:01:29.641736+00:00",
-      "live": {
-        "price": 18.03,
-        "kind": "stock",
-        "pnl": -15.75,
-        "pnl_pct": -27.8,
-        "r": -0.278,
-        "at": "2026-11-05T16:31:15+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-11-05",
-          "price": 18.48
-        },
-        {
-          "at": "2026-11-05T15:31:11+00:00",
-          "price": 18.09
-        },
-        {
-          "at": "2026-11-05T16:30:50+00:00",
-          "price": 18.03
-        }
-      ]
-    },
-    {
-      "id": "085e4843-4901-48e1-b918-0f444398625a",
-      "source_id": "085e4843-4901-48e1-b918-0f444398625a",
-      "source": "ledger",
-      "ledger_ref": "085e4843-4901-48e1-b918-0f444398625a",
-      "order": {
-        "status": "Filled",
-        "filled": 16.0,
-        "remaining": 0.0,
-        "average_fill_price": 92.98,
-        "limit_price": 93.22,
-        "net_credit": 0.0,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 16,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-05T15:00:15.025345+00:00",
-        "updated_at": "2026-11-05T16:30:34.959373+00:00"
-      },
-      "symbol": "XLP",
-      "asset_class": "equity",
-      "instrument_type": "etf",
-      "shares": 16,
-      "opened": "2026-11-05",
-      "closed": null,
-      "status": "open",
-      "strategy": "etf_rotation",
-      "legs": [],
-      "entry_ivr": null,
-      "expected_move_pct": null,
-      "dte_at_entry": null,
-      "entry_price": 93.22,
-      "stop_price": 89.82,
-      "target_price": 98.77,
-      "capital_at_risk": 54.4,
-      "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "equity",
-        "captured_at": "2026-11-05",
-        "score": 100.0,
-        "signal": "buy",
-        "trend": "above_200d",
-        "rsi_14": 69.2,
-        "adx_14": 25.0,
-        "atr_14": 1.49,
-        "price": 92.8,
-        "risk_tilt": "mixed",
-        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 69; 1m positive; 6m strong; 20d breakout; near 52w high. Position sized for 1% account risk (50.00) at a 2x ATR stop (89.82), 2R target 98.77."
-      },
-      "management_plan": {
-        "target": "take profit at 2R target 98.77",
-        "stop": "hard stop at 89.82",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long XLP, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-05T15:01:29.641726+00:00",
-      "live": {
-        "price": 92.15,
-        "kind": "stock",
-        "pnl": -17.12,
-        "pnl_pct": -31.5,
-        "r": -0.315,
-        "at": "2026-11-05T16:31:15+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-11-05",
-          "price": 93.22
-        },
-        {
-          "at": "2026-11-05T15:31:11+00:00",
-          "price": 93.01
-        },
-        {
-          "at": "2026-11-05T16:30:50+00:00",
-          "price": 92.15
-        }
-      ]
-    },
-    {
-      "id": "ac7f73c8-febc-4f84-9d2f-73f81e8687e7",
-      "source_id": "ac7f73c8-febc-4f84-9d2f-73f81e8687e7",
-      "source": "ledger",
-      "ledger_ref": "ac7f73c8-febc-4f84-9d2f-73f81e8687e7",
-      "order": {
-        "status": "Filled",
-        "filled": 7.0,
-        "remaining": 0.0,
-        "average_fill_price": 191.76,
-        "limit_price": 192.49,
-        "net_credit": 0.0,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 7,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-05T15:00:02.400938+00:00",
-        "updated_at": "2026-11-05T16:30:34.959367+00:00"
-      },
-      "symbol": "XLV",
-      "asset_class": "equity",
-      "instrument_type": "etf",
-      "shares": 7,
-      "opened": "2026-11-05",
-      "closed": null,
-      "status": "open",
-      "strategy": "etf_rotation",
-      "legs": [],
-      "entry_ivr": null,
-      "expected_move_pct": null,
-      "dte_at_entry": null,
-      "entry_price": 192.49,
-      "stop_price": 184.42,
-      "target_price": 203.06,
-      "capital_at_risk": 56.49,
-      "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "equity",
-        "captured_at": "2026-11-05",
-        "score": 90.0,
-        "signal": "buy",
-        "trend": "above_200d",
-        "rsi_14": 77.6,
-        "adx_14": 25.0,
-        "atr_14": 3.11,
-        "price": 190.63,
-        "risk_tilt": "mixed",
-        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; 1m positive; 6m strong; 20d breakout; near 52w high. Position sized for 1% account risk (50.00) at a 2x ATR stop (184.42), 2R target 203.06."
-      },
-      "management_plan": {
-        "target": "take profit at 2R target 203.06",
-        "stop": "hard stop at 184.42",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long XLV, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-05T15:01:29.641719+00:00",
-      "live": {
-        "price": 188.31,
-        "kind": "stock",
-        "pnl": -29.3,
-        "pnl_pct": -51.9,
-        "r": -0.519,
-        "at": "2026-11-05T16:31:15+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-11-05",
-          "price": 192.49
-        },
-        {
-          "at": "2026-11-05T15:31:11+00:00",
-          "price": 191.25
-        },
-        {
-          "at": "2026-11-05T16:30:50+00:00",
-          "price": 188.305
-        }
-      ]
-    },
     {
       "id": "a8079c6c-be06-4c7f-91af-f56647d11d6e",
       "source_id": "a8079c6c-be06-4c7f-91af-f56647d11d6e",
@@ -2491,7 +2056,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T14:53:00.062409+00:00",
-        "updated_at": "2026-11-02T20:58:48.141574+00:00"
+        "updated_at": "2026-11-05T17:06:32.827695+00:00"
       },
       "symbol": "NCLH",
       "asset_class": "options",
@@ -2790,23 +2355,7 @@
           "at": "2026-11-05T14:32:03+00:00",
           "price": 190.87
         }
-      ],
-      "close_order": {
-        "status": "Filled",
-        "filled": 8.0,
-        "remaining": 0.0,
-        "average_fill_price": 191.59,
-        "limit_price": 190.54,
-        "net_credit": null,
-        "cost_to_close": 1524.32,
-        "realized_pnl": 62.8,
-        "reason": "close_profit",
-        "quantity": 8,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-05T14:56:26.799223+00:00",
-        "updated_at": "2026-11-05T16:30:34.959359+00:00"
-      }
+      ]
     },
     {
       "id": "5d2ed7ce-6406-4316-a0fe-e3db53102310",
@@ -3029,23 +2578,7 @@
           "at": "2026-11-05T14:32:03+00:00",
           "price": 92.5199
         }
-      ],
-      "close_order": {
-        "status": "Filled",
-        "filled": 17.0,
-        "remaining": 0.0,
-        "average_fill_price": 92.82,
-        "limit_price": 92.15,
-        "net_credit": null,
-        "cost_to_close": 1566.55,
-        "realized_pnl": 88.74,
-        "reason": "close_profit",
-        "quantity": 17,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-05T14:38:32.489968+00:00",
-        "updated_at": "2026-11-05T16:30:34.959346+00:00"
-      }
+      ]
     },
     {
       "id": "db9362e9-71e8-4fb8-9040-8ec87663a98e",
@@ -3708,7 +3241,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:45:43.788635+00:00",
-        "updated_at": "2026-10-29T19:59:42.428028+00:00"
+        "updated_at": "2026-11-05T17:03:49.075665+00:00"
       },
       "symbol": "MARA",
       "asset_class": "options",
@@ -3948,7 +3481,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T18:09:22.162157+00:00",
-        "updated_at": "2026-10-29T19:59:42.428045+00:00"
+        "updated_at": "2026-11-05T17:03:43.450702+00:00"
       },
       "symbol": "HOOD",
       "asset_class": "options",
@@ -4410,7 +3943,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:43:45.444565+00:00",
-        "updated_at": "2026-10-29T19:59:42.428021+00:00"
+        "updated_at": "2026-11-05T17:03:54.911828+00:00"
       },
       "symbol": "QQQ",
       "asset_class": "options",
@@ -4925,7 +4458,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:04:42.995970+00:00",
-        "updated_at": "2026-10-29T19:59:42.427989+00:00"
+        "updated_at": "2026-11-05T17:06:42.776730+00:00"
       },
       "symbol": "F",
       "asset_class": "options",
@@ -5181,7 +4714,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:00:30.978103+00:00",
-        "updated_at": "2026-10-29T19:59:42.427983+00:00"
+        "updated_at": "2026-11-05T17:06:47.832211+00:00"
       },
       "symbol": "PATH",
       "asset_class": "options",
