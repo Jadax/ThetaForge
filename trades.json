@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "377a9bc92bf618ed11bd5dd795c9b487cf52404db3b4e213482c12894a2f6b89",
+    "ledger_sha": "3a11deb58a0452f0cd9cd59f1cf9c197f37741c2283c1b8c97d39d3aa5bffc17",
     "entries_from_ledger": 41,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -4202,7 +4202,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:05:30.776957+00:00",
-        "updated_at": "2026-10-29T19:59:42.428011+00:00"
+        "updated_at": "2026-11-05T17:10:30.086244+00:00"
       },
       "symbol": "AAL",
       "asset_class": "options",
