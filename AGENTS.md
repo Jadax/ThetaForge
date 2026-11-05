@@ -44,6 +44,9 @@ retired 2026-10-27 (Always Free covers one e2-micro; ThetaForge needs two).
   intentional invariant -- do not weaken it to make a future live-trading
   switch easier; see the guardrail below.
 - State lives in `data/*.json` (gitignored). No database, no Celery.
+- Two capital buckets share the one account and ledger: `algo_trader` and the
+  self-funded `infinity_1k` ("$1000 to Infinity", Bridge-enforced: open risk <=
+  $1,000 + its realized P&L). See `docs/LEARNING_AND_BUCKETS.md`.
 
 ## Module Map (production)
 
@@ -65,6 +68,7 @@ retired 2026-10-27 (Always Free covers one e2-micro; ThetaForge needs two).
 | `agents/trade_engine/theoretical_edge.py` | Own BS model value vs CBOE mid → `theoretical_edge_pct` on recommendations |
 | `agents/trade_engine/historical_backtest.py` | Empirical win rate/expectancy/drawdown over realized credit-spread outcomes |
 | `agents/trade_engine/futures_options.py` | CME micro futures options (/MES, /MNQ): proxy-ETF read (SPY/QQQ) and vol index (VIX/VXN) for context, x100-equivalent chain scaling so the Recommender's dollars are exact, leg restore with FOP identity; defined-risk spreads/condors only |
+| `agents/learning/trade_review.py` | Self-improving loop: per-trade `review` (verdict/drivers/lesson) + setup learning over the journal (rolling 120d) -> veto/penalize/boost adjustments both recommenders apply before ranking (see `docs/LEARNING_AND_BUCKETS.md`) |
 | `agents/trade_engine/position_marks.py` | One whole-position mark (sold mids minus bought mids) shared by exit management and the journal |
 | `agents/trade_engine/high_winrate.py` | Research-backed entry context vetoes (trend alignment, expected-move buffer, DTE band, earnings blackout, relative strength) — pure gates used by both the Brain and Recommender step 4c |
 | `agents/trade_engine/trade_manager.py` | Open-position management rules (50% take-profit, 21-DTE gamma, 2×-credit stop, pre-earnings, pre-macro, tested-strike review) + portfolio plan; recommended via `POST /api/advisor/positions/management`, never an order path |

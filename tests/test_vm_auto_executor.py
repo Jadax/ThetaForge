@@ -120,3 +120,77 @@ def test_futures_legs_reach_the_bridge_with_their_identity():
     ok, _ = ex.submit_to_bridge(client, trade)
     assert ok
     assert {(leg["sec_type"], leg["trading_class"]) for leg in client.sent["legs"]} == {("FOP", "EX3")}
+
+
+# ── v1.17.34: "$1000 to Infinity" bucket routing ─────────────────────────────
+
+class _RoutingClient:
+    """Advisor + Bridge fake: the bucket recommendation differs from the algo one."""
+
+    def __init__(self, infinity_trade, algo_trade, state):
+        self.infinity_trade, self.algo_trade, self.state = infinity_trade, algo_trade, state
+        self.submitted = []
+
+    def get(self, url, params=None, **_):
+        if url.endswith("/notifications"):
+            return _Resp({"notifications": [{"id": "n1", "symbol": "SPY", "regime": "bearish",
+                                              "signal": "SELL", "score": -80, "best_strategy": "bear_call_credit"}]})
+        if url.endswith("/orders"):
+            return _Resp({"orders": [], "buckets": {"infinity_1k": self.state}})
+        if url.endswith("/positions"):
+            return _Resp([])
+        return _Resp({})
+
+    def post(self, url, headers=None, json=None, timeout=None):
+        if url.endswith("/api/advisor/recommend"):
+            trade = self.infinity_trade if json["capital"] < 5000 else self.algo_trade
+            return _Resp({"recommendations": [trade] if trade else []})
+        if url.endswith("/orders/submit-combo"):
+            self.submitted.append(json)
+            resp = _Resp({"status": "Submitted", "limit_price": -0.25})
+            resp.status_code = 200
+            return resp
+        return _Resp({})
+
+
+def _trade(score, pop, risk):
+    return {"id": "r1", "symbol": "SPY", "strategy": "bear_call_credit", "quantity": 1,
+            "composite_score": score, "probability_of_profit": pop, "capital_at_risk": risk,
+            "underlying_price": 765.0,
+            "legs": [{"expiry": "2026-12-18", "strike": 785.0, "type": "CALL", "action": "SELL"},
+                     {"expiry": "2026-12-18", "strike": 786.0, "type": "CALL", "action": "BUY"}]}
+
+
+STATE = {"equity": 1000.0, "available": 1000.0, "open_positions": 0, "open_risk": 0.0}
+
+
+def _run(client, monkeypatch):
+    monkeypatch.setattr(ex, "is_market_open", lambda c: True)
+    monkeypatch.setattr(ex, "run_equity_once", lambda c: 0)
+    monkeypatch.setattr(ex, "post_decisions", lambda c, d: None)
+    monkeypatch.setattr(ex, "acknowledge", lambda c, i: None)
+    monkeypatch.setattr(ex, "run_journal_sync", lambda: None)
+    monkeypatch.setattr(ex, "RECOMMEND_DELAY_SECONDS", 0)
+    ex.run_once(client)
+    return client.submitted
+
+
+def test_top_setup_goes_to_the_1000_bucket(monkeypatch):
+    client = _RoutingClient(_trade(82, 74, 74.0), _trade(75, 70, 74.0), STATE)
+    [order] = _run(client, monkeypatch)
+    assert order["bucket"] == "infinity_1k" and order["capital_limit"] == 1000.0
+    assert order["conditions"]["trend"] == "bearish"
+    assert order["conditions"]["short_strike_otm_pct"] == round(20 / 765 * 100, 2)
+
+
+def test_ordinary_setup_stays_with_the_algo_trader(monkeypatch):
+    client = _RoutingClient(_trade(74, 74, 74.0), _trade(75, 70, 74.0), STATE)
+    [order] = _run(client, monkeypatch)
+    assert order["bucket"] == "algo_trader" and order["capital_limit"] == ex.CAPITAL_LIMIT
+
+
+def test_full_bucket_never_takes_a_trade(monkeypatch):
+    full = {**STATE, "available": 20.0}
+    client = _RoutingClient(_trade(90, 80, 74.0), _trade(75, 70, 74.0), full)
+    [order] = _run(client, monkeypatch)
+    assert order["bucket"] == "algo_trader"

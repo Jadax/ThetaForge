@@ -1,5 +1,38 @@
 # ThetaForge Changelog
 
+## v1.17.34 - 2026-11-05
+
+**The engine now learns from its own trades, a $1,000 growth bucket runs
+beside the main book, and research-backed fixes from reviewing two months of
+live results.** Details: `docs/LEARNING_AND_BUCKETS.md`.
+
+Learning loop (`agents/learning/trade_review.py`)
+- Every closed journal trade gets a `review` (verdict, drivers, lesson).
+- Outcomes are grouped by setup (strategy x trend / IV-rank band / DTE band /
+  RSI band / risk tilt) over a rolling 120-day window. Clear losers are vetoed,
+  weak setups lose up to 5 composite points, reliable winners gain 3. Applied
+  by both recommenders before ranking; published as the journal's `learning`.
+- First live result: single-stock momentum is vetoed (8 trades, -0.58R mean;
+  ETF rotation +0.55R). Its losses age out of the window, so it is re-tested.
+
+"$1000 to Infinity" bucket
+- Self-funded: equity = $1,000 + its own realized P&L, and open risk can never
+  exceed it (Bridge-enforced). Takes only top setups (options composite >= 78
+  and POP >= 70; stocks score >= 80), sized at 10% (options) / 5% (stocks) of
+  its equity per trade, <= 5 open. Everything else stays with the Algo Trader.
+- Every ledger record and journal trade carries `bucket`; the journal
+  publishes per-bucket summaries.
+
+Research and live-data fixes
+- Stock longs need >= 14 days to the next earnings print (was 3): three entries
+  were forced out near breakeven by the pre-earnings exit (+0.01 to +0.07R).
+- One CSP may tie up <= 30% of the book (was 50%): two CSPs held two-thirds of
+  a $5k book.
+- Option entries record the Brain's trend/signal, effective IV rank, IV/HV and
+  short-strike distance; the journal's `entry_ivr` is filled (was always null).
+- `GET /orders` returns the whole ledger: the old 100-record slice would have
+  dropped older open positions from management.
+
 ## v1.17.33 - 2026-11-05
 
 - Option management evaluates positions concurrently (same bound as the

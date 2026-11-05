@@ -13,6 +13,9 @@ from typing import Dict, List, Optional
 
 from agents.backtest.advanced_backtest import SignalEngine
 from agents.trade_engine.macro_calendar import MACRO_BLACKOUT_DAYS
+
+# Calendar days before a print in which no new stock long is opened.
+EARNINGS_ENTRY_BLACKOUT_DAYS = 14
 from agents.equity_trader.equity_signals import (
     atr,
     rate_of_change,
@@ -148,8 +151,11 @@ class EquityBrain:
                                                 days_to_macro))
 
         # Earnings proximity: a long into an earnings print is a one-event
-        # gamble on a stock. Stand aside within 3 trading days.
-        if days_to_earnings is not None and days_to_earnings <= 3:
+        # gamble on a stock, and the manager exits 2 days before any print.
+        # A swing long needs room to reach its 2R target first: entries with a
+        # print inside EARNINGS_ENTRY_BLACKOUT_DAYS were forced out near
+        # breakeven (Nov 2026: LYFT x2, KHC -- +0.01 to +0.07R), wasting a slot.
+        if days_to_earnings is not None and 0 <= days_to_earnings <= EARNINGS_ENTRY_BLACKOUT_DAYS:
             return self._reject(symbol, "pre_earnings",
                                 f"Earnings in {days_to_earnings}d; standing aside.",
                                 read=self._read(symbol, price, rsi_14, adx, sma_50, sma_200,

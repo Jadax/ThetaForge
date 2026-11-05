@@ -761,3 +761,29 @@ def test_option_dollars_use_the_contract_multiplier():
     assert ledger_max_profit(mes) == 30.0                           # 6 points x $5
     debit = {"net_credit": -1.0, "filled": 1, "legs": [{"strike": 100}, {"strike": 105}]}
     assert ledger_max_profit(debit) == 400.0                        # (5 - 1) x 100
+
+
+# ── v1.17.34: buckets, post-trade reviews, and the learning summary ─────────
+
+def test_journal_carries_buckets_reviews_and_learning(tmp_path):
+    ledger = [
+        _record("rec-1", conditions={"engine": "options", "iv_rank": 55.0, "eff_iv_rank": 61.0}),
+        _close_record("close-1", "rec-1"),
+        _record("rec-2", bucket="infinity_1k", submitted_at="2026-11-06T14:00:00Z"),
+        _close_record("close-2", "rec-2", reason="close_loss", realized_pnl=-120.0,
+                      bucket="infinity_1k", submitted_at="2026-11-07T15:00:00Z"),
+    ]
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+    sync_journal.main(["--journal", str(journal_path), "--ledger", str(ledger_path)])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    by_id = {t["id"]: t for t in data["trades"]}
+    assert by_id["rec-1"]["bucket"] == "algo_trader" and by_id["rec-2"]["bucket"] == "infinity_1k"
+    assert by_id["rec-1"]["entry_ivr"] == 61.0                     # was always null
+    assert by_id["rec-1"]["review"]["verdict"] == "win"
+    assert by_id["rec-2"]["review"]["verdict"] == "loss"
+    infinity = data["buckets"]["infinity_1k"]
+    assert infinity["label"] == "$1000 to Infinity"
+    assert infinity["realized_pnl"] == -120.0 and infinity["equity"] == 880.0
+    assert data["learning"]["closed_learnable"] >= 0 and "adjustments" in data["learning"]

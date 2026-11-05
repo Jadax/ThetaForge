@@ -169,7 +169,7 @@ def _close_harness(monkeypatch, parent, bids_asks):
     monkeypatch.setattr(bridge, "_bid_ask_usable", lambda t: t)
     monkeypatch.setattr(bridge, "_contract_multiplier", lambda q: 100)
     monkeypatch.setattr(bridge, "_snapshot_quality", lambda t: "live")
-    monkeypatch.setattr(bridge, "_write_order_ledger", lambda r: None)
+    monkeypatch.setattr(bridge, "_write_order_ledger", lambda r: placed.__setitem__("written", list(r)))
     request = bridge.CloseComboRequest(ledger_id=parent["id"], reason="close_profit", capital_limit=5000)
     return asyncio.run(bridge.close_paper_combo(request, None)), placed
 
@@ -193,3 +193,49 @@ def test_debit_spread_closes_for_a_credit(monkeypatch):
 def test_credit_spread_close_that_would_pay_is_still_refused(monkeypatch):
     with pytest.raises(HTTPException):
         _close_harness(monkeypatch, _spread_parent(0.30, "bear_call_credit"), [(0.60, 0.65), (0.20, 0.25)])
+
+
+# ── v1.17.34: capital buckets ($1000 to Infinity beside the Algo Trader) ────
+
+def _rec(rid, bucket=None, risk=0.0, status="Filled", filled=1, **extra):
+    record = {"id": rid, "status": status, "filled": filled, "max_loss_total": risk,
+              "week_key": _current_week_key(), **extra}
+    if bucket:
+        record["bucket"] = bucket
+    return record
+
+
+def test_bucket_equity_compounds_with_its_own_realized_pnl():
+    from bridge.main import _bucket_state
+    records = [
+        _rec("a", "infinity_1k", 300.0, closed_by="c"),
+        _rec("c", "infinity_1k", close_of="a", realized_pnl=120.0),
+        _rec("b", "infinity_1k", 200.0),
+        _rec("x", None, 900.0),                               # algo book: not counted
+        _rec("y", None, close_of="x0", realized_pnl=-500.0),  # algo P&L: not counted
+    ]
+    state = _bucket_state(records, "infinity_1k")
+    assert state["equity"] == 1120.0 and state["open_risk"] == 200.0 and state["available"] == 920.0
+
+
+def test_bucket_open_risk_can_never_exceed_its_equity():
+    from bridge.main import _check_bucket_capital
+    records = [_rec("b", "infinity_1k", 800.0)]
+    _check_bucket_capital(records, "infinity_1k", 200.0, capital_limit=1.0)   # exactly at equity
+    with pytest.raises(HTTPException):
+        _check_bucket_capital(records, "infinity_1k", 201.0, capital_limit=1.0)
+
+
+def test_algo_weekly_budget_ignores_the_other_bucket():
+    from bridge.main import _check_bucket_capital
+    records = [_rec("i", "infinity_1k", 900.0), _rec("a", None, 4000.0)]
+    _check_bucket_capital(records, "algo_trader", 1000.0, capital_limit=5000.0)
+    with pytest.raises(HTTPException):
+        _check_bucket_capital(records, "algo_trader", 1001.0, capital_limit=5000.0)
+
+
+def test_close_records_inherit_the_parent_bucket(monkeypatch):
+    parent = {**_spread_parent(-0.45, "call_debit_spread"), "bucket": "infinity_1k"}
+    _result, placed = _close_harness(monkeypatch, parent, [(0.60, 0.65), (0.20, 0.25)])
+    close = next(r for r in placed["written"] if r.get("close_of") == parent["id"])
+    assert close["bucket"] == "infinity_1k"

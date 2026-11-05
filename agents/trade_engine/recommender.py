@@ -54,9 +54,11 @@ MAX_PORTFOLIO_VEGA = 50.0
 # spreads: a CSP's "max loss" is the full strike, so under the max-loss rule
 # no CSP could ever be recommended (2% of $5k = $100 vs $1,000+ of backing).
 # The wheel's real risk control is how much of the book one name may tie up.
-# 0.50 lets a $5k book hold up to two concurrent CSPs on strikes <= $25; the
-# Bridge's weekly capital ledger stays the hard ceiling on the total.
-MAX_CASH_SECURED_ALLOCATION_PCT = 0.50
+# 0.30 (v1.17.34, was 0.50): one name may tie up at most 30% of the book --
+# the same cap as a stock position's notional. At 0.50 two CSPs (KHC $2,215,
+# AAL $1,176) held two-thirds of a $5k book; concentration, not the delta, is
+# what turns one bad name into a bad month. Strikes <= $15 on $5k.
+MAX_CASH_SECURED_ALLOCATION_PCT = 0.30
 CASH_SECURED_TYPES = ("csp", "cc")
 # Premium-quality floors for a CSP: the cash backing is locked for the whole
 # trade, so a far-OTM put paying pennies (e.g. $0.03 against $1,500 of cash)
@@ -242,6 +244,8 @@ class TradeRecommender:
         diversify_underlyings: bool = True,
         mode: str = "standard",
         allowed_types: Optional[set] = None,
+        learned_adjustments: Optional[List[Dict[str, Any]]] = None,
+        risk_per_trade_pct: Optional[float] = None,
     ) -> AdvisoryOutput:
         """
         MAIN ENTRY POINT: Capital In → Trade Recommendations Out.
@@ -264,8 +268,14 @@ class TradeRecommender:
         # Step 1: Determine market regime
         regime = self._detect_market_regime(market_data, volatility_data)
 
-        # Step 2: Calculate available capital
-        risk_per_trade = self._calculate_risk_per_trade(account)
+        # Step 2: Calculate available capital. A capital bucket may set its own
+        # per-trade risk (the $1,000 growth bucket cannot fit a $1-wide spread
+        # under 2% of $1,000); its hard limit is then the Bridge's bucket-equity
+        # check, not the RiskManager's book-wide ceiling.
+        risk_per_trade = (
+            account.total_equity * risk_per_trade_pct / 100
+            if risk_per_trade_pct else self._calculate_risk_per_trade(account)
+        )
         max_capital_per_trade = risk_per_trade * 5  # Max 5x risk as capital
         cash_secured_cap = account.total_equity * MAX_CASH_SECURED_ALLOCATION_PCT
 
@@ -333,6 +343,13 @@ class TradeRecommender:
             candidate for candidate in all_candidates
             if self._passes_empirical_gate(candidate)
         ]
+
+        # Step 4e: Learned setup adjustments (agents/learning/trade_review.py):
+        # setups that reliably lost on the journal are vetoed, weak ones lose a
+        # few composite points, reliably winning ones gain a few. Tighten-mostly
+        # and capped, so learning nudges the research-based score.
+        if learned_adjustments:
+            all_candidates = self._apply_learned_adjustments(all_candidates, learned_adjustments)
 
         # Step 5: Rank all candidates
         ranked = self.scorer.rank_strategies(all_candidates)
@@ -781,6 +798,32 @@ class TradeRecommender:
             if not ok:
                 return False
         return True
+
+    @staticmethod
+    def _apply_learned_adjustments(candidates: List[Dict[str, Any]],
+                                   adjustments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        from agents.learning.trade_review import setup_adjustment, trade_features
+
+        kept = []
+        for candidate in candidates:
+            nvrp = candidate.get("nvrp") or {}
+            features = trade_features({
+                "asset_class": "options",
+                "strategy": candidate.get("type"),
+                "dte_at_entry": candidate.get("dte"),
+                "conditions": {"trend": nvrp.get("trend"), "iv_rank": nvrp.get("iv_rank")},
+            })
+            veto, delta, reasons = setup_adjustment(adjustments, features)
+            if veto:
+                continue
+            if delta and isinstance(candidate.get("score"), dict):
+                score = dict(candidate["score"])
+                score["composite_score"] = round(float(score.get("composite_score", 0)) + delta, 1)
+                candidate = {**candidate, "score": score}
+            if reasons:
+                candidate = {**candidate, "learning_notes": reasons}
+            kept.append(candidate)
+        return kept
 
     def _passes_empirical_gate(self, candidate: Dict[str, Any]) -> bool:
         """Refuse short-premium strategies whose *realized* record is losing.
@@ -1751,6 +1794,7 @@ class TradeRecommender:
         annual = roi.get("annualized_return_pct", 0)
         if annual > 50:
             parts.append(f"Excellent annualized return: {annual:.1f}%")
+        parts.extend(candidate.get("learning_notes") or [])
 
         return " | ".join(parts) if parts else "Standard trade setup"
 

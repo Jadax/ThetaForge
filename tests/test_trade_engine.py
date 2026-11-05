@@ -1100,13 +1100,13 @@ def test_small_book_recommends_wheel_entry_csp():
     rule, unit-mismatched Greeks caps, a decimal-vs-points edge bug, and the
     1-SD expected-move rule each independently blocked every CSP.
     """
-    recs = _wheel_recommend(20.0)
+    recs = _wheel_recommend(14.0)
     assert recs, "expected a cash-secured put on a textbook wheel setup"
     best = recs[0]
     assert best.strategy_type == StrategyType.CASH_SECURED_PUT
     strike = best.legs[0].contract.strike
-    assert 17.0 <= strike <= 18.0          # ~15-25 delta, off the money
-    assert best.capital_required <= 5000 * 0.50
+    assert 11.5 <= strike <= 12.8          # ~15-25 delta, off the money
+    assert best.capital_required <= 5000 * 0.30   # one name <= 30% of the book
 
 
 def test_csp_respects_trend_veto():
@@ -1168,7 +1168,7 @@ def test_cheap_wheel_name_put_clears_the_credit_floor():
 
 def test_single_leg_sale_reports_its_credit():
     """CSP candidates carry their credit as "premium"; the API showed $0."""
-    best = _wheel_recommend(20.0)[0]
+    best = _wheel_recommend(14.0)[0]
     assert best.strategy_type == StrategyType.CASH_SECURED_PUT
     assert best.net_credit > 0
 
@@ -1199,3 +1199,8 @@ def test_fear_put_strike_sits_a_full_expected_move_below_spot():
     one_sd = 20.0 * 0.85 * math.sqrt(45 / 365)
     assert all(20.0 - r.legs[0].contract.strike >= one_sd for r in csps)
     assert all(r.net_credit > 0 for r in csps)
+
+
+def test_one_csp_never_ties_up_more_than_30_pct_of_the_book():
+    """A $20 name's 17-18 strike needs $1,700+ of cash: over 30% of $5k."""
+    assert not any(r.strategy_type == StrategyType.CASH_SECURED_PUT for r in _wheel_recommend(20.0))

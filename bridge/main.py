@@ -104,6 +104,8 @@ class PaperComboOrder(BaseModel):
     recommendation_id: str | None = Field(default=None, max_length=120)
     strategy: str | None = Field(default=None, max_length=80)
     conditions: dict[str, Any] | None = Field(default=None)
+    # Capital bucket this order belongs to (see BUCKET_STARTING_CAPITAL).
+    bucket: Literal["algo_trader", "infinity_1k"] = "algo_trader"
 
 
 class CloseComboRequest(BaseModel):
@@ -135,6 +137,8 @@ class PaperStockOrder(BaseModel):
     recommendation_id: str | None = Field(default=None, max_length=120)
     strategy: str | None = Field(default=None, max_length=80)
     conditions: dict[str, Any] | None = Field(default=None)
+    # Capital bucket this order belongs to (see BUCKET_STARTING_CAPITAL).
+    bucket: Literal["algo_trader", "infinity_1k"] = "algo_trader"
 
 
 class CloseStockRequest(BaseModel):
@@ -295,12 +299,89 @@ def _current_week_key(moment: datetime | None = None) -> str:
     return f"{year}-W{week:02d}"
 
 
-def _reserved_capital(records: list[dict[str, Any]], week_key: str | None = None) -> float:
+# Capital buckets sharing the one paper account and the one ledger.
+# "algo_trader" is the original book, budgeted by the caller's weekly
+# capital_limit. A bucket listed here is an account of its own: its equity is
+# its starting capital plus its own realized P&L (so it compounds), and its
+# open risk may never exceed that equity -- the Bridge, not the caller, holds
+# this limit. "$1000 to Infinity" started 2026-11-05.
+BUCKET_STARTING_CAPITAL = {"infinity_1k": 1000.0}
+DEFAULT_BUCKET = "algo_trader"
+
+
+def _bucket_of(record: dict[str, Any]) -> str:
+    return str(record.get("bucket") or DEFAULT_BUCKET)
+
+
+def _bucket_state(records: list[dict[str, Any]], bucket: str) -> dict[str, Any]:
+    """Equity, realized P&L, open risk and available risk for one bucket."""
+    mine = [record for record in records if _bucket_of(record) == bucket]
+    realized = sum(
+        float(record.get("realized_pnl", 0) or 0)
+        for record in mine
+        if record.get("close_of") and record.get("status") == "Filled"
+    )
+    open_risk = sum(
+        float(record.get("max_loss_total", 0) or 0)
+        for record in mine
+        if not record.get("close_of") and not record.get("closed_by")
+        and record.get("status", "Unknown") in RESERVING_ORDER_STATUSES
+    )
+    start = BUCKET_STARTING_CAPITAL.get(bucket)
+    equity = (start + realized) if start is not None else None
+    return {
+        "bucket": bucket,
+        "starting_capital": start,
+        "realized_pnl": round(realized, 2),
+        "equity": round(equity, 2) if equity is not None else None,
+        "open_risk": round(open_risk, 2),
+        "available": round(max(equity - open_risk, 0.0), 2) if equity is not None else None,
+        "open_positions": sum(
+            1 for record in mine
+            if not record.get("close_of") and not record.get("closed_by")
+            and float(record.get("filled", 0) or 0) > 0
+        ),
+    }
+
+
+def _check_bucket_capital(records: list[dict[str, Any]], bucket: str, total_risk: float,
+                          capital_limit: float) -> None:
+    """Raise 422 when this order would breach its bucket's limit.
+
+    Self-funded buckets check open risk against their own equity; the default
+    book keeps the weekly reservation against the caller's capital_limit,
+    counting only its own records.
+    """
+    if bucket in BUCKET_STARTING_CAPITAL:
+        state = _bucket_state(records, bucket)
+        if state["open_risk"] + total_risk > state["equity"]:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Bucket {bucket}: open risk ${state['open_risk']:.2f} plus this order's "
+                    f"${total_risk:.2f} exceeds its ${state['equity']:.2f} equity"
+                ),
+            )
+        return
+    capital_reserved = _reserved_capital(records, bucket=bucket)
+    if capital_reserved + total_risk > capital_limit:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Weekly reserved capital ${capital_reserved:.2f} plus this order's "
+                f"${total_risk:.2f} maximum loss exceeds the ${capital_limit:.2f} limit"
+            ),
+        )
+
+
+def _reserved_capital(records: list[dict[str, Any]], week_key: str | None = None,
+                      bucket: str | None = None) -> float:
     selected_week = week_key or _current_week_key()
     return round(sum(
         float(record.get("max_loss_total", 0) or 0)
         for record in records
         if record.get("week_key") == selected_week
+        and (bucket is None or _bucket_of(record) == bucket)
         and record.get("status", "Unknown") in RESERVING_ORDER_STATUSES
         and not record.get("closed_by")
         and not record.get("close_of")
@@ -496,7 +577,15 @@ async def paper_orders(
         "capital_limit": capital_limit,
         "capital_reserved": reserved,
         "capital_remaining": max(float(capital_limit) - reserved, 0) if capital_limit else None,
-        "orders": sorted(records, key=lambda item: item.get("submitted_at", ""), reverse=True)[:100],
+        # The whole ledger: the executor and manager build their open-position
+        # view from this list. The old [:100] slice would have silently dropped
+        # older OPEN positions from management once the ledger passed 100
+        # records -- the same failure that orphaned the Sep-29 positions.
+        "orders": sorted(records, key=lambda item: item.get("submitted_at", ""), reverse=True),
+        "buckets": {
+            name: _bucket_state(records, name)
+            for name in [DEFAULT_BUCKET, *BUCKET_STARTING_CAPITAL]
+        },
     }
 
 
@@ -747,15 +836,8 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
         raise HTTPException(status_code=422, detail="This structure cannot be proven defined-risk by the paper Bridge")
     total_risk = max_loss * order.quantity
     records = _sync_order_ledger()
-    capital_reserved = _reserved_capital(records)
-    if capital_reserved + total_risk > order.capital_limit:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"Weekly reserved capital ${capital_reserved:.2f} plus this order's "
-                f"${total_risk:.2f} maximum loss exceeds the ${order.capital_limit:.2f} limit"
-            ),
-        )
+    _check_bucket_capital(records, order.bucket, total_risk, order.capital_limit)
+    capital_reserved = _reserved_capital(records, bucket=order.bucket)
 
     if len(order.legs) == 1:
         leg = order.legs[0]
@@ -795,6 +877,7 @@ async def submit_paper_combo(order: PaperComboOrder, _: None = Depends(require_a
         "id": ledger_id,
         "recommendation_id": order.recommendation_id,
         "strategy": order.strategy,
+        "bucket": order.bucket,
         "symbol": order.legs[0].symbol.upper(),
         "legs": [leg.model_dump() for leg in order.legs],
         "quantity": order.quantity,
@@ -986,6 +1069,7 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
         "id": ledger_id,
         "close_of": request.ledger_id,
         "reason": request.reason,
+        "bucket": _bucket_of(parent),
         "strategy": parent.get("strategy"),
         "symbol": parent.get("symbol"),
         "legs": [leg.model_dump() for leg in close_legs],
@@ -1017,6 +1101,7 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
         "ledger_id": ledger_id,
         "close_of": request.ledger_id,
         "reason": request.reason,
+        "bucket": _bucket_of(parent),
         "ibkr_order_id": int(trade.order.orderId),
         "limit_price": limit_price,
         "net_credit": round(net_credit, 2),
@@ -1057,15 +1142,8 @@ async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_a
         raise HTTPException(status_code=422, detail="Stock order has no positive defined risk")
 
     records = _sync_order_ledger()
-    capital_reserved = _reserved_capital(records)
-    if capital_reserved + total_risk > order.capital_limit:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"Weekly reserved capital ${capital_reserved:.2f} plus this order's "
-                f"${total_risk:.2f} stop-defined risk exceeds the ${order.capital_limit:.2f} limit"
-            ),
-        )
+    _check_bucket_capital(records, order.bucket, total_risk, order.capital_limit)
+    capital_reserved = _reserved_capital(records, bucket=order.bucket)
 
     assert ib is not None
     ib_order = LimitOrder("BUY", order.shares, limit_price, tif="DAY")
@@ -1079,6 +1157,7 @@ async def submit_paper_stock(order: PaperStockOrder, _: None = Depends(require_a
         "asset_class": "equity",
         "recommendation_id": order.recommendation_id,
         "strategy": order.strategy,
+        "bucket": order.bucket,
         "symbol": order.symbol.upper(),
         "quantity": order.shares,
         "conditions": order.conditions,
@@ -1173,6 +1252,7 @@ async def close_paper_stock(request: CloseStockRequest, _: None = Depends(requir
         "asset_class": "equity",
         "close_of": request.ledger_id,
         "reason": request.reason,
+        "bucket": _bucket_of(parent),
         "strategy": parent.get("strategy"),
         "symbol": parent.get("symbol"),
         "quantity": shares,
@@ -1202,6 +1282,7 @@ async def close_paper_stock(request: CloseStockRequest, _: None = Depends(requir
         "ledger_id": ledger_id,
         "close_of": request.ledger_id,
         "reason": request.reason,
+        "bucket": _bucket_of(parent),
         "ibkr_order_id": int(trade.order.orderId),
         "limit_price": limit_price,
         "cost_to_close": round(limit_price * shares, 2),

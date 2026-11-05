@@ -54,6 +54,7 @@ from agents.trade_engine.portfolio_analytics import analyze_ledger
 from agents.trade_engine.macro_calendar import macro_days_until
 from agents.equity_trader.equity_scanner import get_background_equity_scanner
 from agents.equity_trader.equity_recommender import EquityRecommender
+from agents.learning.trade_review import learn as learn_from_journal, load_adjustments
 from agents.equity_trader.equity_manager import evaluate_position as equity_evaluate_position
 from agents.equity_trader.equity_signals import atr as equity_atr
 
@@ -269,6 +270,10 @@ class AdvisoryRequest(BaseModel):
     current_positions: List[Dict[str, Any]] = Field(default_factory=list)
     # "futures_options" = CME micro futures options (MES/MNQ watchlist).
     instrument: str = Field("options", pattern="^(options|futures_options)$")
+    # Per-trade risk as % of `capital`, set by a capital bucket (the $1,000
+    # growth bucket); None keeps the risk-tolerance profile. The Bridge's
+    # bucket-equity check is the hard limit either way.
+    risk_per_trade_pct: Optional[float] = Field(None, gt=0, le=10)
     # The notification's Brain strategy; "earnings_iron_condor" switches the
     # Recommender to the earnings IV-crush play for these symbols.
     strategy_hint: Optional[str] = Field(None, max_length=40)
@@ -824,6 +829,7 @@ class ManagementRequest(BaseModel):
 class EquityRecommendRequest(BaseModel):
     symbol: str = Field(..., min_length=1, max_length=12)
     capital: float = Field(10_000, gt=0)
+    risk_per_trade_pct: Optional[float] = Field(None, gt=0, le=10)
     current_positions: List[str] = Field(default_factory=list, max_length=50)
 
 
@@ -1361,8 +1367,11 @@ async def get_recommendations(request: AdvisoryRequest):
     except Exception:
         market_data["vix"] = 20
 
+    learned = await asyncio.to_thread(load_adjustments)
     output = recommender.generate_recommendations(
         account=account,
+        learned_adjustments=learned,
+        risk_per_trade_pct=request.risk_per_trade_pct,
         market_data=market_data,
         option_chains=option_chains,
         technical_data=technical_data,
@@ -1432,8 +1441,11 @@ async def _futures_recommendations(request: "AdvisoryRequest", account: AccountI
     except Exception:
         market_data["vix"] = 20
 
+    learned = await asyncio.to_thread(load_adjustments)
     output = recommender.generate_recommendations(
         account=account,
+        learned_adjustments=learned,
+        risk_per_trade_pct=request.risk_per_trade_pct,
         market_data=market_data,
         option_chains=option_chains,
         technical_data=technical_data,
@@ -1715,10 +1727,13 @@ async def equity_recommend(request: EquityRecommendRequest):
             "recommendation": None,
             "reason": skip or "data_unavailable",
         }
+    learned = await asyncio.to_thread(load_adjustments)
     recommendation = EquityRecommender().build(
         data,
         capital=request.capital,
         current_positions=request.current_positions,
+        learned_adjustments=learned,
+        risk_per_trade_pct=request.risk_per_trade_pct,
     )
     payload = _equity_recommendation_payload(recommendation, data)
     return {

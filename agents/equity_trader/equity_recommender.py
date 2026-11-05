@@ -65,6 +65,8 @@ class EquityRecommender:
         capital: float,
         current_positions: Optional[List[str]] = None,
         is_etf: Optional[bool] = None,
+        learned_adjustments: Optional[List[Dict[str, Any]]] = None,
+        risk_per_trade_pct: Optional[float] = None,
     ) -> EquityRecommendation:
         if isinstance(read, dict):
             read = _AsRead(read)
@@ -86,7 +88,23 @@ class EquityRecommender:
             return self._reject(symbol, "atr_unavailable",
                                 "No ATR available; cannot size or set a volatility stop.", price)
 
-        risk_dollars = capital * RISK_PER_TRADE_PCT
+        # Learned setup veto (agents/learning/trade_review.py): a setup that
+        # reliably lost on the journal is refused until its losses age out.
+        if learned_adjustments:
+            from agents.learning.trade_review import setup_adjustment, trade_features
+            features = trade_features({
+                "asset_class": "equity", "strategy": strategy,
+                # Same encoding the Advisor journals (above_200d/below_200d).
+                "conditions": {"trend": {True: "above_200d", False: "below_200d"}.get(getattr(read, "above_200d", None)),
+                               "rsi_14": getattr(read, "rsi_14", None),
+                               "risk_tilt": getattr(read, "market_risk_tilt", None)},
+            })
+            veto, _delta, reasons = setup_adjustment(learned_adjustments, features)
+            if veto:
+                return self._reject(symbol, "learned_setup", "; ".join(reasons), price)
+
+        risk_pct = (risk_per_trade_pct / 100) if risk_per_trade_pct else RISK_PER_TRADE_PCT
+        risk_dollars = capital * risk_pct
         stop_distance = ATR_STOP_MULTIPLIER * atr_value
         stop_price = price - stop_distance
         if stop_price <= 0 or stop_distance <= 0:
@@ -143,7 +161,7 @@ class EquityRecommender:
             notional=notional,
             max_loss_pct=max_loss_pct,
             reasoning=(
-                f"{base_reason} Position sized for 1% account risk "
+                f"{base_reason} Position sized for {risk_pct:.0%} account risk "
                 f"({risk_dollars:.2f}) at a {ATR_STOP_MULTIPLIER:.0f}x ATR stop "
                 f"({stop_price:.2f}), 2R target {target_price:.2f}."
             ),

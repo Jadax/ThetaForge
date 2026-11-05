@@ -94,6 +94,60 @@ ETF_TICKERS = {
     "XLP", "XLB", "XLC", "XLU", "XLRE",
 }
 
+DEFAULT_BUCKET = "algo_trader"
+BUCKETS = {
+    "algo_trader": {"label": "Algo Trader", "starting_capital": None},
+    "infinity_1k": {"label": "$1000 to Infinity", "starting_capital": 1000.0, "started": "2026-11-05"},
+}
+
+
+def _bucket_summary(entries: list) -> dict:
+    """Per-bucket realized P&L, open count and (for self-funded buckets) equity."""
+    summary = {}
+    for name, meta in BUCKETS.items():
+        mine = [e for e in entries if (e.get("bucket") or DEFAULT_BUCKET) == name]
+        closed = [e for e in mine if e.get("status") == "closed"]
+        realized = round(sum(float(e.get("net_pnl") or 0) for e in closed), 2)
+        unrealized = round(sum(float((e.get("live") or {}).get("pnl") or 0)
+                               for e in mine if e.get("status") == "open"), 2)
+        start = meta.get("starting_capital")
+        summary[name] = {
+            **meta,
+            "trades": len(mine),
+            "open": len(mine) - len(closed),
+            "closed": len(closed),
+            "wins": sum(1 for e in closed if float(e.get("net_pnl") or 0) > 0),
+            "realized_pnl": realized,
+            "unrealized_pnl": unrealized,
+            "equity": round(start + realized, 2) if start is not None else None,
+        }
+    return summary
+
+
+def _learning_layer(entries: list) -> Optional[dict]:
+    """Attach a post-trade review to every closed entry and return what the
+    engine learned from them (agents/learning/trade_review.py) -- the same
+    adjustments the Recommenders apply. Fails soft: the journal never breaks
+    because the learning layer could not load."""
+    repo_root = str(Path(__file__).resolve().parent.parent)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    try:
+        from agents.learning.trade_review import learn, review_trade
+    except Exception as error:
+        print(f"  learning layer unavailable: {error}")
+        return None
+    for entry in entries:
+        review = review_trade(entry)
+        if review:
+            entry["review"] = review
+        else:
+            entry.pop("review", None)
+    learned = learn(entries)
+    learned["setups"] = [s for s in learned["setups"] if s["n"] >= 3]
+    return learned
+
+
 DEFAULT_TRADER = {
     "name": "Tushant Sharma",
     "handle": "@thetaforge",
@@ -237,8 +291,14 @@ def build_entry(record: dict, overlay: dict) -> dict:
         "closed": None,
         "status": "open",
         "strategy": strategy,
+        # Capital bucket (bridge/main.py BUCKET_STARTING_CAPITAL); the original
+        # book is "algo_trader".
+        "bucket": record.get("bucket") or DEFAULT_BUCKET,
         "legs": legs,
-        "entry_ivr": None,
+        # Entry IV rank as the executor captured it (the effective, dual-filter
+        # rank when present); was always null before v1.17.34.
+        "entry_ivr": (record.get("conditions") or {}).get("eff_iv_rank")
+        or (record.get("conditions") or {}).get("iv_rank"),
         "expected_move_pct": None,
         "dte_at_entry": max((leg["dte"] for leg in legs if leg["dte"]), default=None),
         "entry_price": record.get("entry_price") or record.get("average_fill_price"),
@@ -567,6 +627,9 @@ def sync(args: argparse.Namespace) -> int:
 
     entries.sort(key=lambda trade: (trade.get("opened", ""), trade.get("timestamp", "")))
     entries.reverse()
+    for entry in entries:
+        entry.setdefault("bucket", DEFAULT_BUCKET)
+    learning = _learning_layer(entries)
 
     new_sha = _ledger_sha(consumed)
     carried_entries = [trade for trade in entries if trade.get("carried")]
@@ -596,6 +659,8 @@ def sync(args: argparse.Namespace) -> int:
         "account_equity": (current.get("account_equity") if isinstance(current, dict)
                            else None) or 25000,
         "verification": verification,
+        "buckets": _bucket_summary(entries),
+        "learning": learning,
         "trades": entries,
     }
     args.journal.write_text(json.dumps(journal, indent=2) + "\n", encoding="utf-8")

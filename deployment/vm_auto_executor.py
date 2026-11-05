@@ -62,6 +62,22 @@ POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
 RECOMMEND_DELAY_SECONDS = float(os.getenv("RECOMMEND_DELAY_SECONDS", "3"))
 JOURNAL_SYNC_SCRIPT = os.getenv("JOURNAL_SYNC_SCRIPT", "/opt/thetaforge-bridge/journal_sync_push.sh")
 
+# "$1000 to Infinity": a self-funded $1,000 bucket on the same paper account,
+# same Advisor, same Bridge (one scoring path, one order path). It gets first
+# look at every alert, sized off its OWN current equity at INFINITY_RISK_PCT
+# per trade, and only takes the alert when it clears a higher quality bar;
+# otherwise the alert flows to the Algo Trader book exactly as before. The
+# Bridge holds the bucket's hard limit (open risk <= bucket equity).
+ALGO_BUCKET = "algo_trader"
+INFINITY_BUCKET = "infinity_1k"
+INFINITY_ENABLED = os.getenv("INFINITY_BUCKET_ENABLED", "true").lower() == "true"
+INFINITY_RISK_PCT = float(os.getenv("INFINITY_RISK_PCT", "10"))
+INFINITY_MIN_OPTION_SCORE = float(os.getenv("INFINITY_MIN_OPTION_SCORE", "78"))
+INFINITY_MIN_POP = float(os.getenv("INFINITY_MIN_POP", "70"))
+INFINITY_MIN_EQUITY_SCORE = float(os.getenv("INFINITY_MIN_EQUITY_SCORE", "80"))
+INFINITY_MAX_POSITIONS = int(os.getenv("INFINITY_MAX_POSITIONS", "5"))
+INFINITY_MIN_AVAILABLE = 50.0
+
 ADVISOR_HEADERS = {"X-ThetaForge-Advisor-Token": ADVISOR_API_TOKEN}
 BRIDGE_HEADERS = {"X-ThetaForge-Bridge-Token": BRIDGE_ACCESS_TOKEN, "Content-Type": "application/json"}
 
@@ -78,7 +94,20 @@ def _num(value: Any, digits: int = 2) -> float | None:
     return round(float(value), digits) if isinstance(value, (int, float)) else None
 
 
-def option_conditions(trade: dict[str, Any]) -> dict[str, Any]:
+def _short_strike_otm_pct(trade: dict[str, Any]) -> float | None:
+    """How far the (nearest) sold strike sits from spot, in % of spot."""
+    try:
+        spot = float(trade.get("underlying_price") or 0)
+    except (TypeError, ValueError):
+        return None
+    sells = [float(leg["strike"]) for leg in trade.get("legs") or []
+             if leg.get("action") == "SELL" and leg.get("strike")]
+    if spot <= 0 or not sells:
+        return None
+    return round(min(abs(strike - spot) for strike in sells) / spot * 100, 2)
+
+
+def option_conditions(trade: dict[str, Any], notification: dict[str, Any] | None = None) -> dict[str, Any]:
     """Snapshot the Advisor's entry conditions for the public journal.
 
     Sent with the order so the Bridge stores it on the ledger record, letting
@@ -99,6 +128,14 @@ def option_conditions(trade: dict[str, Any]) -> dict[str, Any]:
         "reasoning": trade.get("reasoning"),
         "entry_rules": trade.get("entry_rules") or None,
         "exit_rules": trade.get("exit_rules") or None,
+        # The Brain's read that raised the alert -- what the learning loop
+        # (agents/learning/trade_review.py) slices outcomes by.
+        "trend": (notification or {}).get("regime"),
+        "signal": (notification or {}).get("signal"),
+        "brain_score": _num((notification or {}).get("score"), 1),
+        "eff_iv_rank": _num((notification or {}).get("eff_iv_rank"), 1),
+        "iv_hv_ratio": _num((notification or {}).get("iv_hv_ratio"), 2),
+        "short_strike_otm_pct": _short_strike_otm_pct(trade),
     }
 
 
@@ -134,6 +171,7 @@ def fetch_actionable_notifications(client: httpx.Client) -> list[dict[str, Any]]
 def fetch_recommendation(
     client: httpx.Client, symbol: str, current_positions: list[dict[str, Any]] | None = None,
     notification: dict[str, Any] | None = None,
+    capital: float = CAPITAL_LIMIT, risk_per_trade_pct: float | None = None,
 ) -> tuple[dict[str, Any] | None, str]:
     """Fetch a fully-specified recommendation for one symbol.
 
@@ -146,9 +184,10 @@ def fetch_recommendation(
         f"{ADVISOR_URL}/api/advisor/recommend",
         headers=ADVISOR_HEADERS,
         json={
-            "capital": CAPITAL_LIMIT,
-            "buying_power": CAPITAL_LIMIT,
+            "capital": capital,
+            "buying_power": capital,
             "risk_tolerance": "moderate",
+            "risk_per_trade_pct": risk_per_trade_pct,
             "watchlist": [symbol],
             # Covered-call inventory (shares not owned by the equity engine);
             # the Recommender only scores CCs against >= 100 owned shares.
@@ -177,7 +216,11 @@ def fetch_recommendation(
     )
 
 
-def submit_to_bridge(client: httpx.Client, trade: dict[str, Any]) -> tuple[bool, str]:
+def submit_to_bridge(
+    client: httpx.Client, trade: dict[str, Any],
+    notification: dict[str, Any] | None = None, bucket: str = ALGO_BUCKET,
+    capital_limit: float = CAPITAL_LIMIT,
+) -> tuple[bool, str]:
     legs = [
         {
             "symbol": trade["symbol"],
@@ -197,16 +240,17 @@ def submit_to_bridge(client: httpx.Client, trade: dict[str, Any]) -> tuple[bool,
             json={
                 "legs": legs,
                 "quantity": trade["quantity"],
-                "capital_limit": CAPITAL_LIMIT,
+                "capital_limit": capital_limit,
                 "recommendation_id": trade["id"],
                 "strategy": trade["strategy"],
-                "conditions": option_conditions(trade),
+                "conditions": option_conditions(trade, notification),
+                "bucket": bucket,
             },
             timeout=30,
         )
         body = response.json()
         if response.status_code == 200:
-            return True, f"submitted: {body.get('status')} limit={body.get('limit_price')}"
+            return True, f"submitted [{bucket}]: {body.get('status')} limit={body.get('limit_price')}"
         return False, f"bridge rejected ({response.status_code}): {body.get('detail')}"
     except Exception as error:
         return False, f"bridge call failed: {error}"
@@ -278,6 +322,52 @@ def fetch_ledger_orders(client: httpx.Client) -> list[dict[str, Any]] | None:
         return None
 
 
+def fetch_infinity_state(client: httpx.Client) -> dict[str, Any] | None:
+    """The $1000 bucket's equity/open risk/available from the Bridge, or None
+    (disabled, unreadable, or no room) -- callers then skip the bucket."""
+    if not INFINITY_ENABLED:
+        return None
+    try:
+        response = client.get(f"{BRIDGE_URL}/orders", headers=BRIDGE_HEADERS, timeout=15)
+        response.raise_for_status()
+        state = (response.json().get("buckets") or {}).get(INFINITY_BUCKET)
+    except Exception:
+        logger.exception("Could not read the %s bucket state", INFINITY_BUCKET)
+        return None
+    if not state or state.get("equity") is None:
+        return None
+    if float(state.get("available") or 0) < INFINITY_MIN_AVAILABLE:
+        return None
+    if int(state.get("open_positions") or 0) >= INFINITY_MAX_POSITIONS:
+        return None
+    return state
+
+
+def infinity_takes_option(trade: dict[str, Any], state: dict[str, Any]) -> tuple[bool, str]:
+    """The higher bar for the $1000 bucket: only the best setups, and only
+    what its remaining equity can carry."""
+    score = float(trade.get("composite_score") or 0)
+    pop = float(trade.get("probability_of_profit") or 0)
+    risk = float(trade.get("capital_at_risk") or trade.get("max_loss") or 0)
+    if score < INFINITY_MIN_OPTION_SCORE:
+        return False, f"score {score:.0f} < {INFINITY_MIN_OPTION_SCORE:.0f}"
+    if pop < INFINITY_MIN_POP:
+        return False, f"POP {pop:.0f}% < {INFINITY_MIN_POP:.0f}%"
+    if risk <= 0 or risk > float(state["available"]):
+        return False, f"risk ${risk:.0f} vs ${float(state['available']):.0f} available"
+    return True, ""
+
+
+def infinity_takes_equity(trade: dict[str, Any], state: dict[str, Any]) -> tuple[bool, str]:
+    score = float(trade.get("score") or 0)
+    risk = float(trade.get("max_loss_total") or 0)
+    if score < INFINITY_MIN_EQUITY_SCORE:
+        return False, f"score {score:.0f} < {INFINITY_MIN_EQUITY_SCORE:.0f}"
+    if risk <= 0 or risk > float(state["available"]):
+        return False, f"risk ${risk:.0f} vs ${float(state['available']):.0f} available"
+    return True, ""
+
+
 def held_symbols(records: list[dict[str, Any]], asset_class: str) -> list[str]:
     """Symbols with an open (filled, not closed) or still-working entry."""
     symbols: list[str] = []
@@ -345,7 +435,8 @@ def fetch_equity_notifications(client: httpx.Client) -> list[dict[str, Any]]:
 
 
 def fetch_equity_recommendation(
-    client: httpx.Client, symbol: str, open_symbols: list[str]
+    client: httpx.Client, symbol: str, open_symbols: list[str],
+    capital: float = CAPITAL_LIMIT, risk_per_trade_pct: float | None = None,
 ) -> tuple[dict[str, Any] | None, str]:
     """Fetch a gated, sized equity recommendation.
 
@@ -358,7 +449,8 @@ def fetch_equity_recommendation(
         headers=ADVISOR_HEADERS,
         json={
             "symbol": symbol,
-            "capital": CAPITAL_LIMIT,
+            "capital": capital,
+            "risk_per_trade_pct": risk_per_trade_pct,
             "current_positions": open_symbols,
         },
         timeout=60,
@@ -378,6 +470,8 @@ def submit_stock_to_bridge(
     client: httpx.Client,
     trade: dict[str, Any],
     notification: dict[str, Any] | None = None,
+    bucket: str = ALGO_BUCKET,
+    capital_limit: float = CAPITAL_LIMIT,
 ) -> tuple[bool, str]:
     try:
         response = client.post(
@@ -386,7 +480,8 @@ def submit_stock_to_bridge(
             json={
                 "symbol": trade["symbol"],
                 "shares": trade["shares"],
-                "capital_limit": CAPITAL_LIMIT,
+                "capital_limit": capital_limit,
+                "bucket": bucket,
                 "stop_price": trade["stop_price"],
                 "target_price": trade.get("target_price"),
                 "recommendation_id": trade["id"],
@@ -397,7 +492,7 @@ def submit_stock_to_bridge(
         )
         body = response.json()
         if response.status_code == 200:
-            return True, f"stock submitted: {body.get('status')} entry={body.get('entry_price')} stop={body.get('stop_price')}"
+            return True, f"stock submitted [{bucket}]: {body.get('status')} entry={body.get('entry_price')} stop={body.get('stop_price')}"
         return False, f"bridge rejected stock ({response.status_code}): {body.get('detail')}"
     except Exception as error:
         return False, f"bridge stock call failed: {error}"
@@ -449,19 +544,36 @@ def run_equity_once(client: httpx.Client) -> int:
         detail = ""
         action = "skipped"
         retry = rate_limited = False
-        try:
-            trade, detail = fetch_equity_recommendation(client, symbol, open_symbols)
-        except Exception as error:
-            logger.exception("Failed to fetch an equity recommendation for %s", symbol)
-            trade = None
-            detail = f"fetch_error: {error}"
-            retry = should_retry(str(notification["id"]), error)
-            rate_limited = is_rate_limited(error)
+        trade = None
+        bucket, capital_limit = ALGO_BUCKET, CAPITAL_LIMIT
+        infinity = fetch_infinity_state(client)
+        if infinity is not None:
+            try:
+                candidate, why = fetch_equity_recommendation(
+                    client, symbol, open_symbols,
+                    capital=float(infinity["equity"]), risk_per_trade_pct=INFINITY_RISK_PCT / 2)
+                if candidate is not None:
+                    takes, why = infinity_takes_equity(candidate, infinity)
+                    if takes:
+                        trade, bucket, capital_limit = candidate, INFINITY_BUCKET, float(infinity["equity"])
+                if trade is None:
+                    logger.info("%s: not for %s (%s)", symbol, INFINITY_BUCKET, why)
+            except Exception:
+                logger.exception("%s: %s bucket check failed; Algo Trader only", symbol, INFINITY_BUCKET)
+        if trade is None:
+            try:
+                trade, detail = fetch_equity_recommendation(client, symbol, open_symbols)
+            except Exception as error:
+                logger.exception("Failed to fetch an equity recommendation for %s", symbol)
+                trade = None
+                detail = f"fetch_error: {error}"
+                retry = should_retry(str(notification["id"]), error)
+                rate_limited = is_rate_limited(error)
 
         if trade is None:
             logger.info("%s: no qualifying equity structure at fetch time (%s)", symbol, detail)
         else:
-            ok, message = submit_stock_to_bridge(client, trade, notification)
+            ok, message = submit_stock_to_bridge(client, trade, notification, bucket, capital_limit)
             logger.info("%s: %s", symbol, message)
             action = "placed" if ok else "bridge_rejected"
             detail = message
@@ -518,18 +630,34 @@ def run_once(client: httpx.Client) -> int:
                 # second CSP on a name it's already short premium on).
                 detail = "already_open: an option position on this underlying is open or working"
             else:
-                try:
-                    trade, detail = fetch_recommendation(client, symbol, wheel_shares, notification)
-                except Exception as error:
-                    logger.exception("Failed to fetch a recommendation for %s", symbol)
-                    detail = f"fetch_error: {error}"
-                    retry = should_retry(str(notification["id"]), error)
-                    rate_limited = is_rate_limited(error)
+                bucket, capital_limit = ALGO_BUCKET, CAPITAL_LIMIT
+                infinity = fetch_infinity_state(client)
+                if infinity is not None:
+                    try:
+                        candidate, why = fetch_recommendation(
+                            client, symbol, wheel_shares, notification,
+                            capital=float(infinity["equity"]), risk_per_trade_pct=INFINITY_RISK_PCT)
+                        if candidate is not None:
+                            takes, why = infinity_takes_option(candidate, infinity)
+                            if takes:
+                                trade, bucket, capital_limit = candidate, INFINITY_BUCKET, float(infinity["equity"])
+                        if trade is None:
+                            logger.info("%s: not for %s (%s)", symbol, INFINITY_BUCKET, why)
+                    except Exception:
+                        logger.exception("%s: %s bucket check failed; Algo Trader only", symbol, INFINITY_BUCKET)
+                if trade is None:
+                    try:
+                        trade, detail = fetch_recommendation(client, symbol, wheel_shares, notification)
+                    except Exception as error:
+                        logger.exception("Failed to fetch a recommendation for %s", symbol)
+                        detail = f"fetch_error: {error}"
+                        retry = should_retry(str(notification["id"]), error)
+                        rate_limited = is_rate_limited(error)
 
             if trade is None:
                 logger.info("%s: no qualifying structure at fetch time (%s)", symbol, detail)
             else:
-                ok, message = submit_to_bridge(client, trade)
+                ok, message = submit_to_bridge(client, trade, notification, bucket, capital_limit)
                 logger.info("%s: %s", symbol, message)
                 action = "placed" if ok else "bridge_rejected"
                 detail = message
