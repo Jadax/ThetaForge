@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "3a11deb58a0452f0cd9cd59f1cf9c197f37741c2283c1b8c97d39d3aa5bffc17",
+    "ledger_sha": "c36e44d0bf43277ad510dba21680edb73e08e590ee2caed2f1944f28f755af0e",
     "entries_from_ledger": 41,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -138,7 +138,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-04T16:42:51.211126+00:00",
-        "updated_at": "2026-11-04T20:59:30.262209+00:00"
+        "updated_at": "2026-11-05T17:21:41.707636+00:00"
       },
       "symbol": "SPY",
       "asset_class": "options",
