@@ -15,6 +15,163 @@
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
   },
+  "buckets": {
+    "algo_trader": {
+      "label": "Algo Trader",
+      "starting_capital": null,
+      "trades": 42,
+      "open": 21,
+      "closed": 21,
+      "wins": 13,
+      "realized_pnl": -39.78,
+      "unrealized_pnl": 25.81,
+      "equity": null
+    },
+    "infinity_1k": {
+      "label": "$1000 to Infinity",
+      "starting_capital": 1000.0,
+      "started": "2026-11-05",
+      "trades": 0,
+      "open": 0,
+      "closed": 0,
+      "wins": 0,
+      "realized_pnl": 0,
+      "unrealized_pnl": 0,
+      "equity": 1000.0
+    }
+  },
+  "learning": {
+    "generated_at": "2026-11-05T17:23:43Z",
+    "window_days": 120,
+    "closed_learnable": 13,
+    "setups": [
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "equity_momentum"
+        },
+        "n": 8,
+        "mean_units": -0.581,
+        "se": 0.449,
+        "win_rate": 50.0,
+        "win_rate_shrunk": 50.0
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "equity_momentum",
+          "risk_tilt": "mixed"
+        },
+        "n": 7,
+        "mean_units": -0.668,
+        "se": 0.508,
+        "win_rate": 42.9,
+        "win_rate_shrunk": 45.5
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "equity_momentum",
+          "rsi_band": "rsi50-60"
+        },
+        "n": 4,
+        "mean_units": -0.517,
+        "se": 0.31,
+        "win_rate": 50.0,
+        "win_rate_shrunk": 50.0
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "equity_momentum",
+          "rsi_band": "rsi60-70"
+        },
+        "n": 3,
+        "mean_units": -0.532,
+        "se": 1.287,
+        "win_rate": 66.7,
+        "win_rate_shrunk": 57.1
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "equity_momentum",
+          "trend": "bullish"
+        },
+        "n": 8,
+        "mean_units": -0.581,
+        "se": 0.449,
+        "win_rate": 50.0,
+        "win_rate_shrunk": 50.0
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "etf_rotation"
+        },
+        "n": 5,
+        "mean_units": 0.55,
+        "se": 0.622,
+        "win_rate": 60.0,
+        "win_rate_shrunk": 55.6
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "etf_rotation",
+          "risk_tilt": "mixed"
+        },
+        "n": 5,
+        "mean_units": 0.55,
+        "se": 0.622,
+        "win_rate": 60.0,
+        "win_rate_shrunk": 55.6
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "etf_rotation",
+          "trend": "bullish"
+        },
+        "n": 5,
+        "mean_units": 0.55,
+        "se": 0.622,
+        "win_rate": 60.0,
+        "win_rate_shrunk": 55.6
+      }
+    ],
+    "adjustments": [
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "equity_momentum"
+        },
+        "action": "veto",
+        "points": null,
+        "evidence": "n=8, mean -0.58 (+/-0.45), win 50%"
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "equity_momentum",
+          "risk_tilt": "mixed"
+        },
+        "action": "veto",
+        "points": null,
+        "evidence": "n=7, mean -0.67 (+/-0.51), win 43%"
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "equity_momentum",
+          "trend": "bullish"
+        },
+        "action": "veto",
+        "points": null,
+        "evidence": "n=8, mean -0.58 (+/-0.45), win 50%"
+      }
+    ]
+  },
   "trades": [
     {
       "id": "a8079c6c-be06-4c7f-91af-f56647d11d6e",
@@ -45,6 +202,7 @@
       "closed": null,
       "status": "open",
       "strategy": "etf_rotation",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -148,6 +306,7 @@
       "closed": null,
       "status": "open",
       "strategy": "bear_call_credit",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "SELL",
@@ -164,7 +323,7 @@
           "dte": 44
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 44,
       "entry_price": -0.35,
@@ -287,6 +446,7 @@
       "closed": null,
       "status": "open",
       "strategy": "etf_rotation",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -398,6 +558,7 @@
       "closed": null,
       "status": "open",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -513,6 +674,7 @@
       "closed": "2026-11-04",
       "status": "closed",
       "strategy": "etf_rotation",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -605,6 +767,16 @@
         "sec_type": null,
         "submitted_at": "2026-11-04T15:03:30.942207+00:00",
         "updated_at": "2026-11-04T20:59:30.262175+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -0.95 R",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -0.953
       }
     },
     {
@@ -636,6 +808,7 @@
       "closed": "2026-11-03",
       "status": "closed",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -686,6 +859,15 @@
         "sec_type": null,
         "submitted_at": "2026-11-03T15:19:24.694268+00:00",
         "updated_at": "2026-11-03T20:58:57.332541+00:00"
+      },
+      "review": {
+        "verdict": "scratch",
+        "drivers": [
+          "exit: close pre earnings",
+          "outcome +0.02 R"
+        ],
+        "lesson": "Scratch -- the trade neither worked nor failed; earnings landed inside the holding window and forced an early exit -- check the calendar before entering.",
+        "units": 0.024
       }
     },
     {
@@ -717,6 +899,7 @@
       "closed": "2026-11-03",
       "status": "closed",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -767,6 +950,15 @@
         "sec_type": null,
         "submitted_at": "2026-11-03T14:44:56.955068+00:00",
         "updated_at": "2026-11-03T20:58:57.332529+00:00"
+      },
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close pre earnings",
+          "outcome +0.07 R"
+        ],
+        "lesson": "Earnings landed inside the holding window and forced an early exit -- check the calendar before entering.",
+        "units": 0.071
       }
     },
     {
@@ -798,6 +990,7 @@
       "closed": "2026-11-03",
       "status": "closed",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -848,6 +1041,15 @@
         "sec_type": null,
         "submitted_at": "2026-11-03T14:44:52.683139+00:00",
         "updated_at": "2026-11-03T20:58:57.332520+00:00"
+      },
+      "review": {
+        "verdict": "scratch",
+        "drivers": [
+          "exit: close pre earnings",
+          "outcome +0.01 R"
+        ],
+        "lesson": "Scratch -- the trade neither worked nor failed; earnings landed inside the holding window and forced an early exit -- check the calendar before entering.",
+        "units": 0.008
       }
     },
     {
@@ -879,6 +1081,7 @@
       "closed": null,
       "status": "open",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -1022,6 +1225,7 @@
       "closed": null,
       "status": "open",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -1165,6 +1369,7 @@
       "closed": null,
       "status": "open",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -1324,6 +1529,7 @@
       "closed": null,
       "status": "open",
       "strategy": "bull_put_credit",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "SELL",
@@ -1340,7 +1546,7 @@
           "dte": 46
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 46,
       "entry_price": -0.25,
@@ -1519,6 +1725,7 @@
       "closed": null,
       "status": "open",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -1682,6 +1889,7 @@
       "closed": null,
       "status": "open",
       "strategy": "cash_secured_put",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "SELL",
@@ -1691,7 +1899,7 @@
           "dte": 46
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 46,
       "entry_price": 0.35,
@@ -1874,6 +2082,7 @@
       "closed": null,
       "status": "open",
       "strategy": "cash_secured_put",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "SELL",
@@ -1883,7 +2092,7 @@
           "dte": 46
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 46,
       "entry_price": 0.34,
@@ -2066,6 +2275,7 @@
       "closed": null,
       "status": "open",
       "strategy": "call_debit_spread",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "BUY",
@@ -2082,7 +2292,7 @@
           "dte": 18
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 18,
       "entry_price": 0.45,
@@ -2163,6 +2373,7 @@
       "closed": "2026-11-05",
       "status": "closed",
       "strategy": "etf_rotation",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -2355,7 +2566,16 @@
           "at": "2026-11-05T14:32:03+00:00",
           "price": 190.87
         }
-      ]
+      ],
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close profit",
+          "outcome +0.81 R"
+        ],
+        "lesson": "Thesis played out to its target -- repeat this setup.",
+        "units": 0.805
+      }
     },
     {
       "id": "5d2ed7ce-6406-4316-a0fe-e3db53102310",
@@ -2386,6 +2606,7 @@
       "closed": "2026-11-05",
       "status": "closed",
       "strategy": "etf_rotation",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -2578,7 +2799,16 @@
           "at": "2026-11-05T14:32:03+00:00",
           "price": 92.5199
         }
-      ]
+      ],
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close profit",
+          "outcome +2.05 R"
+        ],
+        "lesson": "Thesis played out to its target -- repeat this setup.",
+        "units": 2.047
+      }
     },
     {
       "id": "db9362e9-71e8-4fb8-9040-8ec87663a98e",
@@ -2609,6 +2839,7 @@
       "closed": "2026-11-04",
       "status": "closed",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -2789,6 +3020,15 @@
         "sec_type": null,
         "submitted_at": "2026-11-04T14:38:34.686480+00:00",
         "updated_at": "2026-11-04T20:59:30.262106+00:00"
+      },
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close profit",
+          "outcome +1.33 R"
+        ],
+        "lesson": "Thesis played out to its target -- repeat this setup.",
+        "units": 1.333
       }
     },
     {
@@ -2820,6 +3060,7 @@
       "closed": "2026-11-03",
       "status": "closed",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -2972,6 +3213,16 @@
         "sec_type": null,
         "submitted_at": "2026-11-03T14:37:24.448550+00:00",
         "updated_at": "2026-11-03T20:58:57.332487+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -0.99 R",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -0.988
       }
     },
     {
@@ -3003,6 +3254,7 @@
       "closed": "2026-11-02",
       "status": "closed",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -3123,6 +3375,16 @@
         "sec_type": null,
         "submitted_at": "2026-11-02T17:49:02.058886+00:00",
         "updated_at": "2026-11-02T20:58:48.141598+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -0.95 R",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -0.953
       }
     },
     {
@@ -3154,6 +3416,7 @@
       "closed": null,
       "status": "open",
       "strategy": "put_debit_spread",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "BUY",
@@ -3170,7 +3433,7 @@
           "dte": 22
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 22,
       "entry_price": 0.27,
@@ -3251,6 +3514,7 @@
       "closed": null,
       "status": "open",
       "strategy": "cash_secured_put",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "SELL",
@@ -3260,7 +3524,7 @@
           "dte": 22
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 22,
       "entry_price": 0.13,
@@ -3491,6 +3755,7 @@
       "closed": null,
       "status": "open",
       "strategy": "bear_call_credit",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "SELL",
@@ -3507,7 +3772,7 @@
           "dte": 22
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 22,
       "entry_price": -0.25,
@@ -3738,6 +4003,7 @@
       "closed": null,
       "status": "open",
       "strategy": "equity_momentum",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -3953,6 +4219,7 @@
       "closed": null,
       "status": "open",
       "strategy": "bear_call_credit",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "SELL",
@@ -3969,7 +4236,7 @@
           "dte": 22
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 22,
       "entry_price": -0.29,
@@ -4212,6 +4479,7 @@
       "closed": null,
       "status": "open",
       "strategy": "cash_secured_put",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "SELL",
@@ -4221,7 +4489,7 @@
           "dte": 22
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 22,
       "entry_price": 0.24,
@@ -4468,6 +4736,7 @@
       "closed": null,
       "status": "open",
       "strategy": "cash_secured_put",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "SELL",
@@ -4477,7 +4746,7 @@
           "dte": 22
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 22,
       "entry_price": 0.21,
@@ -4724,6 +4993,7 @@
       "closed": null,
       "status": "open",
       "strategy": "cash_secured_put",
+      "bucket": "algo_trader",
       "legs": [
         {
           "action": "SELL",
@@ -4733,7 +5003,7 @@
           "dte": 22
         }
       ],
-      "entry_ivr": null,
+      "entry_ivr": 50.0,
       "expected_move_pct": null,
       "dte_at_entry": 22,
       "entry_price": 0.1,
@@ -4980,6 +5250,7 @@
       "closed": "2026-11-04",
       "status": "closed",
       "strategy": "etf_rotation",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -5224,6 +5495,15 @@
         "sec_type": null,
         "submitted_at": "2026-11-04T16:41:54.503759+00:00",
         "updated_at": "2026-11-04T20:59:30.262201+00:00"
+      },
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close profit",
+          "outcome +1.68 R"
+        ],
+        "lesson": "Thesis played out to its target -- repeat this setup.",
+        "units": 1.676
       }
     },
     {
@@ -5255,6 +5535,7 @@
       "closed": "2026-11-03",
       "status": "closed",
       "strategy": "etf_rotation",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -5463,6 +5744,17 @@
         "sec_type": null,
         "submitted_at": "2026-11-03T14:32:20.301723+00:00",
         "updated_at": "2026-11-03T20:58:57.332469+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -0.83 R",
+          "entered overbought (RSI 70)",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -0.826
       }
     },
     {
@@ -5494,6 +5786,7 @@
       "closed": null,
       "status": "open",
       "strategy": "etf_rotation",
+      "bucket": "algo_trader",
       "legs": [],
       "entry_ivr": null,
       "expected_move_pct": null,
@@ -5898,7 +6191,17 @@
         "submitted_at": "2026-10-26T13:36:16.005341+00:00",
         "updated_at": "2026-10-26T19:41:29.901057+00:00"
       },
-      "carried": true
+      "carried": true,
+      "bucket": "algo_trader",
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close pre macro",
+          "outcome +0.07 R"
+        ],
+        "lesson": "Closed by the pre-FOMC flatten rule (since removed) -- not a verdict on the setup.",
+        "units": 0.071
+      }
     },
     {
       "id": "65056a05-985a-460f-9aee-8e1306c4cf07",
@@ -6286,7 +6589,18 @@
         "submitted_at": "2026-10-26T13:36:24.664700+00:00",
         "updated_at": "2026-10-26T19:41:29.901173+00:00"
       },
-      "carried": true
+      "carried": true,
+      "bucket": "algo_trader",
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -3.00 R",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -3.0
+      }
     },
     {
       "id": "d7a4d4c3-2d61-402c-978f-d458abb97fe7",
@@ -6650,7 +6964,18 @@
         "submitted_at": "2026-10-26T13:36:20.517791+00:00",
         "updated_at": "2026-10-26T19:41:29.901142+00:00"
       },
-      "carried": true
+      "carried": true,
+      "bucket": "algo_trader",
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close pre macro",
+          "outcome -0.57 R",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Closed by the pre-FOMC flatten rule (since removed) -- not a verdict on the setup.",
+        "units": -0.567
+      }
     },
     {
       "id": "f9bc5f86-cbb1-4066-8111-bef7ab040897",
@@ -6906,7 +7231,17 @@
         "submitted_at": "2026-10-26T13:36:37.139740+00:00",
         "updated_at": "2026-10-26T19:41:29.901252+00:00"
       },
-      "carried": true
+      "carried": true,
+      "bucket": "algo_trader",
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close pre macro",
+          "outcome +0.23 R"
+        ],
+        "lesson": "Closed by the pre-FOMC flatten rule (since removed) -- not a verdict on the setup.",
+        "units": 0.234
+      }
     },
     {
       "id": "a00d582c-ac49-4ef2-86d6-3c9373b73e5a",
@@ -7250,7 +7585,18 @@
         "submitted_at": "2026-10-26T13:36:32.979420+00:00",
         "updated_at": "2026-10-26T19:41:29.901226+00:00"
       },
-      "carried": true
+      "carried": true,
+      "bucket": "algo_trader",
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -1.14 R",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -1.144
+      }
     },
     {
       "id": "c8da8593-8900-4ece-9d4f-0b908f8f30a1",
@@ -7514,7 +7860,17 @@
         "submitted_at": "2026-10-26T13:36:28.823749+00:00",
         "updated_at": "2026-10-26T19:41:29.901201+00:00"
       },
-      "carried": true
+      "carried": true,
+      "bucket": "algo_trader",
+      "review": {
+        "verdict": "scratch",
+        "drivers": [
+          "exit: close pre macro",
+          "outcome -0.03 R"
+        ],
+        "lesson": "Closed by the pre-FOMC flatten rule (since removed) -- not a verdict on the setup.",
+        "units": -0.035
+      }
     },
     {
       "id": "2b1d5932-ce79-41a2-8c32-a96321dd2a36",
@@ -7814,7 +8170,17 @@
         "submitted_at": "2026-10-26T13:36:53.774471+00:00",
         "updated_at": "2026-10-26T19:41:29.901343+00:00"
       },
-      "carried": true
+      "carried": true,
+      "bucket": "algo_trader",
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close pre macro",
+          "outcome +0.43 R"
+        ],
+        "lesson": "Closed by the pre-FOMC flatten rule (since removed) -- not a verdict on the setup.",
+        "units": 0.425
+      }
     },
     {
       "id": "1d454fcd-f5b4-45e9-bb6d-aa0097745baf",
@@ -8110,7 +8476,17 @@
         "submitted_at": "2026-10-26T13:36:49.612116+00:00",
         "updated_at": "2026-10-26T19:41:29.901321+00:00"
       },
-      "carried": true
+      "carried": true,
+      "bucket": "algo_trader",
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close pre macro",
+          "outcome +0.66 R"
+        ],
+        "lesson": "Closed by the pre-FOMC flatten rule (since removed) -- not a verdict on the setup.",
+        "units": 0.655
+      }
     },
     {
       "id": "df39a659-18d5-4221-9211-6dc31dbca0e4",
@@ -8358,7 +8734,17 @@
         "submitted_at": "2026-10-26T13:36:45.454863+00:00",
         "updated_at": "2026-10-26T19:41:29.901299+00:00"
       },
-      "carried": true
+      "carried": true,
+      "bucket": "algo_trader",
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close pre macro",
+          "outcome +0.07 R"
+        ],
+        "lesson": "Closed by the pre-FOMC flatten rule (since removed) -- not a verdict on the setup.",
+        "units": 0.069
+      }
     },
     {
       "id": "e0267e3d-bd95-436d-ae4d-eefade32ad01",
@@ -8646,7 +9032,17 @@
         "submitted_at": "2026-10-26T13:36:41.284063+00:00",
         "updated_at": "2026-10-26T19:41:29.901275+00:00"
       },
-      "carried": true
+      "carried": true,
+      "bucket": "algo_trader",
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close pre macro",
+          "outcome +0.13 R"
+        ],
+        "lesson": "Closed by the pre-FOMC flatten rule (since removed) -- not a verdict on the setup.",
+        "units": 0.13
+      }
     }
   ]
 }
