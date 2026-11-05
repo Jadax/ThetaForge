@@ -98,7 +98,9 @@ def test_is_manageable_tokens():
     assert m.is_manageable("covered_call")
     assert m.is_manageable("bull_put_credit")
     assert not m.is_manageable(None)
-    assert not m.is_manageable("call_debit_spread")
+    # Bought spreads are managed too (take profit / stop / out before expiry week).
+    assert m.is_manageable("call_debit_spread")
+    assert not m.is_manageable("long_call")
 
 
 def test_open_positions_filters_ledger():
@@ -115,7 +117,7 @@ def test_open_positions_filters_ledger():
         ],
     })])
     entries, realized, reserved = m.open_positions(client)
-    assert [e["id"] for e in entries] == ["open-1"]
+    assert [e["id"] for e in entries] == ["open-1", "debit-1"]
     assert realized == -250.0
     assert reserved == 1500.0
 
@@ -136,7 +138,7 @@ def test_short_and_long_strike_extraction():
     assert m._short_strike(iron_condor, "iron_condor") == 595
     assert m._long_strike(iron_condor, "iron_condor") == 570
     single = [{"action": "SELL", "strike": 90}]
-    assert m._long_strike(single, "cash_secured_put") == 0
+    assert m._long_strike(single, "cash_secured_put") is None   # the Advisor rejects 0
 
 
 def test_build_position_inputs():
@@ -212,3 +214,41 @@ def test_management_inputs_carry_every_leg_and_the_contract_type():
     assert inputs["sec_type"] == "FOP"
     assert [leg["action"] for leg in inputs["legs"]] == ["SELL", "BUY"]
     assert "close_post_earnings" in m.CLOSE_ACTIONS
+
+
+# ── v1.17.32: one CSP's long_strike=0 422'd every option management cycle ──
+
+def test_position_inputs_pass_the_advisor_schema():
+    """Oct 29 - Nov 5 2026: every cycle 422'd, so no option was ever managed."""
+    from orchestrator.routes.advisor import PositionInput
+    records = [
+        {"id": "csp", "symbol": "F", "strategy": "cash_secured_put", "net_credit": 0.35, "quantity": 1,
+         "legs": [{"strike": 11.5, "right": "P", "expiry": "2026-12-18", "action": "SELL"}]},
+        {"id": "deb", "symbol": "NCLH", "strategy": "call_debit_spread", "net_credit": -0.45, "quantity": 1,
+         "legs": [{"strike": 18.0, "right": "C", "expiry": "2026-12-18", "action": "BUY"},
+                  {"strike": 18.5, "right": "C", "expiry": "2026-12-18", "action": "SELL"}]},
+    ]
+    csp, debit = [PositionInput(**p) for p in m.build_position_inputs(records)]
+    assert csp.long_strike is None and csp.credit_received == 0.35
+    assert debit.debit_paid == 0.45 and debit.credit_received == 0
+
+
+def test_one_rejected_position_never_blocks_the_rest():
+    class Resp:
+        def __init__(self, code, body):
+            self.status_code, self._body, self.text = code, body, str(body)
+        def json(self):
+            return self._body
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise AssertionError("raised")
+
+    class Client:
+        def post(self, url, headers=None, json=None, timeout=None):
+            batch = json["positions"]
+            if any(p.get("symbol") == "BAD" for p in batch):
+                return Resp(422, {"detail": "bad"})
+            return Resp(200, {"actions": [{"action": "close_time", "symbol": p["symbol"]} for p in batch]})
+
+    actions = m.request_management(Client(), [{"symbol": "GOOD"}, {"symbol": "BAD"}, {"symbol": "OK"}])
+    assert [a["action"] for a in actions] == ["close_time", "hold", "close_time"]

@@ -79,6 +79,12 @@ MANAGED_STRATEGIES = {
     "bear_call_credit", "iron_condor_weekly", "credit_spread_weekly",
     "wheel", "csp", "cc", "earnings_iron_condor",
 }
+# Bought (debit) spreads are managed too (take profit / stop / out before
+# expiry week); they are not premium sales, so they live outside the mirror.
+DEBIT_STRATEGIES = {
+    "call_debit", "put_debit", "call_debit_spread", "put_debit_spread",
+    "bull_call_spread", "bear_put_spread",
+}
 
 
 def is_market_open(client: httpx.Client) -> bool:
@@ -92,7 +98,8 @@ def fetch_ledger(client: httpx.Client) -> dict[str, Any]:
 
 
 def is_manageable(strategy: Optional[str]) -> bool:
-    return (strategy or "").lower() in MANAGED_STRATEGIES
+    key = (strategy or "").lower()
+    return key in MANAGED_STRATEGIES or key in DEBIT_STRATEGIES
 
 
 def open_positions(client: httpx.Client) -> tuple[list[dict[str, Any]], float, float]:
@@ -136,10 +143,10 @@ def _short_strike(legs: List[Dict[str, Any]], strategy: str) -> float:
     return sells[0]
 
 
-def _long_strike(legs: List[Dict[str, Any]], strategy: str) -> float:
+def _long_strike(legs: List[Dict[str, Any]], strategy: str) -> Optional[float]:
     buys = [float(leg.get("strike", 0)) for leg in legs if leg.get("action") == "BUY" and float(leg.get("strike", 0)) > 0]
     if not buys:
-        return 0.0
+        return None  # single-leg CSP/CC: the Advisor rejects 0
     if "condor" in (strategy or "").lower():
         return min(buys)
     return buys[0]
@@ -171,7 +178,9 @@ def build_position_inputs(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]
             "short_strike": _short_strike(legs, record.get("strategy")),
             "long_strike": _long_strike(legs, record.get("strategy")),
             "expiry": expiry,
-            "credit_received": float(record.get("net_credit", 0) or 0),
+            # Ledger net_credit is negative for a bought (debit) spread.
+            "credit_received": max(float(record.get("net_credit", 0) or 0), 0.0),
+            "debit_paid": max(-float(record.get("net_credit", 0) or 0), 0.0),
             "quantity": int(record.get("quantity", 1) or 1),
             "dte": dte,
         })
@@ -179,14 +188,36 @@ def build_position_inputs(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]
 
 
 def request_management(client: httpx.Client, positions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    response = client.post(
-        f"{ADVISOR_URL}/api/advisor/positions/management",
-        headers=ADVISOR_HEADERS,
-        json={"positions": positions, "capital": CAPITAL_LIMIT},
-        timeout=120,
-    )
-    response.raise_for_status()
-    return response.json().get("actions", [])
+    """One action per position, in order.
+
+    A 422 means the Advisor rejected some position's shape; the batch is then
+    retried one position at a time so a single malformed record can never
+    leave the whole book unmanaged again (Oct 29 - Nov 5 2026: one CSP's
+    long_strike=0 blocked every option exit). A position that still fails
+    gets a "hold" placeholder and an ERROR log line naming it.
+    """
+    def post(batch):
+        return client.post(
+            f"{ADVISOR_URL}/api/advisor/positions/management",
+            headers=ADVISOR_HEADERS,
+            json={"positions": batch, "capital": CAPITAL_LIMIT},
+            timeout=120,
+        )
+
+    response = post(positions)
+    if response.status_code != 422 or len(positions) <= 1:
+        response.raise_for_status()
+        return response.json().get("actions", [])
+    actions = []
+    for position in positions:
+        single = post([position])
+        if single.status_code == 200 and single.json().get("actions"):
+            actions.append(single.json()["actions"][0])
+        else:
+            logger.error("%s: management request rejected (%s): %s",
+                         position.get("symbol"), single.status_code, single.text[:300])
+            actions.append({"action": "hold", "reason": "management request rejected"})
+    return actions
 
 
 def submit_close(client: httpx.Client, ledger_id: str, reason: str) -> tuple[bool, str]:

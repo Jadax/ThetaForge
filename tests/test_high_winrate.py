@@ -105,7 +105,8 @@ def test_entry_dte_blocks_sell_premium_beyond_capital_drag():
 def test_entry_dte_accepts_the_tastytrade_band():
     assert entry_dte_ok("bull_put", 30)[0]
     assert entry_dte_ok("iron_condor", 45)[0]
-    assert entry_dte_ok("bear_call", 21)[0]
+    # 21-29 DTE leaves no room before the 21-DTE management exit (v1.17.32).
+    assert not entry_dte_ok("bear_call", 22)[0]
     assert entry_dte_ok("bear_call", 60)[0]
 
 

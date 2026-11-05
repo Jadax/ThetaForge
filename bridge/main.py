@@ -929,11 +929,23 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
         live_prices.append(bid if leg.action == "SELL" else -ask)
 
     net_credit = sum(live_prices)
-    if net_credit >= 0:
+    entry_credit = float(parent.get("net_credit", 0) or 0)
+    if entry_credit < 0:
+        # A bought (debit) spread is closed by selling it: the close receives
+        # cash. Before this branch the guard below made debit spreads
+        # impossible to exit, leaving them to expiry and exercise risk.
+        if len(close_legs) < 2 or net_credit <= 0:
+            raise HTTPException(
+                status_code=422,
+                detail="Closing a bought spread should receive a net credit; refusing a fill that would pay more in",
+            )
+    elif net_credit >= 0:
         raise HTTPException(
             status_code=422,
             detail="Closing this structure should cost money (net cash out); refusing a fill that would pay the position",
         )
+    # Negative for a debit-spread close (cash received); the BUY-the-bag limit
+    # below is then negative, IBKR's convention for receiving a net credit.
     cost_to_close = -net_credit
     multiplier = _contract_multiplier(qualified)
     combo_exchange = _combo_exchange(close_legs)
@@ -967,7 +979,6 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
     trade = ib.placeOrder(contract, ib_order)
     now = datetime.now(timezone.utc).isoformat()
     status = str(trade.orderStatus.status or "PendingSubmit")
-    entry_credit = float(parent.get("net_credit", 0) or 0)
     # Ledger prices are per unit of the underlying; dollars need the contract
     # multiplier. Omitting it booked a $25 winner as $0.25.
     realized_pnl = (entry_credit - cost_to_close) * multiplier * quantity

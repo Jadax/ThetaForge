@@ -1,6 +1,9 @@
 """Safety checks for the local paper-only IBKR execution bridge."""
 from datetime import datetime, timezone
 
+import pytest
+from fastapi import HTTPException
+
 from bridge.main import (
     ComboOrderLeg,
     _current_week_key,
@@ -135,3 +138,58 @@ def test_unfilled_close_unlinks_parent_so_exit_is_retried():
     filled_close = {"id": "y", "close_of": "q", "status": "Filled", "filled": 10}
     _reconcile_lapsed_orders([filled_parent, filled_close], date(2026, 10, 23))
     assert filled_parent["closed_by"] == "y"
+
+
+# ── v1.17.32: a bought (debit) spread closes for a credit ───────────────────
+
+def _close_harness(monkeypatch, parent, bids_asks):
+    import asyncio
+    import bridge.main as bridge
+    from types import SimpleNamespace
+
+    records = [parent]
+    placed = {}
+
+    async def connected():
+        return None
+
+    async def tickers(legs):
+        return [SimpleNamespace(conId=i + 1) for i in range(len(legs))], list(bids_asks)
+
+    class FakeIB:
+        def placeOrder(self, contract, order):
+            placed["order"] = order
+            return SimpleNamespace(order=SimpleNamespace(orderId=7),
+                                   orderStatus=SimpleNamespace(status="Submitted", filled=0, remaining=1, avgFillPrice=0))
+
+    monkeypatch.setattr(bridge, "ensure_connected", connected)
+    monkeypatch.setattr(bridge, "ib", FakeIB())
+    monkeypatch.setattr(bridge, "_sync_order_ledger", lambda: records)
+    monkeypatch.setattr(bridge, "_live_option_tickers", tickers)
+    monkeypatch.setattr(bridge, "_bid_ask_usable", lambda t: t)
+    monkeypatch.setattr(bridge, "_contract_multiplier", lambda q: 100)
+    monkeypatch.setattr(bridge, "_snapshot_quality", lambda t: "live")
+    monkeypatch.setattr(bridge, "_write_order_ledger", lambda r: None)
+    request = bridge.CloseComboRequest(ledger_id=parent["id"], reason="close_profit", capital_limit=5000)
+    return asyncio.run(bridge.close_paper_combo(request, None)), placed
+
+
+def _spread_parent(net_credit, strategy):
+    return {"id": "p1", "symbol": "NCLH", "strategy": strategy, "net_credit": net_credit, "filled": 1,
+            "quantity": 1, "max_loss_per_combo": 45.0,
+            "legs": [{"symbol": "NCLH", "expiry": "2026-11-20", "strike": 18.0, "right": "C", "action": "BUY"},
+                     {"symbol": "NCLH", "expiry": "2026-11-20", "strike": 18.5, "right": "C", "action": "SELL"}]}
+
+
+def test_debit_spread_closes_for_a_credit(monkeypatch):
+    # Close = SELL 18C (bid 0.60), BUY 18.5C (ask 0.25): receives 0.35 for a 0.45 debit.
+    result, placed = _close_harness(monkeypatch, _spread_parent(-0.45, "call_debit_spread"),
+                                    [(0.60, 0.65), (0.20, 0.25)])
+    assert result["net_credit"] == 0.35 and result["limit_price"] == -0.35
+    assert placed["order"].action == "BUY" and placed["order"].lmtPrice == -0.35
+    assert result["realized_pnl"] == -10.0          # (-0.45 + 0.35) x 100
+
+
+def test_credit_spread_close_that_would_pay_is_still_refused(monkeypatch):
+    with pytest.raises(HTTPException):
+        _close_harness(monkeypatch, _spread_parent(0.30, "bear_call_credit"), [(0.60, 0.65), (0.20, 0.25)])

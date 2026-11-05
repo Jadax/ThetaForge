@@ -57,6 +57,12 @@ EARNINGS_PLAY_LAST_DTE = 1
 # only positions inside MACRO_EXIT_MAX_DTE carry enough gamma to exit.
 MACRO_EXIT_DAYS = MACRO_BLACKOUT_DAYS
 MACRO_EXIT_MAX_DTE = 14
+# Bought (debit) spreads: take half the remaining max profit, stop when half
+# the debit is gone, and never hold into expiry week -- a leg finishing in the
+# money gets exercised/assigned into shares a small account cannot carry.
+DEBIT_PROFIT_TARGET = 0.50
+DEBIT_STOP_LOSS = 0.50
+DEBIT_EXIT_DTE = 7
 # Portfolio rules (r/thetagang + Tastytrade sizing guidance).
 MAX_POSITIONS = 8
 MAX_CAPITAL_SLICE_PCT = 0.30
@@ -67,11 +73,16 @@ DRAWDOWN_BREAKER_PCT = 0.15
 
 @dataclass
 class OpenPosition:
-    """A single open short-premium spread, as reported by the Bridge."""
+    """A single open option position, as reported by the Bridge.
+
+    Short premium (credit) structures carry ``credit_received``; bought
+    (debit) spreads carry ``debit_paid``. Single-leg CSPs and covered calls
+    have no long strike.
+    """
     symbol: str
     strategy: str
     short_strike: float
-    long_strike: float
+    long_strike: Optional[float] = None
     expiry: Optional[str] = None
     credit_received: float = 0.0
     quantity: int = 1
@@ -82,9 +93,12 @@ class OpenPosition:
     # with the NET credit read a fresh 0.80/0.30 put spread (credit 0.50) as a
     # 1.6x loss on day one and mis-stated every spread's profit.
     short_leg_value: Optional[float] = None
+    debit_paid: float = 0.0
 
     @property
     def max_loss(self) -> Optional[float]:
+        if not self.long_strike:
+            return None
         width = abs(self.long_strike - self.short_strike)
         if width <= 0:
             return None
@@ -111,6 +125,42 @@ def _days_to_macro(days_to_macro: Optional[int], dte: Optional[int]) -> bool:
             and dte is not None and dte <= MACRO_EXIT_MAX_DTE)
 
 
+def evaluate_debit_position(position: OpenPosition) -> Dict[str, Any]:
+    """Exit rules for a bought (debit) spread.
+
+    ``short_leg_value`` is the whole-position mark (sold mids minus bought
+    mids), so a debit spread's current value is its negation.
+    """
+    action, reason, urgency = "hold", "No management trigger fired", "low"
+    value = -position.short_leg_value if position.short_leg_value is not None else None
+    width = abs((position.long_strike or 0) - position.short_strike)
+    max_profit = width - position.debit_paid if width > 0 else None
+    if position.dte is not None and position.dte <= DEBIT_EXIT_DTE:
+        action, urgency = "close_time", "high"
+        reason = f"{position.dte} DTE on a bought spread -- never held into expiry week (assignment risk)"
+    elif value is not None and max_profit and value - position.debit_paid >= DEBIT_PROFIT_TARGET * max_profit:
+        action, urgency = "close_profit", "medium"
+        reason = (f"spread worth {value:.2f} vs {position.debit_paid:.2f} paid: "
+                  f">= {DEBIT_PROFIT_TARGET:.0%} of the {max_profit:.2f} max profit")
+    elif value is not None and value <= position.debit_paid * (1 - DEBIT_STOP_LOSS):
+        action, urgency = "close_loss", "high"
+        reason = f"spread worth {value:.2f}, {DEBIT_STOP_LOSS:.0%}+ of the {position.debit_paid:.2f} debit lost"
+    return {
+        "symbol": position.symbol,
+        "strategy": position.strategy,
+        "action": action,
+        "reason": reason,
+        "urgency": urgency,
+        "profit_pct": ((value - position.debit_paid) / max_profit) if value is not None and max_profit else None,
+        "loss_to_credit": None,
+        "dte": position.dte,
+        "short_strike": position.short_strike,
+        "long_strike": position.long_strike,
+        "max_loss": position.debit_paid * 100 * position.quantity,
+        "max_profit": max_profit * 100 * position.quantity if max_profit else None,
+    }
+
+
 def evaluate_position(
     position: OpenPosition,
     days_to_earnings: Optional[int] = None,
@@ -128,7 +178,11 @@ def evaluate_position(
       5. close_pre_macro   — FOMC/CPI/NFP print inside the blackout window
       6. review_tested     — short strike breached but loss still inside stop
       7. hold              — nothing fired
+
+    Bought (debit) spreads use evaluate_debit_position instead.
     """
+    if position.debit_paid > 0:
+        return evaluate_debit_position(position)
     action = "hold"
     reason = "No management trigger fired"
     urgency = "low"

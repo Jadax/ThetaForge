@@ -1,5 +1,25 @@
 # ThetaForge Changelog
 
+## v1.17.32 - 2026-11-05
+
+**Option positions were never managed: fixed.** Found while reviewing the
+first two weeks of live option trades for the learning loop.
+
+- `PositionInput.long_strike` was `Field(0, gt=0)` -- it rejected its own
+  default. The manager sends 0 for a single-leg CSP, so from the first CSP
+  (Oct 29) every option management request 422'd (2,076 cycles): no 50%
+  take-profit, no 2x stop, no 21-DTE exit on any option position. Now
+  `Optional` (None for CSPs/covered calls).
+- One malformed position can no longer block the book: on a 422 the manager
+  retries position by position and logs the rejected one.
+- Bought (debit) spreads were never managed at all, and the Bridge refused to
+  close them (its close guard demanded the close cost money). Now managed --
+  close at 50% of max profit, stop at 50% of the debit, out at <= 7 DTE to avoid
+  exercise into shares -- and the Bridge closes them for a net credit (credit
+  structures keep the "close must cost money" guard).
+- New short premium needs >= 30 DTE (was 21): seven Oct-29 entries opened at
+  22 DTE against a 21-DTE management exit.
+
 ## v1.17.31 - 2026-10-27
 
 **Hosting is now genuinely $0: the whole stack moved to Oracle Cloud Always

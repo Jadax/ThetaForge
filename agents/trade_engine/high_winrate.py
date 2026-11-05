@@ -29,7 +29,10 @@ from typing import Optional, Tuple
 # remaining theta is small and the gamma tail is large; hold-to-expiry has no
 # place in a systematic book (you manage those open positions, you don't mint
 # them). Upper bound avoids locking capital into months of flat decay.
-MIN_SELL_DTE = 21
+MIN_SELL_DTE = 30
+# 30, not 21 (v1.17.32): the manager exits short premium at 21 DTE, so a
+# 22-DTE entry (Oct 29 2026: seven Nov-20 trades) had one day to work. The
+# Tastytrade studies above enter at 30-60 (45 target) to own the theta curve.
 MAX_ENTRY_DTE = 60
 # Long-premium (debit) structures are bought, so the gamma concern inverts;
 # keep a sanity floor so we never buy into the last week's time value.

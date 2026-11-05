@@ -786,13 +786,18 @@ async def get_dashboard(request: DashboardRequest):
 # === Position Management ===
 
 class PositionInput(BaseModel):
-    """An open short-premium spread as reported by the Bridge."""
+    """An open option position as reported by the Bridge."""
     symbol: str = Field(..., min_length=1, max_length=10)
     strategy: str = Field("bull_put", min_length=1, max_length=32)
     short_strike: float = Field(..., gt=0)
-    long_strike: float = Field(0, gt=0)
+    # None for single-leg CSPs/covered calls. The old `Field(0, gt=0)` rejected
+    # its own default: every CSP 422'd the whole management batch, so no option
+    # position was managed from the first CSP (Oct 29) until v1.17.32.
+    long_strike: Optional[float] = Field(None, gt=0)
     expiry: Optional[str] = None
     credit_received: float = Field(0.0, ge=0)
+    # Bought (debit) spreads: the per-unit debit paid (positive).
+    debit_paid: float = Field(0.0, ge=0)
     quantity: int = Field(1, ge=1, le=100)
     spot: Optional[float] = Field(None, gt=0)
     dte: Optional[int] = Field(None, ge=0, le=365)
@@ -908,7 +913,7 @@ def _find_short_leg_mid(chain: List[Dict], position: PositionInput) -> Optional[
     if not chain:
         return None
     is_call = "call" in position.strategy.lower()
-    legs = [position.short_strike, position.long_strike] if "condor" in position.strategy.lower() else [position.short_strike]
+    legs = [position.short_strike, position.long_strike] if "condor" in position.strategy.lower() and position.long_strike else [position.short_strike]
     mids = []
     for strike in legs:
         for opt in chain:
@@ -972,6 +977,7 @@ async def positions_management(request: ManagementRequest):
                 except Exception:
                     spot = None
         if short_leg_value is None or short_leg_value < 0:
+            # Whole-position mark; negative for a bought (debit) spread.
             short_leg_value = net_mark(chain, pos.legs) if pos.legs else _find_short_leg_mid(chain, pos)
         days_to_earnings = pos.days_to_earnings
         # Index futures have no earnings; never look one up for a root symbol.
@@ -994,6 +1000,7 @@ async def positions_management(request: ManagementRequest):
             spot=spot,
             dte=pos.dte,
             short_leg_value=short_leg_value,
+            debit_paid=pos.debit_paid,
         )
         result = evaluate_position(
             open_position,

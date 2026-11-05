@@ -170,3 +170,33 @@ def test_portfolio_weekly_capital_limit():
     )
     assert plan["can_open_new"] is False
     assert any("weekly capital" in violation for violation in plan["violations"])
+
+
+# ── v1.17.32: bought (debit) spreads and single-leg positions ───────────────
+
+def _debit(**overrides):
+    fields = dict(symbol="NCLH", strategy="call_debit_spread", short_strike=18.5, long_strike=18.0,
+                  debit_paid=0.20, dte=15, short_leg_value=-0.20)
+    fields.update(overrides)
+    return OpenPosition(**fields)
+
+
+def test_debit_spread_takes_half_its_max_profit():
+    # Paid 0.20 for a 0.50-wide spread (max profit 0.30); worth 0.36 -> +0.16 >= 0.15.
+    assert evaluate_position(_debit(short_leg_value=-0.36))["action"] == "close_profit"
+    assert evaluate_position(_debit(short_leg_value=-0.30))["action"] == "hold"
+
+
+def test_debit_spread_stops_at_half_the_debit():
+    assert evaluate_position(_debit(short_leg_value=-0.09))["action"] == "close_loss"
+
+
+def test_debit_spread_never_held_into_expiry_week():
+    assert evaluate_position(_debit(dte=7))["action"] == "close_time"
+
+
+def test_single_leg_csp_has_no_long_strike():
+    csp = OpenPosition(symbol="F", strategy="cash_secured_put", short_strike=11.5,
+                       credit_received=0.35, dte=40, short_leg_value=0.10)
+    assert csp.max_loss is None
+    assert evaluate_position(csp)["action"] == "close_profit"   # 71% of the credit captured
