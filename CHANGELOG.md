@@ -1,5 +1,27 @@
 # ThetaForge Changelog
 
+## v1.17.35 - 2026-11-05
+
+**Journal redesign is live, and a Gateway restart can no longer erase fills.**
+
+Journal (`journal/index.html`, `app.js`, `styles.css`; 3942f01)
+- Bucket switcher (Algo Trader / $1000 to Infinity / All) scopes every view
+  and stat; the $1000 bucket shows its account-value curve from $1,000.
+- The long trade list is now a dense, filterable, sortable list (status, asset
+  class, strategy, symbol search, period) with a detail drawer for each
+  trade's legs, receipts, P&L and its post-trade `review`.
+- "Weeks and months in review" cards are clickable: each filters the list and
+  opens a breakdown (cumulative P&L, by strategy and asset class, win rate,
+  average win vs loss, profit factor, best/worst trade).
+- Responsive to phone width, light/dark aware, no build step.
+
+Bridge (26db3d1)
+- Fills are monotonic. After a Gateway restart IBKR replays the session's
+  completed orders with an empty fill block; the ledger sync copied
+  `filled=0`/`avg=0` over five open stock entries (U, PFE, LYFT, XLP, XLV),
+  hiding them from the manager and the journal for ~25 minutes. Repaired from
+  IBKR's own positions (backup `paper_order_ledger.json.pre-fill-repair-20261105`).
+
 ## v1.17.34 - 2026-11-05
 
 **The engine now learns from its own trades, a $1,000 growth bucket runs
