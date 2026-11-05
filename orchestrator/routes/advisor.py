@@ -932,6 +932,65 @@ def _find_short_leg_mid(chain: List[Dict], position: PositionInput) -> Optional[
     return max(mids) if mids else None
 
 
+async def _evaluate_option_position(pos: "PositionInput", days_to_macro: Optional[int]) -> Dict[str, Any]:
+    """Enrich one open option position from free data and run the exit rules."""
+    spot = pos.spot
+    short_leg_value = pos.short_leg_value
+    futures = pos.sec_type == "FOP"
+    chain: List[Dict[str, Any]] = []
+    if futures or short_leg_value is None or short_leg_value < 0:
+        try:
+            chain = (await provider.get_futures_option_chain(pos.symbol) if futures
+                     else await provider.get_option_chain(pos.symbol)) or []
+        except Exception:
+            chain = []
+    if not spot or spot <= 0:
+        if futures:
+            spot = float(chain[0].get("underlying_price") or 0) or None if chain else None
+        else:
+            try:
+                fetched = await provider.get_stock_price(pos.symbol)
+                spot = float(fetched) if isinstance(fetched, (int, float)) and fetched > 0 else None
+            except Exception:
+                spot = None
+    if short_leg_value is None or short_leg_value < 0:
+        # Whole-position mark; negative for a bought (debit) spread.
+        short_leg_value = net_mark(chain, pos.legs) if pos.legs else _find_short_leg_mid(chain, pos)
+    days_to_earnings = pos.days_to_earnings
+    # Index futures have no earnings; never look one up for a root symbol.
+    if days_to_earnings is None and not futures:
+        try:
+            next_earnings = await provider.get_next_earnings_date(pos.symbol)
+            if next_earnings is not None:
+                days_to_earnings = (next_earnings - date.today()).days
+        except Exception:
+            days_to_earnings = None
+
+    open_position = OpenPosition(
+        symbol=pos.symbol,
+        strategy=pos.strategy,
+        short_strike=pos.short_strike,
+        long_strike=pos.long_strike,
+        expiry=pos.expiry,
+        credit_received=pos.credit_received,
+        quantity=pos.quantity,
+        spot=spot,
+        dte=pos.dte,
+        short_leg_value=short_leg_value,
+        debit_paid=pos.debit_paid,
+    )
+    result = evaluate_position(
+        open_position,
+        days_to_earnings=days_to_earnings,
+        days_to_macro=days_to_macro,
+    )
+    result["spot"] = spot
+    result["short_leg_value"] = short_leg_value
+    result["days_to_earnings"] = days_to_earnings
+    result["days_to_macro"] = days_to_macro
+    return result
+
+
 @router.post("/positions/management", dependencies=[Depends(management_rate_limit)])
 async def positions_management(request: ManagementRequest):
     """Evaluate open short-premium positions against the exit framework.
@@ -955,63 +1014,17 @@ async def positions_management(request: ManagementRequest):
     except Exception:
         days_to_macro = None
 
-    actions = []
-    for pos in request.positions:
-        spot = pos.spot
-        short_leg_value = pos.short_leg_value
-        futures = pos.sec_type == "FOP"
-        chain: List[Dict[str, Any]] = []
-        if futures or short_leg_value is None or short_leg_value < 0:
-            try:
-                chain = (await provider.get_futures_option_chain(pos.symbol) if futures
-                         else await provider.get_option_chain(pos.symbol)) or []
-            except Exception:
-                chain = []
-        if not spot or spot <= 0:
-            if futures:
-                spot = float(chain[0].get("underlying_price") or 0) or None if chain else None
-            else:
-                try:
-                    fetched = await provider.get_stock_price(pos.symbol)
-                    spot = float(fetched) if isinstance(fetched, (int, float)) and fetched > 0 else None
-                except Exception:
-                    spot = None
-        if short_leg_value is None or short_leg_value < 0:
-            # Whole-position mark; negative for a bought (debit) spread.
-            short_leg_value = net_mark(chain, pos.legs) if pos.legs else _find_short_leg_mid(chain, pos)
-        days_to_earnings = pos.days_to_earnings
-        # Index futures have no earnings; never look one up for a root symbol.
-        if days_to_earnings is None and not futures:
-            try:
-                next_earnings = await provider.get_next_earnings_date(pos.symbol)
-                if next_earnings is not None:
-                    days_to_earnings = (next_earnings - date.today()).days
-            except Exception:
-                days_to_earnings = None
+    # Each position needs a chain, a quote and an earnings date. Fetched one
+    # position at a time, a 12-position book took > 120s on the 1/8-OCPU
+    # Oracle Advisor and the manager timed out every cycle (Nov 5 2026);
+    # bounded concurrency, same cap as the equity path, keeps it well inside.
+    semaphore = asyncio.Semaphore(EQUITY_MANAGEMENT_FETCH_CONCURRENCY)
 
-        open_position = OpenPosition(
-            symbol=pos.symbol,
-            strategy=pos.strategy,
-            short_strike=pos.short_strike,
-            long_strike=pos.long_strike,
-            expiry=pos.expiry,
-            credit_received=pos.credit_received,
-            quantity=pos.quantity,
-            spot=spot,
-            dte=pos.dte,
-            short_leg_value=short_leg_value,
-            debit_paid=pos.debit_paid,
-        )
-        result = evaluate_position(
-            open_position,
-            days_to_earnings=days_to_earnings,
-            days_to_macro=days_to_macro,
-        )
-        result["spot"] = spot
-        result["short_leg_value"] = short_leg_value
-        result["days_to_earnings"] = days_to_earnings
-        result["days_to_macro"] = days_to_macro
-        actions.append(result)
+    async def evaluate(pos: PositionInput) -> Dict[str, Any]:
+        async with semaphore:
+            return await _evaluate_option_position(pos, days_to_macro)
+
+    actions = list(await asyncio.gather(*(evaluate(pos) for pos in request.positions)))
 
     plan = portfolio_plan(
         [{"symbol": p.symbol, "capital_required": p.capital_required or 0} for p in request.positions],

@@ -1,5 +1,13 @@
 # ThetaForge Changelog
 
+## v1.17.33 - 2026-11-05
+
+- Option management evaluates positions concurrently (same bound as the
+  equity path, `EQUITY_MANAGEMENT_FETCH_CONCURRENCY=4`): once v1.17.32 let the
+  whole 12-position book through, fetching chains one position at a time on
+  the 1/8-OCPU Oracle Advisor exceeded the manager's 120s timeout. The manager
+  timeout is now `MANAGEMENT_TIMEOUT_SECONDS` (default 300).
+
 ## v1.17.32 - 2026-11-05
 
 **Option positions were never managed: fixed.** Found while reviewing the

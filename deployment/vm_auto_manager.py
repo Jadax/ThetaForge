@@ -79,6 +79,7 @@ MANAGED_STRATEGIES = {
     "bear_call_credit", "iron_condor_weekly", "credit_spread_weekly",
     "wheel", "csp", "cc", "earnings_iron_condor",
 }
+MANAGEMENT_TIMEOUT_SECONDS = float(os.getenv("MANAGEMENT_TIMEOUT_SECONDS", "300"))
 # Bought (debit) spreads are managed too (take profit / stop / out before
 # expiry week); they are not premium sales, so they live outside the mirror.
 DEBIT_STRATEGIES = {
@@ -201,7 +202,9 @@ def request_management(client: httpx.Client, positions: List[Dict[str, Any]]) ->
             f"{ADVISOR_URL}/api/advisor/positions/management",
             headers=ADVISOR_HEADERS,
             json={"positions": batch, "capital": CAPITAL_LIMIT},
-            timeout=120,
+            # Each position fetches a chain/quote/earnings date on the
+            # Advisor; a large book needs more than the old 120s.
+            timeout=MANAGEMENT_TIMEOUT_SECONDS,
         )
 
     response = post(positions)
