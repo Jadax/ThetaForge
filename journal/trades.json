@@ -9,8 +9,8 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "cb0b6eb9cd22d08bc019a58ad22f88eec4b1e5377a5cc21c62ea791556ee9ed9",
-    "entries_from_ledger": 63,
+    "ledger_sha": "e340b62f9cc00ad9dd7a0b89c08db90d9ffd8999e5dcf9360752d0514b0c4f7f",
+    "entries_from_ledger": 64,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
@@ -20,11 +20,11 @@
       "label": "Algo Trader",
       "starting_capital": null,
       "trades": 47,
-      "open": 12,
-      "closed": 35,
+      "open": 11,
+      "closed": 36,
       "wins": 16,
-      "realized_pnl": -480.71,
-      "unrealized_pnl": -165.39,
+      "realized_pnl": -520.71,
+      "unrealized_pnl": -146.89,
       "equity": null
     },
     "infinity_1k": {
@@ -41,9 +41,9 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-06T14:46:56Z",
+    "generated_at": "2026-11-06T14:47:55Z",
     "window_days": 120,
-    "closed_learnable": 27,
+    "closed_learnable": 28,
     "setups": [
       {
         "when": {
@@ -215,11 +215,11 @@
           "asset": "options",
           "strategy": "cash_secured_put"
         },
-        "n": 3,
-        "mean_units": -0.632,
-        "se": 0.729,
-        "win_rate": 33.3,
-        "win_rate_shrunk": 42.9
+        "n": 4,
+        "mean_units": -1.474,
+        "se": 0.987,
+        "win_rate": 25.0,
+        "win_rate_shrunk": 37.5
       },
       {
         "when": {
@@ -227,11 +227,11 @@
           "strategy": "cash_secured_put",
           "dte_band": "dte<30"
         },
-        "n": 3,
-        "mean_units": -0.632,
-        "se": 0.729,
-        "win_rate": 33.3,
-        "win_rate_shrunk": 42.9
+        "n": 4,
+        "mean_units": -1.474,
+        "se": 0.987,
+        "win_rate": 25.0,
+        "win_rate_shrunk": 37.5
       },
       {
         "when": {
@@ -239,11 +239,11 @@
           "strategy": "cash_secured_put",
           "ivr_band": "ivr50-70"
         },
-        "n": 3,
-        "mean_units": -0.632,
-        "se": 0.729,
-        "win_rate": 33.3,
-        "win_rate_shrunk": 42.9
+        "n": 4,
+        "mean_units": -1.474,
+        "se": 0.987,
+        "win_rate": 25.0,
+        "win_rate_shrunk": 37.5
       },
       {
         "when": {
@@ -251,11 +251,11 @@
           "strategy": "cash_secured_put",
           "trend": "neutral"
         },
-        "n": 3,
-        "mean_units": -0.632,
-        "se": 0.729,
-        "win_rate": 33.3,
-        "win_rate_shrunk": 42.9
+        "n": 4,
+        "mean_units": -1.474,
+        "se": 0.987,
+        "win_rate": 25.0,
+        "win_rate_shrunk": 37.5
       }
     ],
     "adjustments": [
@@ -349,7 +349,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:45:05.301946+00:00",
-        "updated_at": "2026-11-06T14:46:31.669256+00:00"
+        "updated_at": "2026-11-06T14:47:39.189580+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
@@ -460,7 +460,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T14:46:31.669219+00:00",
+      "timestamp": "2026-11-06T14:47:39.189545+00:00",
       "live": {
         "price": 181.92,
         "kind": "stock",
@@ -509,7 +509,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:39:57.414084+00:00",
-        "updated_at": "2026-11-06T14:46:31.669219+00:00"
+        "updated_at": "2026-11-06T14:47:39.189545+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -587,7 +587,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T14:46:31.669207+00:00",
+      "timestamp": "2026-11-06T14:47:39.189533+00:00",
       "live": {
         "price": 89.08,
         "kind": "stock",
@@ -636,7 +636,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:39:52.603018+00:00",
-        "updated_at": "2026-11-06T14:46:31.669207+00:00"
+        "updated_at": "2026-11-06T14:47:39.189533+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -713,7 +713,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T14:46:31.669190+00:00",
+      "timestamp": "2026-11-06T14:47:39.189517+00:00",
       "live": {
         "price": 28.73,
         "kind": "stock",
@@ -762,7 +762,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:39:48.048707+00:00",
-        "updated_at": "2026-11-06T14:46:31.669190+00:00"
+        "updated_at": "2026-11-06T14:47:39.189517+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -1022,7 +1022,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T14:46:31.669230+00:00",
+      "timestamp": "2026-11-06T14:47:39.189555+00:00",
       "live": {
         "price": 56.89,
         "kind": "stock",
@@ -1095,7 +1095,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:40:02.017239+00:00",
-        "updated_at": "2026-11-06T14:46:31.669230+00:00"
+        "updated_at": "2026-11-06T14:47:39.189555+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -1204,7 +1204,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-06T14:46:31.669149+00:00",
+      "timestamp": "2026-11-06T14:47:39.189481+00:00",
       "live": {
         "price": 0.115,
         "kind": "spread",
@@ -1281,7 +1281,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:37:22.396386+00:00",
-        "updated_at": "2026-11-06T14:46:31.669149+00:00"
+        "updated_at": "2026-11-06T14:47:39.189481+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -1625,7 +1625,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T14:46:31.669247+00:00",
+      "timestamp": "2026-11-06T14:47:39.189571+00:00",
       "live": {
         "price": 159.0,
         "kind": "stock",
@@ -1738,7 +1738,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:43:59.163353+00:00",
-        "updated_at": "2026-11-06T14:46:31.669247+00:00"
+        "updated_at": "2026-11-06T14:47:39.189571+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -3427,6 +3427,309 @@
       "timestamp": "2026-11-02T15:24:36.738088+00:00"
     },
     {
+      "id": "e1fdfbd9-1e61-423a-8996-2e45004e4963",
+      "source_id": "e1fdfbd9-1e61-423a-8996-2e45004e4963",
+      "source": "ledger",
+      "ledger_ref": "e1fdfbd9-1e61-423a-8996-2e45004e4963",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.1,
+        "limit_price": 0.1,
+        "net_credit": 0.1,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-10-29T14:00:30.978103+00:00",
+        "updated_at": "2026-11-06T14:46:22.940210+00:00"
+      },
+      "symbol": "PATH",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-10-29",
+      "closed": "2026-11-06",
+      "status": "closed",
+      "strategy": "cash_secured_put",
+      "bucket": "algo_trader",
+      "legs": [
+        {
+          "action": "SELL",
+          "type": "PUT",
+          "strike": 12.0,
+          "expiry": "2026-11-20",
+          "dte": 22
+        }
+      ],
+      "entry_ivr": 50.0,
+      "expected_move_pct": null,
+      "dte_at_entry": 22,
+      "entry_price": 0.1,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 1190.0,
+      "max_profit": 10.0,
+      "net_pnl": -40.0,
+      "net_pnl_pct": -0.0336,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-10-29",
+        "regime": "neutral",
+        "vix": 16.94,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 72.8,
+        "confidence_score": 82.6,
+        "pop": 79.7,
+        "edge_pct": 0.0,
+        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Time decay working in our favor | Composite score: 72.8/100 | Win rate: 78.0%",
+        "entry_rules": {
+          "preferred_dte": "22 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 1 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "assignment": "If assigned, own the shares and sell covered calls against them"
+        }
+      },
+      "management_plan": {
+        "target": "close at 50% of max credit",
+        "stop": "roll or close if short strike is breached decisively",
+        "time": "manage at 21 DTE",
+        "event": "close before earnings"
+      },
+      "reason": "Cash Secured Put on PATH, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Auto-closed at the 21-DTE gamma management window.",
+      "timestamp": "2026-11-06T14:47:39.189596+00:00",
+      "live": {
+        "price": 0.285,
+        "kind": "spread",
+        "pnl": -18.5,
+        "pnl_pct": -1.6,
+        "r": -0.016,
+        "at": "2026-11-06T14:31:53+00:00"
+      },
+      "price_trail": [
+        {
+          "at": "2026-10-29",
+          "price": 0.1
+        },
+        {
+          "at": "2026-10-29T14:30:13+00:00",
+          "price": 0.17
+        },
+        {
+          "at": "2026-10-29T15:30:31+00:00",
+          "price": 0.145
+        },
+        {
+          "at": "2026-10-29T16:30:38+00:00",
+          "price": 0.15
+        },
+        {
+          "at": "2026-10-29T17:30:21+00:00",
+          "price": 0.135
+        },
+        {
+          "at": "2026-10-29T18:31:39+00:00",
+          "price": 0.135
+        },
+        {
+          "at": "2026-10-29T19:30:39+00:00",
+          "price": 0.135
+        },
+        {
+          "at": "2026-10-30T13:31:19+00:00",
+          "price": 0.125
+        },
+        {
+          "at": "2026-10-30T14:30:40+00:00",
+          "price": 0.11
+        },
+        {
+          "at": "2026-10-30T15:31:21+00:00",
+          "price": 0.12
+        },
+        {
+          "at": "2026-10-30T16:30:42+00:00",
+          "price": 0.125
+        },
+        {
+          "at": "2026-10-30T17:30:22+00:00",
+          "price": 0.135
+        },
+        {
+          "at": "2026-10-30T18:30:11+00:00",
+          "price": 0.145
+        },
+        {
+          "at": "2026-10-30T19:30:10+00:00",
+          "price": 0.16
+        },
+        {
+          "at": "2026-11-02T13:31:44+00:00",
+          "price": 0.135
+        },
+        {
+          "at": "2026-11-02T14:30:44+00:00",
+          "price": 0.135
+        },
+        {
+          "at": "2026-11-02T15:31:20+00:00",
+          "price": 0.145
+        },
+        {
+          "at": "2026-11-02T16:31:46+00:00",
+          "price": 0.135
+        },
+        {
+          "at": "2026-11-02T17:32:01+00:00",
+          "price": 0.14
+        },
+        {
+          "at": "2026-11-02T18:32:23+00:00",
+          "price": 0.14
+        },
+        {
+          "at": "2026-11-02T19:31:29+00:00",
+          "price": 0.15
+        },
+        {
+          "at": "2026-11-03T13:31:11+00:00",
+          "price": 0.21
+        },
+        {
+          "at": "2026-11-03T14:30:56+00:00",
+          "price": 0.21
+        },
+        {
+          "at": "2026-11-03T15:30:20+00:00",
+          "price": 0.285
+        },
+        {
+          "at": "2026-11-03T16:30:48+00:00",
+          "price": 0.22
+        },
+        {
+          "at": "2026-11-03T17:31:50+00:00",
+          "price": 0.205
+        },
+        {
+          "at": "2026-11-03T18:31:48+00:00",
+          "price": 0.21
+        },
+        {
+          "at": "2026-11-03T19:30:10+00:00",
+          "price": 0.21
+        },
+        {
+          "at": "2026-11-04T13:31:40+00:00",
+          "price": 0.195
+        },
+        {
+          "at": "2026-11-04T14:31:41+00:00",
+          "price": 0.195
+        },
+        {
+          "at": "2026-11-04T15:31:10+00:00",
+          "price": 0.285
+        },
+        {
+          "at": "2026-11-04T16:31:50+00:00",
+          "price": 0.15
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.17
+        },
+        {
+          "at": "2026-11-04T18:30:50+00:00",
+          "price": 0.15
+        },
+        {
+          "at": "2026-11-04T19:31:01+00:00",
+          "price": 0.15
+        },
+        {
+          "at": "2026-11-05T13:30:50+00:00",
+          "price": 0.245
+        },
+        {
+          "at": "2026-11-05T14:32:03+00:00",
+          "price": 0.245
+        },
+        {
+          "at": "2026-11-05T15:31:11+00:00",
+          "price": 0.17
+        },
+        {
+          "at": "2026-11-05T16:30:50+00:00",
+          "price": 0.215
+        },
+        {
+          "at": "2026-11-05T17:31:51+00:00",
+          "price": 0.22
+        },
+        {
+          "at": "2026-11-05T18:30:50+00:00",
+          "price": 0.255
+        },
+        {
+          "at": "2026-11-05T19:31:50+00:00",
+          "price": 0.25
+        },
+        {
+          "at": "2026-11-06T13:31:50+00:00",
+          "price": 0.285
+        },
+        {
+          "at": "2026-11-06T14:31:50+00:00",
+          "price": 0.285
+        }
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.5,
+        "limit_price": 0.5,
+        "net_credit": -0.5,
+        "cost_to_close": 0.5,
+        "realized_pnl": -40.0,
+        "reason": "close_time",
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": null,
+        "submitted_at": "2026-11-06T14:46:22.940210+00:00",
+        "updated_at": "2026-11-06T14:47:39.189596+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close time",
+          "outcome -4.00 x credit",
+          "entered at 22 DTE -- little time before the 21-DTE exit"
+        ],
+        "lesson": "Time ran out before the trade worked -- enter with more DTE or a stronger edge.",
+        "units": -4.0
+      }
+    },
+    {
       "id": "52918fe5-6ea4-4921-8152-b142f2325545",
       "source_id": "52918fe5-6ea4-4921-8152-b142f2325545",
       "source": "ledger",
@@ -3515,7 +3818,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 21-DTE gamma management window.",
-      "timestamp": "2026-11-06T14:46:31.669268+00:00",
+      "timestamp": "2026-11-06T14:47:39.189591+00:00",
       "live": {
         "price": 0.11,
         "kind": "spread",
@@ -3716,7 +4019,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:46:18.672073+00:00",
-        "updated_at": "2026-11-06T14:46:31.669268+00:00"
+        "updated_at": "2026-11-06T14:47:39.189591+00:00"
       },
       "review": {
         "verdict": "win",
@@ -3818,7 +4121,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 21-DTE gamma management window.",
-      "timestamp": "2026-11-06T14:46:31.669262+00:00",
+      "timestamp": "2026-11-06T14:47:39.189585+00:00",
       "live": {
         "price": 0.455,
         "kind": "spread",
@@ -4003,7 +4306,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:46:14.159308+00:00",
-        "updated_at": "2026-11-06T14:46:31.669262+00:00"
+        "updated_at": "2026-11-06T14:47:39.189585+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -4112,7 +4415,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-06T14:46:31.669181+00:00",
+      "timestamp": "2026-11-06T14:47:39.189509+00:00",
       "live": {
         "price": 0.015,
         "kind": "spread",
@@ -4309,7 +4612,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:37:52.599949+00:00",
-        "updated_at": "2026-11-06T14:46:31.669181+00:00"
+        "updated_at": "2026-11-06T14:47:39.189509+00:00"
       },
       "review": {
         "verdict": "win",
@@ -4417,7 +4720,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-06T14:46:31.669172+00:00",
+      "timestamp": "2026-11-06T14:47:39.189501+00:00",
       "live": {
         "price": 0.055,
         "kind": "spread",
@@ -4602,7 +4905,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:37:42.112009+00:00",
-        "updated_at": "2026-11-06T14:46:31.669172+00:00"
+        "updated_at": "2026-11-06T14:47:39.189501+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -6319,283 +6622,6 @@
       ]
     },
     {
-      "id": "e1fdfbd9-1e61-423a-8996-2e45004e4963",
-      "source_id": "e1fdfbd9-1e61-423a-8996-2e45004e4963",
-      "source": "ledger",
-      "ledger_ref": "e1fdfbd9-1e61-423a-8996-2e45004e4963",
-      "order": {
-        "status": "Filled",
-        "filled": 1.0,
-        "remaining": 0.0,
-        "average_fill_price": 0.1,
-        "limit_price": 0.1,
-        "net_credit": 0.1,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 1,
-        "multiplier": 100,
-        "sec_type": "OPT",
-        "submitted_at": "2026-10-29T14:00:30.978103+00:00",
-        "updated_at": "2026-11-06T14:46:22.940210+00:00"
-      },
-      "symbol": "PATH",
-      "asset_class": "options",
-      "instrument_type": "option",
-      "shares": null,
-      "opened": "2026-10-29",
-      "closed": null,
-      "status": "open",
-      "strategy": "cash_secured_put",
-      "bucket": "algo_trader",
-      "legs": [
-        {
-          "action": "SELL",
-          "type": "PUT",
-          "strike": 12.0,
-          "expiry": "2026-11-20",
-          "dte": 22
-        }
-      ],
-      "entry_ivr": 50.0,
-      "expected_move_pct": null,
-      "dte_at_entry": 22,
-      "entry_price": 0.1,
-      "stop_price": null,
-      "target_price": null,
-      "capital_at_risk": 1190.0,
-      "max_profit": 10.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "options",
-        "captured_at": "2026-10-29",
-        "regime": "neutral",
-        "vix": 16.94,
-        "iv_rank": 50.0,
-        "expected_move_pct": 0.0,
-        "composite_score": 72.8,
-        "confidence_score": 82.6,
-        "pop": 79.7,
-        "edge_pct": 0.0,
-        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Time decay working in our favor | Composite score: 72.8/100 | Win rate: 78.0%",
-        "entry_rules": {
-          "preferred_dte": "22 DTE",
-          "entry_time": "Anytime",
-          "limit_order": true,
-          "fill_target": "Mid-price or better",
-          "max_slippage": "5% of credit/debit"
-        },
-        "exit_rules": {
-          "profit_target": "N/A",
-          "stop_loss": "Close at 2x debit paid",
-          "time_exit": "Close at 1 DTE remaining",
-          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
-          "max_loss_exit": "Close immediately if max loss hit",
-          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
-          "roll_rules": "Roll out in time if tested, never roll for a loss",
-          "assignment": "If assigned, own the shares and sell covered calls against them"
-        }
-      },
-      "management_plan": {
-        "target": "close at 50% of max credit",
-        "stop": "roll or close if short strike is breached decisively",
-        "time": "manage at 21 DTE",
-        "event": "close before earnings"
-      },
-      "reason": "Cash Secured Put on PATH, placed on the paper account from the ThetaForge recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-10-29T14:02:21.893171+00:00",
-      "live": {
-        "price": 0.285,
-        "kind": "spread",
-        "pnl": -18.5,
-        "pnl_pct": -1.6,
-        "r": -0.016,
-        "at": "2026-11-06T14:31:53+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-10-29",
-          "price": 0.1
-        },
-        {
-          "at": "2026-10-29T14:30:13+00:00",
-          "price": 0.17
-        },
-        {
-          "at": "2026-10-29T15:30:31+00:00",
-          "price": 0.145
-        },
-        {
-          "at": "2026-10-29T16:30:38+00:00",
-          "price": 0.15
-        },
-        {
-          "at": "2026-10-29T17:30:21+00:00",
-          "price": 0.135
-        },
-        {
-          "at": "2026-10-29T18:31:39+00:00",
-          "price": 0.135
-        },
-        {
-          "at": "2026-10-29T19:30:39+00:00",
-          "price": 0.135
-        },
-        {
-          "at": "2026-10-30T13:31:19+00:00",
-          "price": 0.125
-        },
-        {
-          "at": "2026-10-30T14:30:40+00:00",
-          "price": 0.11
-        },
-        {
-          "at": "2026-10-30T15:31:21+00:00",
-          "price": 0.12
-        },
-        {
-          "at": "2026-10-30T16:30:42+00:00",
-          "price": 0.125
-        },
-        {
-          "at": "2026-10-30T17:30:22+00:00",
-          "price": 0.135
-        },
-        {
-          "at": "2026-10-30T18:30:11+00:00",
-          "price": 0.145
-        },
-        {
-          "at": "2026-10-30T19:30:10+00:00",
-          "price": 0.16
-        },
-        {
-          "at": "2026-11-02T13:31:44+00:00",
-          "price": 0.135
-        },
-        {
-          "at": "2026-11-02T14:30:44+00:00",
-          "price": 0.135
-        },
-        {
-          "at": "2026-11-02T15:31:20+00:00",
-          "price": 0.145
-        },
-        {
-          "at": "2026-11-02T16:31:46+00:00",
-          "price": 0.135
-        },
-        {
-          "at": "2026-11-02T17:32:01+00:00",
-          "price": 0.14
-        },
-        {
-          "at": "2026-11-02T18:32:23+00:00",
-          "price": 0.14
-        },
-        {
-          "at": "2026-11-02T19:31:29+00:00",
-          "price": 0.15
-        },
-        {
-          "at": "2026-11-03T13:31:11+00:00",
-          "price": 0.21
-        },
-        {
-          "at": "2026-11-03T14:30:56+00:00",
-          "price": 0.21
-        },
-        {
-          "at": "2026-11-03T15:30:20+00:00",
-          "price": 0.285
-        },
-        {
-          "at": "2026-11-03T16:30:48+00:00",
-          "price": 0.22
-        },
-        {
-          "at": "2026-11-03T17:31:50+00:00",
-          "price": 0.205
-        },
-        {
-          "at": "2026-11-03T18:31:48+00:00",
-          "price": 0.21
-        },
-        {
-          "at": "2026-11-03T19:30:10+00:00",
-          "price": 0.21
-        },
-        {
-          "at": "2026-11-04T13:31:40+00:00",
-          "price": 0.195
-        },
-        {
-          "at": "2026-11-04T14:31:41+00:00",
-          "price": 0.195
-        },
-        {
-          "at": "2026-11-04T15:31:10+00:00",
-          "price": 0.285
-        },
-        {
-          "at": "2026-11-04T16:31:50+00:00",
-          "price": 0.15
-        },
-        {
-          "at": "2026-11-04T17:30:51+00:00",
-          "price": 0.17
-        },
-        {
-          "at": "2026-11-04T18:30:50+00:00",
-          "price": 0.15
-        },
-        {
-          "at": "2026-11-04T19:31:01+00:00",
-          "price": 0.15
-        },
-        {
-          "at": "2026-11-05T13:30:50+00:00",
-          "price": 0.245
-        },
-        {
-          "at": "2026-11-05T14:32:03+00:00",
-          "price": 0.245
-        },
-        {
-          "at": "2026-11-05T15:31:11+00:00",
-          "price": 0.17
-        },
-        {
-          "at": "2026-11-05T16:30:50+00:00",
-          "price": 0.215
-        },
-        {
-          "at": "2026-11-05T17:31:51+00:00",
-          "price": 0.22
-        },
-        {
-          "at": "2026-11-05T18:30:50+00:00",
-          "price": 0.255
-        },
-        {
-          "at": "2026-11-05T19:31:50+00:00",
-          "price": 0.25
-        },
-        {
-          "at": "2026-11-06T13:31:50+00:00",
-          "price": 0.285
-        },
-        {
-          "at": "2026-11-06T14:31:50+00:00",
-          "price": 0.285
-        }
-      ]
-    },
-    {
       "id": "82676f1c-d8e2-4465-9234-0ce08b5efa43",
       "source_id": "82676f1c-d8e2-4465-9234-0ce08b5efa43",
       "source": "ledger",
@@ -6659,7 +6685,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T14:46:31.669240+00:00",
+      "timestamp": "2026-11-06T14:47:39.189565+00:00",
       "live": {
         "price": 509.5,
         "kind": "stock",
@@ -6916,7 +6942,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:40:10.686767+00:00",
-        "updated_at": "2026-11-06T14:46:31.669240+00:00"
+        "updated_at": "2026-11-06T14:47:39.189565+00:00"
       },
       "review": {
         "verdict": "loss",
