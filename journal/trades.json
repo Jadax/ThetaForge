@@ -9,8 +9,8 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "f1a33ef454b6cfec971e6660af81a3ed65996a1c0c88550366d7c69cf0095138",
-    "entries_from_ledger": 51,
+    "ledger_sha": "4f8955b64ce3aa5f631163d1a45cdf5474c90dee55ad91d8dbb24ba9648a533c",
+    "entries_from_ledger": 57,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
@@ -20,11 +20,11 @@
       "label": "Algo Trader",
       "starting_capital": null,
       "trades": 47,
-      "open": 23,
-      "closed": 24,
+      "open": 17,
+      "closed": 30,
       "wins": 14,
-      "realized_pnl": -42.8,
-      "unrealized_pnl": -478.69,
+      "realized_pnl": -434.61,
+      "unrealized_pnl": -218.53,
       "equity": null
     },
     "infinity_1k": {
@@ -41,20 +41,20 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-06T14:32:08Z",
+    "generated_at": "2026-11-06T14:40:13Z",
     "window_days": 120,
-    "closed_learnable": 16,
+    "closed_learnable": 22,
     "setups": [
       {
         "when": {
           "asset": "equity",
           "strategy": "equity_momentum"
         },
-        "n": 10,
-        "mean_units": -0.464,
-        "se": 0.363,
-        "win_rate": 50.0,
-        "win_rate_shrunk": 50.0
+        "n": 11,
+        "mean_units": -0.582,
+        "se": 0.349,
+        "win_rate": 45.5,
+        "win_rate_shrunk": 46.7
       },
       {
         "when": {
@@ -62,11 +62,11 @@
           "strategy": "equity_momentum",
           "risk_tilt": "mixed"
         },
-        "n": 9,
-        "mean_units": -0.519,
-        "se": 0.402,
-        "win_rate": 44.4,
-        "win_rate_shrunk": 46.2
+        "n": 10,
+        "mean_units": -0.643,
+        "se": 0.38,
+        "win_rate": 40.0,
+        "win_rate_shrunk": 42.9
       },
       {
         "when": {
@@ -86,11 +86,11 @@
           "strategy": "equity_momentum",
           "rsi_band": "rsi60-70"
         },
-        "n": 5,
-        "mean_units": -0.318,
-        "se": 0.719,
-        "win_rate": 60.0,
-        "win_rate_shrunk": 55.6
+        "n": 6,
+        "mean_units": -0.559,
+        "se": 0.635,
+        "win_rate": 50.0,
+        "win_rate_shrunk": 50.0
       },
       {
         "when": {
@@ -98,22 +98,22 @@
           "strategy": "equity_momentum",
           "trend": "bullish"
         },
-        "n": 10,
-        "mean_units": -0.464,
-        "se": 0.363,
-        "win_rate": 50.0,
-        "win_rate_shrunk": 50.0
+        "n": 11,
+        "mean_units": -0.582,
+        "se": 0.349,
+        "win_rate": 45.5,
+        "win_rate_shrunk": 46.7
       },
       {
         "when": {
           "asset": "equity",
           "strategy": "etf_rotation"
         },
-        "n": 5,
-        "mean_units": 0.55,
-        "se": 0.622,
-        "win_rate": 60.0,
-        "win_rate_shrunk": 55.6
+        "n": 8,
+        "mean_units": -0.058,
+        "se": 0.476,
+        "win_rate": 37.5,
+        "win_rate_shrunk": 41.7
       },
       {
         "when": {
@@ -121,11 +121,35 @@
           "strategy": "etf_rotation",
           "risk_tilt": "mixed"
         },
-        "n": 5,
-        "mean_units": 0.55,
-        "se": 0.622,
-        "win_rate": 60.0,
-        "win_rate_shrunk": 55.6
+        "n": 7,
+        "mean_units": 0.062,
+        "se": 0.532,
+        "win_rate": 42.9,
+        "win_rate_shrunk": 45.5
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "etf_rotation",
+          "rsi_band": "rsi60-70"
+        },
+        "n": 3,
+        "mean_units": 0.551,
+        "se": 0.945,
+        "win_rate": 66.7,
+        "win_rate_shrunk": 57.1
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "etf_rotation",
+          "rsi_band": "rsi70+"
+        },
+        "n": 3,
+        "mean_units": -0.946,
+        "se": 0.089,
+        "win_rate": 0.0,
+        "win_rate_shrunk": 28.6
       },
       {
         "when": {
@@ -133,11 +157,11 @@
           "strategy": "etf_rotation",
           "trend": "bullish"
         },
-        "n": 5,
-        "mean_units": 0.55,
-        "se": 0.622,
-        "win_rate": 60.0,
-        "win_rate_shrunk": 55.6
+        "n": 8,
+        "mean_units": -0.058,
+        "se": 0.476,
+        "win_rate": 37.5,
+        "win_rate_shrunk": 41.7
       }
     ],
     "adjustments": [
@@ -148,7 +172,7 @@
         },
         "action": "veto",
         "points": null,
-        "evidence": "n=10, mean -0.46 (+/-0.36), win 50%"
+        "evidence": "n=11, mean -0.58 (+/-0.35), win 46%"
       },
       {
         "when": {
@@ -158,7 +182,17 @@
         },
         "action": "veto",
         "points": null,
-        "evidence": "n=9, mean -0.52 (+/-0.40), win 44%"
+        "evidence": "n=10, mean -0.64 (+/-0.38), win 40%"
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "equity_momentum",
+          "rsi_band": "rsi60-70"
+        },
+        "action": "penalize",
+        "points": -5.0,
+        "evidence": "n=6, mean -0.56 (+/-0.64), win 50%"
       },
       {
         "when": {
@@ -168,11 +202,409 @@
         },
         "action": "veto",
         "points": null,
-        "evidence": "n=10, mean -0.46 (+/-0.36), win 50%"
+        "evidence": "n=11, mean -0.58 (+/-0.35), win 46%"
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "etf_rotation"
+        },
+        "action": "penalize",
+        "points": -5.0,
+        "evidence": "n=8, mean -0.06 (+/-0.48), win 38%"
+      },
+      {
+        "when": {
+          "asset": "equity",
+          "strategy": "etf_rotation",
+          "trend": "bullish"
+        },
+        "action": "penalize",
+        "points": -5.0,
+        "evidence": "n=8, mean -0.06 (+/-0.48), win 38%"
       }
     ]
   },
   "trades": [
+    {
+      "id": "ac7f73c8-febc-4f84-9d2f-73f81e8687e7",
+      "source_id": "ac7f73c8-febc-4f84-9d2f-73f81e8687e7",
+      "source": "ledger",
+      "ledger_ref": "ac7f73c8-febc-4f84-9d2f-73f81e8687e7",
+      "order": {
+        "status": "Filled",
+        "filled": 7.0,
+        "remaining": 0.0,
+        "average_fill_price": 191.9029,
+        "limit_price": 192.49,
+        "net_credit": 0.0,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 7,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-05T15:00:02.400938+00:00",
+        "updated_at": "2026-11-06T14:39:57.414084+00:00"
+      },
+      "symbol": "XLV",
+      "asset_class": "equity",
+      "instrument_type": "etf",
+      "shares": 7,
+      "opened": "2026-11-05",
+      "closed": "2026-11-06",
+      "status": "closed",
+      "strategy": "etf_rotation",
+      "bucket": "algo_trader",
+      "legs": [],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": null,
+      "entry_price": 192.49,
+      "stop_price": 184.42,
+      "target_price": 203.06,
+      "capital_at_risk": 56.49,
+      "max_profit": 0.0,
+      "net_pnl": -63.23,
+      "net_pnl_pct": -1.1193,
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-11-05",
+        "score": 90.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 77.6,
+        "adx_14": 25.0,
+        "atr_14": 3.11,
+        "price": 190.63,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; 1m positive; 6m strong; 20d breakout; near 52w high. Position sized for 1% account risk (50.00) at a 2x ATR stop (184.42), 2R target 203.06."
+      },
+      "management_plan": {
+        "target": "take profit at 2R target 203.06",
+        "stop": "hard stop at 184.42",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long XLV, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Auto-closed at the 2x-ATR hard stop.",
+      "timestamp": "2026-11-06T14:40:06.432281+00:00",
+      "live": {
+        "price": 181.92,
+        "kind": "stock",
+        "pnl": -73.99,
+        "pnl_pct": -131.0,
+        "r": -1.31,
+        "at": "2026-11-06T14:32:08+00:00"
+      },
+      "price_trail": [
+        {
+          "at": "2026-11-05",
+          "price": 192.49
+        },
+        {
+          "at": "2026-11-05T17:31:51+00:00",
+          "price": 187.1319
+        },
+        {
+          "at": "2026-11-05T18:30:50+00:00",
+          "price": 187.1319
+        },
+        {
+          "at": "2026-11-05T19:31:50+00:00",
+          "price": 185.93
+        },
+        {
+          "at": "2026-11-06T13:31:50+00:00",
+          "price": 184.91
+        },
+        {
+          "at": "2026-11-06T14:31:50+00:00",
+          "price": 181.92
+        }
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 7.0,
+        "remaining": 0.0,
+        "average_fill_price": 182.87,
+        "limit_price": 180.98,
+        "net_credit": null,
+        "cost_to_close": 1266.86,
+        "realized_pnl": -63.23,
+        "reason": "close_stop",
+        "quantity": 7,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-06T14:39:57.414084+00:00",
+        "updated_at": "2026-11-06T14:40:06.432281+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -1.12 R",
+          "entered overbought (RSI 78)",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -1.119
+      }
+    },
+    {
+      "id": "085e4843-4901-48e1-b918-0f444398625a",
+      "source_id": "085e4843-4901-48e1-b918-0f444398625a",
+      "source": "ledger",
+      "ledger_ref": "085e4843-4901-48e1-b918-0f444398625a",
+      "order": {
+        "status": "Filled",
+        "filled": 16.0,
+        "remaining": 0.0,
+        "average_fill_price": 93.0425,
+        "limit_price": 93.22,
+        "net_credit": 0.0,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 16,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-05T15:00:15.025345+00:00",
+        "updated_at": "2026-11-06T14:39:52.603018+00:00"
+      },
+      "symbol": "XLP",
+      "asset_class": "equity",
+      "instrument_type": "etf",
+      "shares": 16,
+      "opened": "2026-11-05",
+      "closed": "2026-11-06",
+      "status": "closed",
+      "strategy": "etf_rotation",
+      "bucket": "algo_trader",
+      "legs": [],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": null,
+      "entry_price": 93.22,
+      "stop_price": 89.82,
+      "target_price": 98.77,
+      "capital_at_risk": 54.4,
+      "max_profit": 0.0,
+      "net_pnl": -65.16,
+      "net_pnl_pct": -1.1978,
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-11-05",
+        "score": 100.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 69.2,
+        "adx_14": 25.0,
+        "atr_14": 1.49,
+        "price": 92.8,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 69; 1m positive; 6m strong; 20d breakout; near 52w high. Position sized for 1% account risk (50.00) at a 2x ATR stop (89.82), 2R target 98.77."
+      },
+      "management_plan": {
+        "target": "take profit at 2R target 98.77",
+        "stop": "hard stop at 89.82",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long XLP, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Auto-closed at the 2x-ATR hard stop.",
+      "timestamp": "2026-11-06T14:40:06.432269+00:00",
+      "live": {
+        "price": 89.08,
+        "kind": "stock",
+        "pnl": -66.24,
+        "pnl_pct": -121.8,
+        "r": -1.218,
+        "at": "2026-11-06T14:32:08+00:00"
+      },
+      "price_trail": [
+        {
+          "at": "2026-11-05",
+          "price": 93.22
+        },
+        {
+          "at": "2026-11-05T17:31:51+00:00",
+          "price": 91.76
+        },
+        {
+          "at": "2026-11-05T18:30:50+00:00",
+          "price": 91.76
+        },
+        {
+          "at": "2026-11-05T19:31:50+00:00",
+          "price": 91.505
+        },
+        {
+          "at": "2026-11-06T13:31:50+00:00",
+          "price": 91.25
+        },
+        {
+          "at": "2026-11-06T14:31:50+00:00",
+          "price": 89.08
+        }
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 16.0,
+        "remaining": 0.0,
+        "average_fill_price": 88.97,
+        "limit_price": 88.8,
+        "net_credit": null,
+        "cost_to_close": 1420.8,
+        "realized_pnl": -65.16,
+        "reason": "close_stop",
+        "quantity": 16,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-06T14:39:52.603018+00:00",
+        "updated_at": "2026-11-06T14:40:06.432269+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -1.20 R",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -1.198
+      }
+    },
+    {
+      "id": "a4d3693b-69a9-4d7f-9440-1cad84e0595d",
+      "source_id": "a4d3693b-69a9-4d7f-9440-1cad84e0595d",
+      "source": "ledger",
+      "ledger_ref": "a4d3693b-69a9-4d7f-9440-1cad84e0595d",
+      "order": {
+        "status": "Filled",
+        "filled": 39.0,
+        "remaining": 0.0,
+        "average_fill_price": 31.3656,
+        "limit_price": 31.34,
+        "net_credit": 0.0,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 39,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-05T15:00:27.616384+00:00",
+        "updated_at": "2026-11-06T14:39:48.048707+00:00"
+      },
+      "symbol": "PFE",
+      "asset_class": "equity",
+      "instrument_type": "stock",
+      "shares": 39,
+      "opened": "2026-11-05",
+      "closed": "2026-11-06",
+      "status": "closed",
+      "strategy": "equity_momentum",
+      "bucket": "algo_trader",
+      "legs": [],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": null,
+      "entry_price": 31.34,
+      "stop_price": 29.89,
+      "target_price": 33.72,
+      "capital_at_risk": 56.55,
+      "max_profit": 0.0,
+      "net_pnl": -99.67,
+      "net_pnl_pct": -1.7625,
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-11-05",
+        "score": 100.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 67.1,
+        "adx_14": 25.0,
+        "atr_14": 0.64,
+        "price": 31.17,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 67; 1m positive; 6m strong; 20d breakout; near 52w high. Position sized for 1% account risk (50.00) at a 2x ATR stop (29.89), 2R target 33.72."
+      },
+      "management_plan": {
+        "target": "take profit at 2R target 33.72",
+        "stop": "hard stop at 29.89",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long PFE, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Auto-closed at the 2x-ATR hard stop.",
+      "timestamp": "2026-11-06T14:40:06.432255+00:00",
+      "live": {
+        "price": 28.73,
+        "kind": "stock",
+        "pnl": -101.68,
+        "pnl_pct": -179.8,
+        "r": -1.798,
+        "at": "2026-11-06T14:32:08+00:00"
+      },
+      "price_trail": [
+        {
+          "at": "2026-11-05",
+          "price": 31.34
+        },
+        {
+          "at": "2026-11-05T17:31:51+00:00",
+          "price": 30.505
+        },
+        {
+          "at": "2026-11-05T18:30:50+00:00",
+          "price": 30.505
+        },
+        {
+          "at": "2026-11-05T19:31:50+00:00",
+          "price": 30.325
+        },
+        {
+          "at": "2026-11-06T13:31:50+00:00",
+          "price": 29.88
+        },
+        {
+          "at": "2026-11-06T14:31:50+00:00",
+          "price": 28.7329
+        }
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 39.0,
+        "remaining": 0.0,
+        "average_fill_price": 28.81,
+        "limit_price": 28.78,
+        "net_credit": null,
+        "cost_to_close": 1122.42,
+        "realized_pnl": -99.67,
+        "reason": "close_stop",
+        "quantity": 39,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-06T14:39:48.048707+00:00",
+        "updated_at": "2026-11-06T14:40:06.432255+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -1.76 R",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -1.763
+      }
+    },
     {
       "id": "f453da41-24bd-42a0-b77a-c811fd936476",
       "source_id": "f453da41-24bd-42a0-b77a-c811fd936476",
@@ -357,306 +789,6 @@
       }
     },
     {
-      "id": "a4d3693b-69a9-4d7f-9440-1cad84e0595d",
-      "source_id": "a4d3693b-69a9-4d7f-9440-1cad84e0595d",
-      "source": "ledger",
-      "ledger_ref": "a4d3693b-69a9-4d7f-9440-1cad84e0595d",
-      "order": {
-        "status": "Filled",
-        "filled": 39.0,
-        "remaining": 0.0,
-        "average_fill_price": 31.3656,
-        "limit_price": 31.34,
-        "net_credit": 0.0,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 39,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-05T15:00:27.616384+00:00",
-        "updated_at": "2026-11-05T20:58:40.099032+00:00"
-      },
-      "symbol": "PFE",
-      "asset_class": "equity",
-      "instrument_type": "stock",
-      "shares": 39,
-      "opened": "2026-11-05",
-      "closed": null,
-      "status": "open",
-      "strategy": "equity_momentum",
-      "bucket": "algo_trader",
-      "legs": [],
-      "entry_ivr": null,
-      "expected_move_pct": null,
-      "dte_at_entry": null,
-      "entry_price": 31.34,
-      "stop_price": 29.89,
-      "target_price": 33.72,
-      "capital_at_risk": 56.55,
-      "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "equity",
-        "captured_at": "2026-11-05",
-        "score": 100.0,
-        "signal": "buy",
-        "trend": "above_200d",
-        "rsi_14": 67.1,
-        "adx_14": 25.0,
-        "atr_14": 0.64,
-        "price": 31.17,
-        "risk_tilt": "mixed",
-        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 67; 1m positive; 6m strong; 20d breakout; near 52w high. Position sized for 1% account risk (50.00) at a 2x ATR stop (29.89), 2R target 33.72."
-      },
-      "management_plan": {
-        "target": "take profit at 2R target 33.72",
-        "stop": "hard stop at 29.89",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long PFE, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-05T17:27:00.045426+00:00",
-      "live": {
-        "price": 28.73,
-        "kind": "stock",
-        "pnl": -101.68,
-        "pnl_pct": -179.8,
-        "r": -1.798,
-        "at": "2026-11-06T14:32:08+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-11-05",
-          "price": 31.34
-        },
-        {
-          "at": "2026-11-05T17:31:51+00:00",
-          "price": 30.505
-        },
-        {
-          "at": "2026-11-05T18:30:50+00:00",
-          "price": 30.505
-        },
-        {
-          "at": "2026-11-05T19:31:50+00:00",
-          "price": 30.325
-        },
-        {
-          "at": "2026-11-06T13:31:50+00:00",
-          "price": 29.88
-        },
-        {
-          "at": "2026-11-06T14:31:50+00:00",
-          "price": 28.7329
-        }
-      ]
-    },
-    {
-      "id": "085e4843-4901-48e1-b918-0f444398625a",
-      "source_id": "085e4843-4901-48e1-b918-0f444398625a",
-      "source": "ledger",
-      "ledger_ref": "085e4843-4901-48e1-b918-0f444398625a",
-      "order": {
-        "status": "Filled",
-        "filled": 16.0,
-        "remaining": 0.0,
-        "average_fill_price": 93.0425,
-        "limit_price": 93.22,
-        "net_credit": 0.0,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 16,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-05T15:00:15.025345+00:00",
-        "updated_at": "2026-11-05T20:58:40.099026+00:00"
-      },
-      "symbol": "XLP",
-      "asset_class": "equity",
-      "instrument_type": "etf",
-      "shares": 16,
-      "opened": "2026-11-05",
-      "closed": null,
-      "status": "open",
-      "strategy": "etf_rotation",
-      "bucket": "algo_trader",
-      "legs": [],
-      "entry_ivr": null,
-      "expected_move_pct": null,
-      "dte_at_entry": null,
-      "entry_price": 93.22,
-      "stop_price": 89.82,
-      "target_price": 98.77,
-      "capital_at_risk": 54.4,
-      "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "equity",
-        "captured_at": "2026-11-05",
-        "score": 100.0,
-        "signal": "buy",
-        "trend": "above_200d",
-        "rsi_14": 69.2,
-        "adx_14": 25.0,
-        "atr_14": 1.49,
-        "price": 92.8,
-        "risk_tilt": "mixed",
-        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 69; 1m positive; 6m strong; 20d breakout; near 52w high. Position sized for 1% account risk (50.00) at a 2x ATR stop (89.82), 2R target 98.77."
-      },
-      "management_plan": {
-        "target": "take profit at 2R target 98.77",
-        "stop": "hard stop at 89.82",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long XLP, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-05T17:27:00.045421+00:00",
-      "live": {
-        "price": 89.08,
-        "kind": "stock",
-        "pnl": -66.24,
-        "pnl_pct": -121.8,
-        "r": -1.218,
-        "at": "2026-11-06T14:32:08+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-11-05",
-          "price": 93.22
-        },
-        {
-          "at": "2026-11-05T17:31:51+00:00",
-          "price": 91.76
-        },
-        {
-          "at": "2026-11-05T18:30:50+00:00",
-          "price": 91.76
-        },
-        {
-          "at": "2026-11-05T19:31:50+00:00",
-          "price": 91.505
-        },
-        {
-          "at": "2026-11-06T13:31:50+00:00",
-          "price": 91.25
-        },
-        {
-          "at": "2026-11-06T14:31:50+00:00",
-          "price": 89.08
-        }
-      ]
-    },
-    {
-      "id": "ac7f73c8-febc-4f84-9d2f-73f81e8687e7",
-      "source_id": "ac7f73c8-febc-4f84-9d2f-73f81e8687e7",
-      "source": "ledger",
-      "ledger_ref": "ac7f73c8-febc-4f84-9d2f-73f81e8687e7",
-      "order": {
-        "status": "Filled",
-        "filled": 7.0,
-        "remaining": 0.0,
-        "average_fill_price": 191.9029,
-        "limit_price": 192.49,
-        "net_credit": 0.0,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 7,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-05T15:00:02.400938+00:00",
-        "updated_at": "2026-11-05T20:58:40.099020+00:00"
-      },
-      "symbol": "XLV",
-      "asset_class": "equity",
-      "instrument_type": "etf",
-      "shares": 7,
-      "opened": "2026-11-05",
-      "closed": null,
-      "status": "open",
-      "strategy": "etf_rotation",
-      "bucket": "algo_trader",
-      "legs": [],
-      "entry_ivr": null,
-      "expected_move_pct": null,
-      "dte_at_entry": null,
-      "entry_price": 192.49,
-      "stop_price": 184.42,
-      "target_price": 203.06,
-      "capital_at_risk": 56.49,
-      "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "equity",
-        "captured_at": "2026-11-05",
-        "score": 90.0,
-        "signal": "buy",
-        "trend": "above_200d",
-        "rsi_14": 77.6,
-        "adx_14": 25.0,
-        "atr_14": 3.11,
-        "price": 190.63,
-        "risk_tilt": "mixed",
-        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; 1m positive; 6m strong; 20d breakout; near 52w high. Position sized for 1% account risk (50.00) at a 2x ATR stop (184.42), 2R target 203.06."
-      },
-      "management_plan": {
-        "target": "take profit at 2R target 203.06",
-        "stop": "hard stop at 184.42",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long XLV, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-05T17:27:00.045414+00:00",
-      "live": {
-        "price": 181.92,
-        "kind": "stock",
-        "pnl": -73.99,
-        "pnl_pct": -131.0,
-        "r": -1.31,
-        "at": "2026-11-06T14:32:08+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-11-05",
-          "price": 192.49
-        },
-        {
-          "at": "2026-11-05T17:31:51+00:00",
-          "price": 187.1319
-        },
-        {
-          "at": "2026-11-05T18:30:50+00:00",
-          "price": 187.1319
-        },
-        {
-          "at": "2026-11-05T19:31:50+00:00",
-          "price": 185.93
-        },
-        {
-          "at": "2026-11-06T13:31:50+00:00",
-          "price": 184.91
-        },
-        {
-          "at": "2026-11-06T14:31:50+00:00",
-          "price": 181.92
-        }
-      ]
-    },
-    {
       "id": "a8079c6c-be06-4c7f-91af-f56647d11d6e",
       "source_id": "a8079c6c-be06-4c7f-91af-f56647d11d6e",
       "source": "ledger",
@@ -675,15 +807,15 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T17:40:38.633478+00:00",
-        "updated_at": "2026-11-05T14:46:39.222893+00:00"
+        "updated_at": "2026-11-06T14:40:02.017239+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
       "instrument_type": "etf",
       "shares": 25,
       "opened": "2026-11-04",
-      "closed": null,
-      "status": "open",
+      "closed": "2026-11-06",
+      "status": "closed",
       "strategy": "etf_rotation",
       "bucket": "algo_trader",
       "legs": [],
@@ -695,8 +827,8 @@
       "target_price": 62.16,
       "capital_at_risk": 46.75,
       "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
+      "net_pnl": -41.75,
+      "net_pnl_pct": -0.893,
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-11-04",
@@ -719,8 +851,8 @@
       "reason": "Long XLF, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-04T18:30:03.723159+00:00",
+      "exit_note": "Auto-closed at the 2x-ATR hard stop.",
+      "timestamp": "2026-11-06T14:40:06.432291+00:00",
       "live": {
         "price": 56.89,
         "kind": "stock",
@@ -778,7 +910,33 @@
           "at": "2026-11-06T14:31:50+00:00",
           "price": 56.89
         }
-      ]
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 25.0,
+        "remaining": 0.0,
+        "average_fill_price": 57.19,
+        "limit_price": 56.4,
+        "net_credit": null,
+        "cost_to_close": 1410.0,
+        "realized_pnl": -41.75,
+        "reason": "close_stop",
+        "quantity": 25,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-06T14:40:02.017239+00:00",
+        "updated_at": "2026-11-06T14:40:06.432291+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -0.89 R",
+          "entered overbought (RSI 70)"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -0.893
+      }
     },
     {
       "id": "bebad1b1-a5ee-45f2-804c-b7f72c02d9ea",
@@ -799,15 +957,15 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-04T16:42:51.211126+00:00",
-        "updated_at": "2026-11-05T17:21:41.707636+00:00"
+        "updated_at": "2026-11-06T14:37:22.396386+00:00"
       },
       "symbol": "SPY",
       "asset_class": "options",
       "instrument_type": "option",
       "shares": null,
       "opened": "2026-11-04",
-      "closed": null,
-      "status": "open",
+      "closed": "2026-11-06",
+      "status": "closed",
       "strategy": "bear_call_credit",
       "bucket": "algo_trader",
       "legs": [
@@ -834,8 +992,8 @@
       "target_price": null,
       "capital_at_risk": 70.0,
       "max_profit": 30.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
+      "net_pnl": -7.0,
+      "net_pnl_pct": -0.1,
       "conditions": {
         "engine": "options",
         "captured_at": "2026-11-04",
@@ -875,8 +1033,8 @@
       "reason": "Bear Call Credit on SPY, placed on the paper account from the ThetaForge recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-04T17:29:30.020436+00:00",
+      "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
+      "timestamp": "2026-11-06T14:40:06.432221+00:00",
       "live": {
         "price": 0.115,
         "kind": "spread",
@@ -938,7 +1096,32 @@
           "at": "2026-11-06T14:31:50+00:00",
           "price": 0.115
         }
-      ]
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.26,
+        "limit_price": 0.37,
+        "net_credit": -0.37,
+        "cost_to_close": 0.37,
+        "realized_pnl": -7.0,
+        "reason": "close_profit",
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": null,
+        "submitted_at": "2026-11-06T14:37:22.396386+00:00",
+        "updated_at": "2026-11-06T14:40:06.432221+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close profit",
+          "outcome -0.23 x credit"
+        ],
+        "lesson": "Thesis played out to its target -- repeat this setup.",
+        "units": -0.233
+      }
     },
     {
       "id": "0b9e26e6-9088-4c60-b001-aa4ba01414dc",
@@ -1634,7 +1817,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:42:52.160656+00:00",
-        "updated_at": "2026-11-05T14:38:27.631890+00:00"
+        "updated_at": "2026-11-06T14:34:56.597418+00:00"
       },
       "symbol": "PLTR",
       "asset_class": "equity",
@@ -2968,7 +3151,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T14:53:00.062409+00:00",
-        "updated_at": "2026-11-05T17:06:32.827695+00:00"
+        "updated_at": "2026-11-06T14:34:56.597486+00:00"
       },
       "symbol": "NCLH",
       "asset_class": "options",
@@ -3046,6 +3229,299 @@
       "tags": [],
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T15:24:36.738088+00:00"
+    },
+    {
+      "id": "6567e64a-a7a3-4140-ac56-aac592cf538c",
+      "source_id": "6567e64a-a7a3-4140-ac56-aac592cf538c",
+      "source": "ledger",
+      "ledger_ref": "6567e64a-a7a3-4140-ac56-aac592cf538c",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": -0.25,
+        "limit_price": -0.25,
+        "net_credit": 0.25,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-10-29T18:09:22.162157+00:00",
+        "updated_at": "2026-11-06T14:37:42.112009+00:00"
+      },
+      "symbol": "HOOD",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-10-29",
+      "closed": "2026-11-06",
+      "status": "closed",
+      "strategy": "bear_call_credit",
+      "bucket": "algo_trader",
+      "legs": [
+        {
+          "action": "SELL",
+          "type": "CALL",
+          "strike": 97.0,
+          "expiry": "2026-11-20",
+          "dte": 22
+        },
+        {
+          "action": "BUY",
+          "type": "CALL",
+          "strike": 98.0,
+          "expiry": "2026-11-20",
+          "dte": 22
+        }
+      ],
+      "entry_ivr": 50.0,
+      "expected_move_pct": null,
+      "dte_at_entry": 22,
+      "entry_price": -0.25,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 75.0,
+      "max_profit": 25.0,
+      "net_pnl": -115.0,
+      "net_pnl_pct": -1.5333,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-10-29",
+        "regime": "neutral",
+        "vix": 16.98,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 73.8,
+        "confidence_score": 70.2,
+        "pop": 71.5,
+        "edge_pct": 0.0,
+        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Strong liquidity ensures clean fills | Composite score: 73.8/100 | Win rate: 73.8% | Excellent annualized return: 414.8%",
+        "entry_rules": {
+          "preferred_dte": "22 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "Close at 50% of max profit ($0.12 credit collected)",
+          "stop_loss": "Close at 2-3x credit received",
+          "time_exit": "Close at 1 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "adjustment": "If short strike tested, roll up/down the tested side"
+        }
+      },
+      "management_plan": {
+        "target": "take profit at 50% of max credit",
+        "stop": "roll the tested side at 2x the original credit",
+        "time": "manage/close at 21 DTE",
+        "event": "close before earnings if within 7 days"
+      },
+      "reason": "Bear Call Credit on HOOD, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
+      "timestamp": "2026-11-06T14:40:06.432240+00:00",
+      "live": {
+        "price": 0.055,
+        "kind": "spread",
+        "pnl": 19.5,
+        "pnl_pct": 26.0,
+        "r": 0.26,
+        "at": "2026-11-06T14:31:58+00:00"
+      },
+      "price_trail": [
+        {
+          "at": "2026-10-29",
+          "price": 0.25
+        },
+        {
+          "at": "2026-10-29T18:31:39+00:00",
+          "price": 0.28
+        },
+        {
+          "at": "2026-10-29T19:30:39+00:00",
+          "price": 0.28
+        },
+        {
+          "at": "2026-10-30T13:31:19+00:00",
+          "price": 0.145
+        },
+        {
+          "at": "2026-10-30T14:30:40+00:00",
+          "price": 0.13
+        },
+        {
+          "at": "2026-10-30T15:31:21+00:00",
+          "price": 0.14
+        },
+        {
+          "at": "2026-10-30T16:30:42+00:00",
+          "price": 0.13
+        },
+        {
+          "at": "2026-10-30T17:30:22+00:00",
+          "price": 0.11
+        },
+        {
+          "at": "2026-10-30T18:30:11+00:00",
+          "price": 0.11
+        },
+        {
+          "at": "2026-10-30T19:30:10+00:00",
+          "price": 0.11
+        },
+        {
+          "at": "2026-11-02T13:31:44+00:00",
+          "price": 0.25
+        },
+        {
+          "at": "2026-11-02T14:30:44+00:00",
+          "price": 0.315
+        },
+        {
+          "at": "2026-11-02T15:31:20+00:00",
+          "price": 0.16
+        },
+        {
+          "at": "2026-11-02T16:31:46+00:00",
+          "price": 0.165
+        },
+        {
+          "at": "2026-11-02T17:32:01+00:00",
+          "price": 0.17
+        },
+        {
+          "at": "2026-11-02T18:32:23+00:00",
+          "price": 0.17
+        },
+        {
+          "at": "2026-11-02T19:31:29+00:00",
+          "price": 0.14
+        },
+        {
+          "at": "2026-11-03T13:31:11+00:00",
+          "price": 0.135
+        },
+        {
+          "at": "2026-11-03T14:30:56+00:00",
+          "price": 0.16
+        },
+        {
+          "at": "2026-11-03T15:30:20+00:00",
+          "price": 0.15
+        },
+        {
+          "at": "2026-11-03T16:30:48+00:00",
+          "price": 0.16
+        },
+        {
+          "at": "2026-11-03T17:31:50+00:00",
+          "price": 0.165
+        },
+        {
+          "at": "2026-11-03T18:31:48+00:00",
+          "price": 0.16
+        },
+        {
+          "at": "2026-11-03T19:30:10+00:00",
+          "price": 0.16
+        },
+        {
+          "at": "2026-11-04T13:31:40+00:00",
+          "price": 0.17
+        },
+        {
+          "at": "2026-11-04T14:31:41+00:00",
+          "price": 0.16
+        },
+        {
+          "at": "2026-11-04T15:31:10+00:00",
+          "price": 0.2
+        },
+        {
+          "at": "2026-11-04T16:31:50+00:00",
+          "price": 0.19
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.19
+        },
+        {
+          "at": "2026-11-04T18:30:50+00:00",
+          "price": 0.215
+        },
+        {
+          "at": "2026-11-04T19:31:01+00:00",
+          "price": 0.205
+        },
+        {
+          "at": "2026-11-05T13:30:50+00:00",
+          "price": 0.13
+        },
+        {
+          "at": "2026-11-05T14:32:03+00:00",
+          "price": 0.055
+        },
+        {
+          "at": "2026-11-05T15:31:11+00:00",
+          "price": 0.06
+        },
+        {
+          "at": "2026-11-05T16:30:50+00:00",
+          "price": 0.055
+        },
+        {
+          "at": "2026-11-05T17:31:51+00:00",
+          "price": 0.06
+        },
+        {
+          "at": "2026-11-05T18:30:50+00:00",
+          "price": 0.05
+        },
+        {
+          "at": "2026-11-05T19:31:50+00:00",
+          "price": 0.05
+        },
+        {
+          "at": "2026-11-06T13:31:50+00:00",
+          "price": 0.06
+        },
+        {
+          "at": "2026-11-06T14:31:50+00:00",
+          "price": 0.055
+        }
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.08,
+        "limit_price": 1.4,
+        "net_credit": -1.4,
+        "cost_to_close": 1.4,
+        "realized_pnl": -115.0,
+        "reason": "close_profit",
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": null,
+        "submitted_at": "2026-11-06T14:37:42.112009+00:00",
+        "updated_at": "2026-11-06T14:40:06.432240+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close profit",
+          "outcome -4.60 x credit"
+        ],
+        "lesson": "Thesis played out to its target -- repeat this setup.",
+        "units": -4.6
+      }
     },
     {
       "id": "08deac2e-528b-4679-bef5-3f97559a7bec",
@@ -4534,7 +5010,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:45:43.788635+00:00",
-        "updated_at": "2026-11-05T17:03:49.075665+00:00"
+        "updated_at": "2026-11-06T14:34:56.597464+00:00"
       },
       "symbol": "MARA",
       "asset_class": "options",
@@ -4773,274 +5249,6 @@
         {
           "at": "2026-11-06T14:31:50+00:00",
           "price": 0.455
-        }
-      ]
-    },
-    {
-      "id": "6567e64a-a7a3-4140-ac56-aac592cf538c",
-      "source_id": "6567e64a-a7a3-4140-ac56-aac592cf538c",
-      "source": "ledger",
-      "ledger_ref": "6567e64a-a7a3-4140-ac56-aac592cf538c",
-      "order": {
-        "status": "Filled",
-        "filled": 1.0,
-        "remaining": 0.0,
-        "average_fill_price": -0.25,
-        "limit_price": -0.25,
-        "net_credit": 0.25,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 1,
-        "multiplier": 100,
-        "sec_type": "OPT",
-        "submitted_at": "2026-10-29T18:09:22.162157+00:00",
-        "updated_at": "2026-11-05T17:03:43.450702+00:00"
-      },
-      "symbol": "HOOD",
-      "asset_class": "options",
-      "instrument_type": "option",
-      "shares": null,
-      "opened": "2026-10-29",
-      "closed": null,
-      "status": "open",
-      "strategy": "bear_call_credit",
-      "bucket": "algo_trader",
-      "legs": [
-        {
-          "action": "SELL",
-          "type": "CALL",
-          "strike": 97.0,
-          "expiry": "2026-11-20",
-          "dte": 22
-        },
-        {
-          "action": "BUY",
-          "type": "CALL",
-          "strike": 98.0,
-          "expiry": "2026-11-20",
-          "dte": 22
-        }
-      ],
-      "entry_ivr": 50.0,
-      "expected_move_pct": null,
-      "dte_at_entry": 22,
-      "entry_price": -0.25,
-      "stop_price": null,
-      "target_price": null,
-      "capital_at_risk": 75.0,
-      "max_profit": 25.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "options",
-        "captured_at": "2026-10-29",
-        "regime": "neutral",
-        "vix": 16.98,
-        "iv_rank": 50.0,
-        "expected_move_pct": 0.0,
-        "composite_score": 73.8,
-        "confidence_score": 70.2,
-        "pop": 71.5,
-        "edge_pct": 0.0,
-        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Strong liquidity ensures clean fills | Composite score: 73.8/100 | Win rate: 73.8% | Excellent annualized return: 414.8%",
-        "entry_rules": {
-          "preferred_dte": "22 DTE",
-          "entry_time": "Anytime",
-          "limit_order": true,
-          "fill_target": "Mid-price or better",
-          "max_slippage": "5% of credit/debit"
-        },
-        "exit_rules": {
-          "profit_target": "Close at 50% of max profit ($0.12 credit collected)",
-          "stop_loss": "Close at 2-3x credit received",
-          "time_exit": "Close at 1 DTE remaining",
-          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
-          "max_loss_exit": "Close immediately if max loss hit",
-          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
-          "roll_rules": "Roll out in time if tested, never roll for a loss",
-          "adjustment": "If short strike tested, roll up/down the tested side"
-        }
-      },
-      "management_plan": {
-        "target": "take profit at 50% of max credit",
-        "stop": "roll the tested side at 2x the original credit",
-        "time": "manage/close at 21 DTE",
-        "event": "close before earnings if within 7 days"
-      },
-      "reason": "Bear Call Credit on HOOD, placed on the paper account from the ThetaForge recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-10-29T18:09:55.334625+00:00",
-      "live": {
-        "price": 0.055,
-        "kind": "spread",
-        "pnl": 19.5,
-        "pnl_pct": 26.0,
-        "r": 0.26,
-        "at": "2026-11-06T14:31:58+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-10-29",
-          "price": 0.25
-        },
-        {
-          "at": "2026-10-29T18:31:39+00:00",
-          "price": 0.28
-        },
-        {
-          "at": "2026-10-29T19:30:39+00:00",
-          "price": 0.28
-        },
-        {
-          "at": "2026-10-30T13:31:19+00:00",
-          "price": 0.145
-        },
-        {
-          "at": "2026-10-30T14:30:40+00:00",
-          "price": 0.13
-        },
-        {
-          "at": "2026-10-30T15:31:21+00:00",
-          "price": 0.14
-        },
-        {
-          "at": "2026-10-30T16:30:42+00:00",
-          "price": 0.13
-        },
-        {
-          "at": "2026-10-30T17:30:22+00:00",
-          "price": 0.11
-        },
-        {
-          "at": "2026-10-30T18:30:11+00:00",
-          "price": 0.11
-        },
-        {
-          "at": "2026-10-30T19:30:10+00:00",
-          "price": 0.11
-        },
-        {
-          "at": "2026-11-02T13:31:44+00:00",
-          "price": 0.25
-        },
-        {
-          "at": "2026-11-02T14:30:44+00:00",
-          "price": 0.315
-        },
-        {
-          "at": "2026-11-02T15:31:20+00:00",
-          "price": 0.16
-        },
-        {
-          "at": "2026-11-02T16:31:46+00:00",
-          "price": 0.165
-        },
-        {
-          "at": "2026-11-02T17:32:01+00:00",
-          "price": 0.17
-        },
-        {
-          "at": "2026-11-02T18:32:23+00:00",
-          "price": 0.17
-        },
-        {
-          "at": "2026-11-02T19:31:29+00:00",
-          "price": 0.14
-        },
-        {
-          "at": "2026-11-03T13:31:11+00:00",
-          "price": 0.135
-        },
-        {
-          "at": "2026-11-03T14:30:56+00:00",
-          "price": 0.16
-        },
-        {
-          "at": "2026-11-03T15:30:20+00:00",
-          "price": 0.15
-        },
-        {
-          "at": "2026-11-03T16:30:48+00:00",
-          "price": 0.16
-        },
-        {
-          "at": "2026-11-03T17:31:50+00:00",
-          "price": 0.165
-        },
-        {
-          "at": "2026-11-03T18:31:48+00:00",
-          "price": 0.16
-        },
-        {
-          "at": "2026-11-03T19:30:10+00:00",
-          "price": 0.16
-        },
-        {
-          "at": "2026-11-04T13:31:40+00:00",
-          "price": 0.17
-        },
-        {
-          "at": "2026-11-04T14:31:41+00:00",
-          "price": 0.16
-        },
-        {
-          "at": "2026-11-04T15:31:10+00:00",
-          "price": 0.2
-        },
-        {
-          "at": "2026-11-04T16:31:50+00:00",
-          "price": 0.19
-        },
-        {
-          "at": "2026-11-04T17:30:51+00:00",
-          "price": 0.19
-        },
-        {
-          "at": "2026-11-04T18:30:50+00:00",
-          "price": 0.215
-        },
-        {
-          "at": "2026-11-04T19:31:01+00:00",
-          "price": 0.205
-        },
-        {
-          "at": "2026-11-05T13:30:50+00:00",
-          "price": 0.13
-        },
-        {
-          "at": "2026-11-05T14:32:03+00:00",
-          "price": 0.055
-        },
-        {
-          "at": "2026-11-05T15:31:11+00:00",
-          "price": 0.06
-        },
-        {
-          "at": "2026-11-05T16:30:50+00:00",
-          "price": 0.055
-        },
-        {
-          "at": "2026-11-05T17:31:51+00:00",
-          "price": 0.06
-        },
-        {
-          "at": "2026-11-05T18:30:50+00:00",
-          "price": 0.05
-        },
-        {
-          "at": "2026-11-05T19:31:50+00:00",
-          "price": 0.05
-        },
-        {
-          "at": "2026-11-06T13:31:50+00:00",
-          "price": 0.06
-        },
-        {
-          "at": "2026-11-06T14:31:50+00:00",
-          "price": 0.055
         }
       ]
     },
@@ -5299,7 +5507,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:43:45.444565+00:00",
-        "updated_at": "2026-11-05T17:03:54.911828+00:00"
+        "updated_at": "2026-11-06T14:37:52.599949+00:00"
       },
       "symbol": "QQQ",
       "asset_class": "options",
@@ -5579,7 +5787,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:04:42.995970+00:00",
-        "updated_at": "2026-11-05T17:06:42.776730+00:00"
+        "updated_at": "2026-11-06T14:34:56.597498+00:00"
       },
       "symbol": "F",
       "asset_class": "options",
@@ -5856,7 +6064,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T14:00:30.978103+00:00",
-        "updated_at": "2026-11-05T17:06:47.832211+00:00"
+        "updated_at": "2026-11-06T14:34:56.597509+00:00"
       },
       "symbol": "PATH",
       "asset_class": "options",
@@ -6669,7 +6877,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-10-26T19:40:33.035301+00:00",
-        "updated_at": "2026-11-05T14:34:43.416757+00:00"
+        "updated_at": "2026-11-06T14:40:10.686767+00:00"
       },
       "symbol": "DIA",
       "asset_class": "equity",
