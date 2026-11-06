@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "90470bf762499875e9a71510caffe02dc102ee75757e987c63f63a948c94032d",
+    "ledger_sha": "5171f34b839e3cd5f89022dc396655b152556d4cf2d26e6deac6aecccdbca497",
     "entries_from_ledger": 65,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-06T15:03:53Z",
+    "generated_at": "2026-11-06T15:12:42Z",
     "window_days": 120,
     "closed_learnable": 28,
     "setups": [
@@ -349,7 +349,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T15:02:49.425510+00:00",
-        "updated_at": "2026-11-06T15:03:34.148260+00:00"
+        "updated_at": "2026-11-06T15:12:12.000824+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -415,7 +415,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:45:05.301946+00:00",
-        "updated_at": "2026-11-06T15:03:34.148238+00:00"
+        "updated_at": "2026-11-06T15:12:12.000799+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
@@ -526,7 +526,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T15:03:34.148203+00:00",
+      "timestamp": "2026-11-06T15:12:12.000760+00:00",
       "live": {
         "price": 181.92,
         "kind": "stock",
@@ -575,7 +575,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:39:57.414084+00:00",
-        "updated_at": "2026-11-06T15:03:34.148203+00:00"
+        "updated_at": "2026-11-06T15:12:12.000760+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -653,7 +653,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T15:03:34.148191+00:00",
+      "timestamp": "2026-11-06T15:12:12.000748+00:00",
       "live": {
         "price": 89.08,
         "kind": "stock",
@@ -702,7 +702,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:39:52.603018+00:00",
-        "updated_at": "2026-11-06T15:03:34.148191+00:00"
+        "updated_at": "2026-11-06T15:12:12.000748+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -779,7 +779,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T15:03:34.148174+00:00",
+      "timestamp": "2026-11-06T15:12:12.000730+00:00",
       "live": {
         "price": 28.73,
         "kind": "stock",
@@ -828,7 +828,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:39:48.048707+00:00",
-        "updated_at": "2026-11-06T15:03:34.148174+00:00"
+        "updated_at": "2026-11-06T15:12:12.000730+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -1088,7 +1088,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T15:03:34.148213+00:00",
+      "timestamp": "2026-11-06T15:12:12.000771+00:00",
       "live": {
         "price": 56.89,
         "kind": "stock",
@@ -1161,7 +1161,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:40:02.017239+00:00",
-        "updated_at": "2026-11-06T15:03:34.148213+00:00"
+        "updated_at": "2026-11-06T15:12:12.000771+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -1270,7 +1270,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-06T15:03:34.148140+00:00",
+      "timestamp": "2026-11-06T15:12:12.000693+00:00",
       "live": {
         "price": 0.115,
         "kind": "spread",
@@ -1347,7 +1347,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:37:22.396386+00:00",
-        "updated_at": "2026-11-06T15:03:34.148140+00:00"
+        "updated_at": "2026-11-06T15:12:12.000693+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -1691,7 +1691,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T15:03:34.148229+00:00",
+      "timestamp": "2026-11-06T15:12:12.000789+00:00",
       "live": {
         "price": 159.0,
         "kind": "stock",
@@ -1804,7 +1804,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:43:59.163353+00:00",
-        "updated_at": "2026-11-06T15:03:34.148229+00:00"
+        "updated_at": "2026-11-06T15:12:12.000789+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -3413,7 +3413,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T14:53:00.062409+00:00",
-        "updated_at": "2026-11-06T14:34:56.597486+00:00"
+        "updated_at": "2026-11-06T15:12:11.931355+00:00"
       },
       "symbol": "NCLH",
       "asset_class": "options",
@@ -3581,7 +3581,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 21-DTE gamma management window.",
-      "timestamp": "2026-11-06T15:03:34.148255+00:00",
+      "timestamp": "2026-11-06T15:12:12.000818+00:00",
       "live": {
         "price": 0.285,
         "kind": "spread",
@@ -3782,7 +3782,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:46:22.940210+00:00",
-        "updated_at": "2026-11-06T15:03:34.148255+00:00"
+        "updated_at": "2026-11-06T15:12:12.000818+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -3884,7 +3884,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 21-DTE gamma management window.",
-      "timestamp": "2026-11-06T15:03:34.148250+00:00",
+      "timestamp": "2026-11-06T15:12:12.000812+00:00",
       "live": {
         "price": 0.11,
         "kind": "spread",
@@ -4085,7 +4085,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:46:18.672073+00:00",
-        "updated_at": "2026-11-06T15:03:34.148250+00:00"
+        "updated_at": "2026-11-06T15:12:12.000812+00:00"
       },
       "review": {
         "verdict": "win",
@@ -4187,7 +4187,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 21-DTE gamma management window.",
-      "timestamp": "2026-11-06T15:03:34.148244+00:00",
+      "timestamp": "2026-11-06T15:12:12.000806+00:00",
       "live": {
         "price": 0.455,
         "kind": "spread",
@@ -4372,7 +4372,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:46:14.159308+00:00",
-        "updated_at": "2026-11-06T15:03:34.148244+00:00"
+        "updated_at": "2026-11-06T15:12:12.000806+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -4481,7 +4481,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-06T15:03:34.148166+00:00",
+      "timestamp": "2026-11-06T15:12:12.000723+00:00",
       "live": {
         "price": 0.015,
         "kind": "spread",
@@ -4678,7 +4678,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:37:52.599949+00:00",
-        "updated_at": "2026-11-06T15:03:34.148166+00:00"
+        "updated_at": "2026-11-06T15:12:12.000723+00:00"
       },
       "review": {
         "verdict": "win",
@@ -4786,7 +4786,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-06T15:03:34.148159+00:00",
+      "timestamp": "2026-11-06T15:12:12.000715+00:00",
       "live": {
         "price": 0.055,
         "kind": "spread",
@@ -4971,7 +4971,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:37:42.112009+00:00",
-        "updated_at": "2026-11-06T15:03:34.148159+00:00"
+        "updated_at": "2026-11-06T15:12:12.000715+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -6751,7 +6751,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-06T15:03:34.148222+00:00",
+      "timestamp": "2026-11-06T15:12:12.000782+00:00",
       "live": {
         "price": 509.5,
         "kind": "stock",
@@ -7008,7 +7008,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:40:10.686767+00:00",
-        "updated_at": "2026-11-06T15:03:34.148222+00:00"
+        "updated_at": "2026-11-06T15:12:12.000782+00:00"
       },
       "review": {
         "verdict": "loss",
