@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "14ca86be935f389520f47152df83313bcef6b51e00d5dc0ffeb5097b0c19b7c3",
+    "ledger_sha": "851af33952f93e19b30f3d421f25fc4c64215df7382ad718d2eb3cb0c132a044",
     "entries_from_ledger": 71,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-09T19:31:00Z",
+    "generated_at": "2026-11-09T19:58:54Z",
     "window_days": 120,
     "closed_learnable": 31,
     "setups": [
@@ -349,7 +349,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-09T18:54:30.609368+00:00",
-        "updated_at": "2026-11-09T19:30:08.594418+00:00"
+        "updated_at": "2026-11-09T19:58:23.409369+00:00"
       },
       "symbol": "CCL",
       "asset_class": "options",
@@ -453,7 +453,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-09T17:53:09.546601+00:00",
-        "updated_at": "2026-11-09T19:30:08.594412+00:00"
+        "updated_at": "2026-11-09T19:58:23.409364+00:00"
       },
       "symbol": "NCLH",
       "asset_class": "options",
@@ -557,7 +557,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-09T15:00:17.775933+00:00",
-        "updated_at": "2026-11-09T19:30:08.594404+00:00"
+        "updated_at": "2026-11-09T19:58:23.409357+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -1520,7 +1520,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-09T19:30:08.594364+00:00",
+      "timestamp": "2026-11-09T19:58:23.409320+00:00",
       "live": {
         "price": 24.17,
         "kind": "stock",
@@ -1633,7 +1633,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-09T14:34:56.296928+00:00",
-        "updated_at": "2026-11-09T19:30:08.594364+00:00"
+        "updated_at": "2026-11-09T19:58:23.409320+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -3058,7 +3058,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-09T19:30:08.594395+00:00",
+      "timestamp": "2026-11-09T19:58:23.409349+00:00",
       "live": {
         "price": 0.185,
         "kind": "spread",
@@ -3223,7 +3223,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-09T14:55:14.296781+00:00",
-        "updated_at": "2026-11-09T19:30:08.594395+00:00"
+        "updated_at": "2026-11-09T19:58:23.409349+00:00"
       },
       "review": {
         "verdict": "win",
@@ -3377,7 +3377,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T14:45:23.711242+00:00",
-        "updated_at": "2026-11-09T16:03:59.812161+00:00"
+        "updated_at": "2026-11-09T19:56:28.991538+00:00"
       },
       "symbol": "AYA",
       "asset_class": "equity",
