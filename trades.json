@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "73838699245d5fd97369e2ad42109f38e18f6323d50986a1aed64b9ad1d76d84",
+    "ledger_sha": "b731c00a0b3c4a7be5d857698e415b5911d62db57a980f2273dca441f0c590f3",
     "entries_from_ledger": 69,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-09T17:30:58Z",
+    "generated_at": "2026-11-09T17:54:29Z",
     "window_days": 120,
     "closed_learnable": 31,
     "setups": [
@@ -349,7 +349,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-09T15:00:17.775933+00:00",
-        "updated_at": "2026-11-09T17:30:32.842696+00:00"
+        "updated_at": "2026-11-09T17:54:00.507629+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -561,7 +561,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:45:05.301946+00:00",
-        "updated_at": "2026-11-09T17:27:34.396095+00:00"
+        "updated_at": "2026-11-09T17:54:23.207723+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
@@ -1288,7 +1288,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-09T17:30:32.842655+00:00",
+      "timestamp": "2026-11-09T17:54:00.507592+00:00",
       "live": {
         "price": 24.17,
         "kind": "stock",
@@ -1401,7 +1401,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-09T14:34:56.296928+00:00",
-        "updated_at": "2026-11-09T17:30:32.842655+00:00"
+        "updated_at": "2026-11-09T17:54:00.507592+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -2810,7 +2810,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-09T17:30:32.842687+00:00",
+      "timestamp": "2026-11-09T17:54:00.507622+00:00",
       "live": {
         "price": 0.185,
         "kind": "spread",
@@ -2975,7 +2975,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-09T14:55:14.296781+00:00",
-        "updated_at": "2026-11-09T17:30:32.842687+00:00"
+        "updated_at": "2026-11-09T17:54:00.507622+00:00"
       },
       "review": {
         "verdict": "win",
