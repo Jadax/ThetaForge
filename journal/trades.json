@@ -9,8 +9,8 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "9bb3baf7834e86d25265726179c2a8bc3b107960fb9c46153984ef232895694b",
-    "entries_from_ledger": 66,
+    "ledger_sha": "922dcab9e70571eac5c54d1e13d88478c5397b09bd69ce539d751b3d17d2dac6",
+    "entries_from_ledger": 67,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
@@ -20,11 +20,11 @@
       "label": "Algo Trader",
       "starting_capital": null,
       "trades": 47,
-      "open": 10,
-      "closed": 37,
+      "open": 9,
+      "closed": 38,
       "wins": 16,
-      "realized_pnl": -561.71,
-      "unrealized_pnl": -32.38,
+      "realized_pnl": -612.77,
+      "unrealized_pnl": 21.64,
       "equity": null
     },
     "infinity_1k": {
@@ -41,20 +41,20 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-09T14:35:00Z",
+    "generated_at": "2026-11-09T14:55:44Z",
     "window_days": 120,
-    "closed_learnable": 29,
+    "closed_learnable": 30,
     "setups": [
       {
         "when": {
           "asset": "equity",
           "strategy": "equity_momentum"
         },
-        "n": 12,
-        "mean_units": -0.624,
-        "se": 0.322,
-        "win_rate": 41.7,
-        "win_rate_shrunk": 43.8
+        "n": 13,
+        "mean_units": -0.654,
+        "se": 0.297,
+        "win_rate": 38.5,
+        "win_rate_shrunk": 41.2
       },
       {
         "when": {
@@ -86,11 +86,11 @@
           "strategy": "equity_momentum",
           "rsi_band": "rsi60-70"
         },
-        "n": 6,
-        "mean_units": -0.559,
-        "se": 0.635,
-        "win_rate": 50.0,
-        "win_rate_shrunk": 50.0
+        "n": 7,
+        "mean_units": -0.624,
+        "se": 0.54,
+        "win_rate": 42.9,
+        "win_rate_shrunk": 45.5
       },
       {
         "when": {
@@ -98,11 +98,11 @@
           "strategy": "equity_momentum",
           "trend": "bullish"
         },
-        "n": 12,
-        "mean_units": -0.624,
-        "se": 0.322,
-        "win_rate": 41.7,
-        "win_rate_shrunk": 43.8
+        "n": 13,
+        "mean_units": -0.654,
+        "se": 0.297,
+        "win_rate": 38.5,
+        "win_rate_shrunk": 41.2
       },
       {
         "when": {
@@ -266,7 +266,7 @@
         },
         "action": "veto",
         "points": null,
-        "evidence": "n=12, mean -0.62 (+/-0.32), win 42%"
+        "evidence": "n=13, mean -0.65 (+/-0.30), win 38%"
       },
       {
         "when": {
@@ -284,9 +284,9 @@
           "strategy": "equity_momentum",
           "rsi_band": "rsi60-70"
         },
-        "action": "penalize",
-        "points": -5.0,
-        "evidence": "n=6, mean -0.56 (+/-0.64), win 50%"
+        "action": "veto",
+        "points": null,
+        "evidence": "n=7, mean -0.62 (+/-0.54), win 43%"
       },
       {
         "when": {
@@ -296,7 +296,7 @@
         },
         "action": "veto",
         "points": null,
-        "evidence": "n=12, mean -0.62 (+/-0.32), win 42%"
+        "evidence": "n=13, mean -0.65 (+/-0.30), win 38%"
       },
       {
         "when": {
@@ -1109,6 +1109,195 @@
       }
     },
     {
+      "id": "13934253-5de4-49b5-8710-3ad46fe0aa34",
+      "source_id": "13934253-5de4-49b5-8710-3ad46fe0aa34",
+      "source": "ledger",
+      "ledger_ref": "13934253-5de4-49b5-8710-3ad46fe0aa34",
+      "order": {
+        "status": "Filled",
+        "filled": 37.0,
+        "remaining": 0.0,
+        "average_fill_price": 25.63,
+        "limit_price": 25.63,
+        "net_credit": 0.0,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 37,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-04T14:57:46.539622+00:00",
+        "updated_at": "2026-11-09T14:34:56.296928+00:00"
+      },
+      "symbol": "KHC",
+      "asset_class": "equity",
+      "instrument_type": "stock",
+      "shares": 37,
+      "opened": "2026-11-04",
+      "closed": "2026-11-09",
+      "status": "closed",
+      "strategy": "equity_momentum",
+      "bucket": "algo_trader",
+      "legs": [],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": null,
+      "entry_price": 25.63,
+      "stop_price": 24.27,
+      "target_price": 28.32,
+      "capital_at_risk": 50.32,
+      "max_profit": 0.0,
+      "net_pnl": -51.06,
+      "net_pnl_pct": -1.0147,
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-11-04",
+        "score": 85.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 64.2,
+        "adx_14": 25.0,
+        "atr_14": 0.67,
+        "price": 25.62,
+        "risk_tilt": "risk_on",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 64; 1m positive; 6m strong; 20d breakout. Position sized for 1% account risk (50.00) at a 2x ATR stop (24.27), 2R target 28.32."
+      },
+      "management_plan": {
+        "target": "take profit at 2R target 28.32",
+        "stop": "hard stop at 24.27",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long KHC, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Auto-closed at the 2x-ATR hard stop.",
+      "timestamp": "2026-11-09T14:55:14.308561+00:00",
+      "live": {
+        "price": 24.17,
+        "kind": "stock",
+        "pnl": -54.02,
+        "pnl_pct": -107.3,
+        "r": -1.073,
+        "at": "2026-11-09T14:32:17+00:00"
+      },
+      "price_trail": [
+        {
+          "at": "2026-11-04",
+          "price": 25.63
+        },
+        {
+          "at": "2026-11-04T15:31:10+00:00",
+          "price": 25.71
+        },
+        {
+          "at": "2026-11-04T16:31:50+00:00",
+          "price": 26.105
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 25.865
+        },
+        {
+          "at": "2026-11-04T18:30:50+00:00",
+          "price": 25.855
+        },
+        {
+          "at": "2026-11-04T19:31:01+00:00",
+          "price": 25.8
+        },
+        {
+          "at": "2026-11-05T13:30:50+00:00",
+          "price": 25.44
+        },
+        {
+          "at": "2026-11-05T14:32:03+00:00",
+          "price": 25.36
+        },
+        {
+          "at": "2026-11-05T15:31:11+00:00",
+          "price": 25.35
+        },
+        {
+          "at": "2026-11-05T16:30:50+00:00",
+          "price": 25.225
+        },
+        {
+          "at": "2026-11-05T17:31:51+00:00",
+          "price": 25.19
+        },
+        {
+          "at": "2026-11-05T18:30:50+00:00",
+          "price": 25.19
+        },
+        {
+          "at": "2026-11-05T19:31:50+00:00",
+          "price": 25.32
+        },
+        {
+          "at": "2026-11-06T13:31:50+00:00",
+          "price": 25.32
+        },
+        {
+          "at": "2026-11-06T14:31:50+00:00",
+          "price": 24.52
+        },
+        {
+          "at": "2026-11-06T15:30:35+00:00",
+          "price": 24.8
+        },
+        {
+          "at": "2026-11-06T16:31:50+00:00",
+          "price": 24.73
+        },
+        {
+          "at": "2026-11-06T17:30:51+00:00",
+          "price": 24.735
+        },
+        {
+          "at": "2026-11-06T18:30:15+00:00",
+          "price": 24.86
+        },
+        {
+          "at": "2026-11-06T19:30:50+00:00",
+          "price": 24.78
+        },
+        {
+          "at": "2026-11-09T13:30:50+00:00",
+          "price": 24.61
+        },
+        {
+          "at": "2026-11-09T14:32:02+00:00",
+          "price": 24.1701
+        }
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 37.0,
+        "remaining": 0.0,
+        "average_fill_price": 24.25,
+        "limit_price": 24.08,
+        "net_credit": null,
+        "cost_to_close": 890.96,
+        "realized_pnl": -51.06,
+        "reason": "close_stop",
+        "quantity": 37,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-09T14:34:56.296928+00:00",
+        "updated_at": "2026-11-09T14:55:14.308561+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -1.01 R"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -1.015
+      }
+    },
+    {
       "id": "a8079c6c-be06-4c7f-91af-f56647d11d6e",
       "source_id": "a8079c6c-be06-4c7f-91af-f56647d11d6e",
       "source": "ledger",
@@ -1600,170 +1789,6 @@
         {
           "at": "2026-11-09T14:32:02+00:00",
           "price": 61.015
-        }
-      ]
-    },
-    {
-      "id": "13934253-5de4-49b5-8710-3ad46fe0aa34",
-      "source_id": "13934253-5de4-49b5-8710-3ad46fe0aa34",
-      "source": "ledger",
-      "ledger_ref": "13934253-5de4-49b5-8710-3ad46fe0aa34",
-      "order": {
-        "status": "Filled",
-        "filled": 37.0,
-        "remaining": 0.0,
-        "average_fill_price": 25.63,
-        "limit_price": 25.63,
-        "net_credit": 0.0,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 37,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-04T14:57:46.539622+00:00",
-        "updated_at": "2026-11-09T14:34:56.296928+00:00"
-      },
-      "symbol": "KHC",
-      "asset_class": "equity",
-      "instrument_type": "stock",
-      "shares": 37,
-      "opened": "2026-11-04",
-      "closed": null,
-      "status": "open",
-      "strategy": "equity_momentum",
-      "bucket": "algo_trader",
-      "legs": [],
-      "entry_ivr": null,
-      "expected_move_pct": null,
-      "dte_at_entry": null,
-      "entry_price": 25.63,
-      "stop_price": 24.27,
-      "target_price": 28.32,
-      "capital_at_risk": 50.32,
-      "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "equity",
-        "captured_at": "2026-11-04",
-        "score": 85.0,
-        "signal": "buy",
-        "trend": "above_200d",
-        "rsi_14": 64.2,
-        "adx_14": 25.0,
-        "atr_14": 0.67,
-        "price": 25.62,
-        "risk_tilt": "risk_on",
-        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 64; 1m positive; 6m strong; 20d breakout. Position sized for 1% account risk (50.00) at a 2x ATR stop (24.27), 2R target 28.32."
-      },
-      "management_plan": {
-        "target": "take profit at 2R target 28.32",
-        "stop": "hard stop at 24.27",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long KHC, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-04T15:30:24.354977+00:00",
-      "live": {
-        "price": 24.17,
-        "kind": "stock",
-        "pnl": -54.02,
-        "pnl_pct": -107.3,
-        "r": -1.073,
-        "at": "2026-11-09T14:32:17+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-11-04",
-          "price": 25.63
-        },
-        {
-          "at": "2026-11-04T15:31:10+00:00",
-          "price": 25.71
-        },
-        {
-          "at": "2026-11-04T16:31:50+00:00",
-          "price": 26.105
-        },
-        {
-          "at": "2026-11-04T17:30:51+00:00",
-          "price": 25.865
-        },
-        {
-          "at": "2026-11-04T18:30:50+00:00",
-          "price": 25.855
-        },
-        {
-          "at": "2026-11-04T19:31:01+00:00",
-          "price": 25.8
-        },
-        {
-          "at": "2026-11-05T13:30:50+00:00",
-          "price": 25.44
-        },
-        {
-          "at": "2026-11-05T14:32:03+00:00",
-          "price": 25.36
-        },
-        {
-          "at": "2026-11-05T15:31:11+00:00",
-          "price": 25.35
-        },
-        {
-          "at": "2026-11-05T16:30:50+00:00",
-          "price": 25.225
-        },
-        {
-          "at": "2026-11-05T17:31:51+00:00",
-          "price": 25.19
-        },
-        {
-          "at": "2026-11-05T18:30:50+00:00",
-          "price": 25.19
-        },
-        {
-          "at": "2026-11-05T19:31:50+00:00",
-          "price": 25.32
-        },
-        {
-          "at": "2026-11-06T13:31:50+00:00",
-          "price": 25.32
-        },
-        {
-          "at": "2026-11-06T14:31:50+00:00",
-          "price": 24.52
-        },
-        {
-          "at": "2026-11-06T15:30:35+00:00",
-          "price": 24.8
-        },
-        {
-          "at": "2026-11-06T16:31:50+00:00",
-          "price": 24.73
-        },
-        {
-          "at": "2026-11-06T17:30:51+00:00",
-          "price": 24.735
-        },
-        {
-          "at": "2026-11-06T18:30:15+00:00",
-          "price": 24.86
-        },
-        {
-          "at": "2026-11-06T19:30:50+00:00",
-          "price": 24.78
-        },
-        {
-          "at": "2026-11-09T13:30:50+00:00",
-          "price": 24.61
-        },
-        {
-          "at": "2026-11-09T14:32:02+00:00",
-          "price": 24.1701
         }
       ]
     },
@@ -2698,7 +2723,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T14:45:23.711242+00:00",
-        "updated_at": "2026-11-09T14:34:56.315565+00:00"
+        "updated_at": "2026-11-09T14:53:20.416500+00:00"
       },
       "symbol": "AYA",
       "asset_class": "equity",
@@ -3603,7 +3628,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T15:19:26.944503+00:00",
-        "updated_at": "2026-11-02T20:58:48.141579+00:00"
+        "updated_at": "2026-11-09T14:55:14.296781+00:00"
       },
       "symbol": "LYFT",
       "asset_class": "options",
