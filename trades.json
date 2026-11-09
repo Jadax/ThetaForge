@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "d52e8e9c75e5af2deedcfda11e3040980e9a52ddf2a022c1fbd5b9d8fb412d3e",
+    "ledger_sha": "9bb3baf7834e86d25265726179c2a8bc3b107960fb9c46153984ef232895694b",
     "entries_from_ledger": 66,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-09T14:32:18Z",
+    "generated_at": "2026-11-09T14:35:00Z",
     "window_days": 120,
     "closed_learnable": 29,
     "setups": [
@@ -457,7 +457,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:45:05.301946+00:00",
-        "updated_at": "2026-11-06T20:58:40.013436+00:00"
+        "updated_at": "2026-11-09T14:32:34.004262+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
@@ -1622,7 +1622,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T14:57:46.539622+00:00",
-        "updated_at": "2026-11-04T20:59:30.262155+00:00"
+        "updated_at": "2026-11-09T14:34:56.296928+00:00"
       },
       "symbol": "KHC",
       "asset_class": "equity",
@@ -2698,7 +2698,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T14:45:23.711242+00:00",
-        "updated_at": "2026-11-05T14:34:43.317554+00:00"
+        "updated_at": "2026-11-09T14:34:56.315565+00:00"
       },
       "symbol": "AYA",
       "asset_class": "equity",
