@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "c6f60a631223a4a4d5208a6448d399e4d70bb43719e90cc8a1eb8b8918ed1e72",
+    "ledger_sha": "0414b078117210c030e8a9aed5b72c17c9bd20a18a7758a7c70abac177f467d2",
     "entries_from_ledger": 73,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -24,7 +24,7 @@
       "closed": 41,
       "wins": 17,
       "realized_pnl": -690.8,
-      "unrealized_pnl": 65.33,
+      "unrealized_pnl": 68.44,
       "equity": null
     },
     "infinity_1k": {
@@ -36,12 +36,12 @@
       "closed": 0,
       "wins": 0,
       "realized_pnl": 0,
-      "unrealized_pnl": 8.93,
+      "unrealized_pnl": 9.49,
       "equity": 1000.0
     }
   },
   "learning": {
-    "generated_at": "2026-11-10T18:32:02Z",
+    "generated_at": "2026-11-10T19:31:23Z",
     "window_days": 120,
     "closed_learnable": 33,
     "setups": [
@@ -604,12 +604,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-09T15:01:26.311147+00:00",
       "live": {
-        "price": 188.15,
+        "price": 188.27,
         "kind": "stock",
-        "pnl": 1.49,
-        "pnl_pct": 18.7,
-        "r": 0.187,
-        "at": "2026-11-10T18:32:00+00:00"
+        "pnl": 1.61,
+        "pnl_pct": 20.2,
+        "r": 0.202,
+        "at": "2026-11-10T19:31:21+00:00"
       },
       "price_trail": [
         {
@@ -659,6 +659,10 @@
         {
           "at": "2026-11-10T18:31:50+00:00",
           "price": 188.15
+        },
+        {
+          "at": "2026-11-10T19:31:10+00:00",
+          "price": 188.27
         }
       ]
     },
@@ -728,12 +732,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-06T15:03:34.148260+00:00",
       "live": {
-        "price": 91.22,
+        "price": 91.16,
         "kind": "stock",
-        "pnl": 3.54,
-        "pnl_pct": 31.4,
-        "r": 0.314,
-        "at": "2026-11-10T18:31:59+00:00"
+        "pnl": 3.35,
+        "pnl_pct": 29.7,
+        "r": 0.297,
+        "at": "2026-11-10T19:31:21+00:00"
       },
       "price_trail": [
         {
@@ -811,6 +815,10 @@
         {
           "at": "2026-11-10T18:31:50+00:00",
           "price": 91.22
+        },
+        {
+          "at": "2026-11-10T19:31:10+00:00",
+          "price": 91.1561
         }
       ]
     },
@@ -833,7 +841,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:45:05.301946+00:00",
-        "updated_at": "2026-11-10T17:43:58.646088+00:00"
+        "updated_at": "2026-11-10T19:26:15.195387+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
@@ -880,12 +888,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-06T14:46:31.669256+00:00",
       "live": {
-        "price": 58.26,
+        "price": 58.38,
         "kind": "stock",
-        "pnl": 3.9,
-        "pnl_pct": 41.1,
-        "r": 0.411,
-        "at": "2026-11-10T18:31:59+00:00"
+        "pnl": 4.53,
+        "pnl_pct": 47.6,
+        "r": 0.476,
+        "at": "2026-11-10T19:31:20+00:00"
       },
       "price_trail": [
         {
@@ -963,6 +971,10 @@
         {
           "at": "2026-11-10T18:31:50+00:00",
           "price": 58.26
+        },
+        {
+          "at": "2026-11-10T19:31:10+00:00",
+          "price": 58.385
         }
       ]
     },
@@ -1592,7 +1604,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-10T18:30:56.874733+00:00",
+      "timestamp": "2026-11-10T19:30:40.205472+00:00",
       "live": {
         "price": 60.83,
         "kind": "stock",
@@ -1729,7 +1741,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-10T14:33:48.047162+00:00",
-        "updated_at": "2026-11-10T18:30:56.874733+00:00"
+        "updated_at": "2026-11-10T19:30:40.205472+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -2928,12 +2940,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-03T14:42:52.158630+00:00",
       "live": {
-        "price": 348.11,
+        "price": 348.55,
         "kind": "stock",
-        "pnl": 54.33,
-        "pnl_pct": 316.6,
-        "r": 3.166,
-        "at": "2026-11-10T18:31:59+00:00"
+        "pnl": 55.64,
+        "pnl_pct": 324.2,
+        "r": 3.242,
+        "at": "2026-11-10T19:31:20+00:00"
       },
       "price_trail": [
         {
@@ -3095,6 +3107,10 @@
         {
           "at": "2026-11-10T18:31:50+00:00",
           "price": 348.11
+        },
+        {
+          "at": "2026-11-10T19:31:10+00:00",
+          "price": 348.545
         }
       ]
     },
@@ -3553,12 +3569,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:48:56.504615+00:00",
       "live": {
-        "price": 25.18,
+        "price": 25.23,
         "kind": "stock",
-        "pnl": 21.6,
-        "pnl_pct": 32.2,
-        "r": 0.322,
-        "at": "2026-11-10T18:31:55+00:00"
+        "pnl": 22.5,
+        "pnl_pct": 33.5,
+        "r": 0.335,
+        "at": "2026-11-10T19:31:17+00:00"
       },
       "price_trail": [
         {
@@ -3736,6 +3752,10 @@
         {
           "at": "2026-11-10T18:31:50+00:00",
           "price": 25.18
+        },
+        {
+          "at": "2026-11-10T19:31:10+00:00",
+          "price": 25.23
         }
       ]
     },
@@ -3837,12 +3857,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:31:48.565512+00:00",
       "live": {
-        "price": 0.375,
+        "price": 0.36,
         "kind": "spread",
-        "pnl": -12.5,
-        "pnl_pct": -16.7,
-        "r": -0.167,
-        "at": "2026-11-10T18:31:58+00:00"
+        "pnl": -11.0,
+        "pnl_pct": -14.7,
+        "r": -0.147,
+        "at": "2026-11-10T19:31:20+00:00"
       },
       "price_trail": [
         {
@@ -4024,6 +4044,10 @@
         {
           "at": "2026-11-10T18:31:50+00:00",
           "price": 0.375
+        },
+        {
+          "at": "2026-11-10T19:31:10+00:00",
+          "price": 0.36
         }
       ]
     },
@@ -4093,12 +4117,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:31:48.565507+00:00",
       "live": {
-        "price": 8.0,
+        "price": 7.97,
         "kind": "stock",
-        "pnl": 0.4,
-        "pnl_pct": 0.8,
-        "r": 0.008,
-        "at": "2026-11-10T18:31:57+00:00"
+        "pnl": -0.2,
+        "pnl_pct": -0.4,
+        "r": -0.004,
+        "at": "2026-11-10T19:31:19+00:00"
       },
       "price_trail": [
         {
@@ -4280,6 +4304,10 @@
         {
           "at": "2026-11-10T18:31:50+00:00",
           "price": 8.0
+        },
+        {
+          "at": "2026-11-10T19:31:10+00:00",
+          "price": 7.9699
         }
       ]
     },
@@ -4379,7 +4407,7 @@
         "pnl": 1.5,
         "pnl_pct": 0.1,
         "r": 0.001,
-        "at": "2026-11-10T18:31:57+00:00"
+        "at": "2026-11-10T19:31:18+00:00"
       },
       "price_trail": [
         {
@@ -4565,6 +4593,10 @@
         {
           "at": "2026-11-10T18:31:50+00:00",
           "price": 0.335
+        },
+        {
+          "at": "2026-11-10T19:31:10+00:00",
+          "price": 0.335
         }
       ]
     },
@@ -4632,7 +4664,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-10T18:30:56.874759+00:00",
+      "timestamp": "2026-11-10T19:30:40.205501+00:00",
       "live": {
         "price": 12.57,
         "kind": "stock",
@@ -4877,7 +4909,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-10T15:41:05.292184+00:00",
-        "updated_at": "2026-11-10T18:30:56.874759+00:00"
+        "updated_at": "2026-11-10T19:30:40.205501+00:00"
       },
       "review": {
         "verdict": "loss",
