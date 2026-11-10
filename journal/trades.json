@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "d041721d9a016c39e7cfd34715e6f333f016757b666a786f064de1476308a845",
+    "ledger_sha": "1ee36c12eceb2ea340adcae4e7b075548aa133c605b9ab074900560b84f3b7d8",
     "entries_from_ledger": 71,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-10T14:31:54Z",
+    "generated_at": "2026-11-10T14:33:51Z",
     "window_days": 120,
     "closed_learnable": 31,
     "setups": [
@@ -349,7 +349,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-09T18:54:30.609368+00:00",
-        "updated_at": "2026-11-09T20:59:43.840016+00:00"
+        "updated_at": "2026-11-10T14:31:52.909943+00:00"
       },
       "symbol": "CCL",
       "asset_class": "options",
@@ -2023,7 +2023,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-04T16:19:51.791378+00:00",
-        "updated_at": "2026-11-05T15:04:42.355066+00:00"
+        "updated_at": "2026-11-10T14:33:48.047162+00:00"
       },
       "symbol": "XLE",
       "asset_class": "equity",
