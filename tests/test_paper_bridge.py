@@ -268,3 +268,49 @@ def test_gateway_replay_never_erases_a_recorded_fill(monkeypatch):
     monkeypatch.setattr(bridge, "_write_order_ledger", lambda r: written.append(r))
     [synced] = bridge._sync_order_ledger()
     assert synced["filled"] == 39.0 and synced["average_fill_price"] == 31.34
+
+
+# ── v1.17.36: option closes book P&L from the fill, and never pay past width ──
+
+def test_option_close_pnl_comes_from_the_fill_not_the_limit(monkeypatch):
+    """Nov 6 2026: HOOD 97/98 call spread (credit 0.25) closed with a 1.40
+    limit and filled at 0.08 -- booked -$115, really +$17."""
+    from types import SimpleNamespace
+    import bridge.main as bridge
+
+    parent = {"id": "p", "symbol": "HOOD", "net_credit": 0.25, "filled": 1, "status": "Filled",
+              "closed_by": "c", "legs": []}
+    close = {"id": "c", "symbol": "HOOD", "close_of": "p", "status": "Submitted", "filled": 0.0,
+             "limit_price": 1.40, "cost_to_close": 1.40, "realized_pnl": -115.0, "multiplier": 100}
+    fill = SimpleNamespace(order=SimpleNamespace(orderRef="c", permId=0, orderId=3),
+                           contract=SimpleNamespace(symbol="HOOD", secType="BAG"),
+                           orderStatus=SimpleNamespace(status="Filled", filled=1, remaining=0, avgFillPrice=0.08))
+
+    class FakeIB:
+        def isConnected(self):
+            return True
+
+        def trades(self):
+            return [fill]
+
+    monkeypatch.setattr(bridge, "ib", FakeIB())
+    monkeypatch.setattr(bridge, "_read_order_ledger", lambda: [parent, close])
+    monkeypatch.setattr(bridge, "_write_order_ledger", lambda r: None)
+    synced = {r["id"]: r for r in bridge._sync_order_ledger()}
+    assert synced["c"]["realized_pnl"] == 17.0
+
+
+def test_debit_spread_close_pnl_from_a_credit_fill():
+    from bridge.main import _option_close_pnl
+    # NCLH call debit spread: paid 0.45, sold it back for 0.11 (fill reported -0.11).
+    assert _option_close_pnl({"net_credit": -0.45}, {}, -0.11, 1) == -34.0
+
+
+def test_credit_spread_close_limit_is_capped_at_its_width(monkeypatch):
+    # 0.5-wide bear call (short 18C, long 18.5C), quotes wide at the open: closing
+    # BUYs the 18C at its 1.60 ask and SELLs the 18.5C at its 0.20 bid = 1.40.
+    parent = {**_spread_parent(0.25, "bear_call_credit"),
+              "legs": [{"symbol": "NCLH", "expiry": "2026-11-20", "strike": 18.0, "right": "C", "action": "SELL"},
+                       {"symbol": "NCLH", "expiry": "2026-11-20", "strike": 18.5, "right": "C", "action": "BUY"}]}
+    result, placed = _close_harness(monkeypatch, parent, [(1.50, 1.60), (0.20, 0.30)])
+    assert result["cost_to_close"] == 0.5 and placed["order"].lmtPrice == 0.5

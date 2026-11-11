@@ -407,6 +407,29 @@ def _sym_str_same(record: dict[str, Any], contract: Any) -> bool:
     return True
 
 
+def _max_wing_width(legs: list[dict[str, Any]]) -> float | None:
+    """Widest same-right strike distance between a sold and a bought leg."""
+    widths = [
+        abs(float(sold["strike"]) - float(bought["strike"]))
+        for sold in legs if sold.get("action") == "SELL"
+        for bought in legs if bought.get("action") == "BUY" and bought.get("right") == sold.get("right")
+    ]
+    return max(widths) if widths else None
+
+
+def _option_close_pnl(parent: dict[str, Any], close: dict[str, Any], fill_price: float, filled: float) -> float:
+    """Realized P&L of an option close from its fill.
+
+    Ledger prices are per unit of the underlying. The close BUYs the mirrored
+    structure, so its average fill is what was paid per unit (negative when a
+    bought spread is sold for a credit); the entry's net credit is negative
+    for a debit. Dollars = (entry credit - close cost) x multiplier x qty.
+    """
+    multiplier = float(close.get("multiplier") or parent.get("multiplier") or 100)
+    entry_credit = float(parent.get("net_credit", 0) or 0)
+    return round((entry_credit - fill_price) * multiplier * filled, 2)
+
+
 def _sync_order_ledger() -> list[dict[str, Any]]:
     records = _read_order_ledger()
     if ib is None or not ib.isConnected():
@@ -481,14 +504,18 @@ def _sync_order_ledger() -> list[dict[str, Any]]:
         }
         if perm_now and perm_now != int(record.get("ibkr_perm_id", 0) or 0):
             update["ibkr_perm_id"] = perm_now
-        # Book an equity close's realized P&L from its actual fill, not the
-        # (buffered) limit it was submitted at.
-        if record.get("close_of") and record.get("asset_class") == "equity" \
-                and update["filled"] > 0 and update["average_fill_price"] > 0:
+        # Book a close's realized P&L from its actual fill, not the limit it
+        # was submitted at. The limit is a marketable worst case: at the open a
+        # 1-wide HOOD call spread was closed with a 1.40 limit and filled at
+        # 0.08, so the limit-based -$115 was really a +$17 win (Nov 6 2026).
+        if record.get("close_of") and update["filled"] > 0:
             parent = next((item for item in records if item.get("id") == record.get("close_of")), None)
-            basis = float((parent or {}).get("average_fill_price") or (parent or {}).get("entry_price") or 0)
-            if basis > 0:
-                update["realized_pnl"] = round((update["average_fill_price"] - basis) * update["filled"], 2)
+            if record.get("asset_class") == "equity":
+                basis = float((parent or {}).get("average_fill_price") or (parent or {}).get("entry_price") or 0)
+                if basis > 0 and update["average_fill_price"] > 0:
+                    update["realized_pnl"] = round((update["average_fill_price"] - basis) * update["filled"], 2)
+            elif parent is not None and update["average_fill_price"] != 0:
+                update["realized_pnl"] = _option_close_pnl(parent, record, update["average_fill_price"], update["filled"])
         if any(record.get(key) != value for key, value in update.items()):
             record.update(update)
             changed = True
@@ -1043,6 +1070,13 @@ async def close_paper_combo(request: CloseComboRequest, _: None = Depends(requir
     # Negative for a debit-spread close (cash received); the BUY-the-bag limit
     # below is then negative, IBKR's convention for receiving a net credit.
     cost_to_close = -net_credit
+    # A credit vertical/condor can never be worth more than its widest wing.
+    # Wide opening quotes priced a 1-wide HOOD spread's close at 1.40 (Nov 6);
+    # cap the marketable limit at the width so the order can't pay more.
+    width = _max_wing_width(parent_legs)
+    if entry_credit >= 0 and width and cost_to_close > width:
+        cost_to_close = round(width, 2)
+        net_credit = -cost_to_close
     multiplier = _contract_multiplier(qualified)
     combo_exchange = _combo_exchange(close_legs)
 

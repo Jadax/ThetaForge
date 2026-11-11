@@ -54,6 +54,9 @@ class EquityRecommendation:
     reasoning: str
     gate: Optional[str] = None          # rejection code when not tradeable
     extra: Dict[str, Any] = field(default_factory=dict)
+    # Learned setup adjustment (agents/learning/trade_review.py) applied to
+    # the Brain's score; the payload's score already includes it.
+    learning_delta: float = 0.0
 
 
 class EquityRecommender:
@@ -99,9 +102,20 @@ class EquityRecommender:
                                "rsi_14": getattr(read, "rsi_14", None),
                                "risk_tilt": getattr(read, "market_risk_tilt", None)},
             })
-            veto, _delta, reasons = setup_adjustment(learned_adjustments, features)
+            veto, learning_delta, reasons = setup_adjustment(learned_adjustments, features)
             if veto:
                 return self._reject(symbol, "learned_setup", "; ".join(reasons), price)
+            # A penalty must be able to bite: once the adjusted score drops
+            # under the Brain's buy floor the setup is refused, not just
+            # nudged (only vetoes acted on equities before v1.17.36).
+            from agents.equity_trader.equity_brain import BUY_SCORE_FLOOR
+            base_score = float(getattr(read, "score", 0) or 0)
+            if learning_delta < 0 and base_score + learning_delta < BUY_SCORE_FLOOR:
+                return self._reject(
+                    symbol, "learned_setup",
+                    f"score {base_score:.0f}{learning_delta:+.0f} < {BUY_SCORE_FLOOR:.0f}: " + "; ".join(reasons), price)
+        else:
+            learning_delta, reasons = 0.0, []
 
         risk_pct = (risk_per_trade_pct / 100) if risk_per_trade_pct else RISK_PER_TRADE_PCT
         risk_dollars = capital * risk_pct
@@ -160,10 +174,12 @@ class EquityRecommender:
             max_loss_total=max_loss_total,
             notional=notional,
             max_loss_pct=max_loss_pct,
+            learning_delta=learning_delta,
             reasoning=(
                 f"{base_reason} Position sized for {risk_pct:.0%} account risk "
                 f"({risk_dollars:.2f}) at a {ATR_STOP_MULTIPLIER:.0f}x ATR stop "
                 f"({stop_price:.2f}), 2R target {target_price:.2f}."
+                + ("".join(f" | {note}" for note in reasons))
             ),
         )
 

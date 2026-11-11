@@ -1699,7 +1699,9 @@ def _equity_recommendation_payload(recommendation, data: Optional[Dict[str, Any]
         "rationale": recommendation.reasoning,
         "gate": recommendation.gate,
         "gate_reason": recommendation.reasoning if recommendation.gate else None,
-        "score": round(float(data.get("score") or 0), 1),
+        # The Brain's score plus any learned setup adjustment.
+        "score": round(float(data.get("score") or 0) + float(getattr(recommendation, "learning_delta", 0) or 0), 1),
+        "learning_delta": getattr(recommendation, "learning_delta", 0.0),
         "read": data.get("signal"),
         "trend": "above_200d" if data.get("above_200d") else "below_200d",
         "rsi_14": data.get("rsi_14"),

@@ -1,5 +1,23 @@
 # ThetaForge Changelog
 
+## v1.17.36 - 2026-11-11
+
+**The learning loop was learning from wrong outcomes: option closes booked P&L
+from the order's limit, not the fill.** Found verifying the loop on live data.
+
+- Option closes now book realized P&L from IBKR's actual average fill
+  (`_option_close_pnl`), like equity closes already did. At the open, closes go
+  in with marketable limits far through the fill: HOOD's 1-wide call spread
+  was booked -$115 (limit 1.40) but filled at 0.08, a +$17 win. Six closes
+  re-booked (+$226 net; HOOD and SPY flip to wins, PFE -$95 -> -$25); the
+  limit-based figure is kept as `realized_pnl_limit_based`.
+- A credit vertical/condor's closing limit is capped at its widest wing: it can
+  never be worth more than that.
+- Learned penalties now bite on stock entries: the penalty lowers the Brain's
+  score (also what the $1000 bucket's bar reads), and a setup whose adjusted
+  score falls under `BUY_SCORE_FLOOR` is refused (`learned_setup`). Before, only
+  vetoes acted on equities.
+
 ## v1.17.35 - 2026-11-05
 
 **Journal redesign is live, and a Gateway restart can no longer erase fills.**

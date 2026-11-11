@@ -100,3 +100,18 @@ def test_bucket_risk_override_sizes_the_equity_position():
     small = EquityRecommender().build(read, capital=1000)
     bucket = EquityRecommender().build(read, capital=1000, risk_per_trade_pct=5)
     assert bucket.max_loss_total > small.max_loss_total
+
+
+def test_equity_penalty_bites_once_the_score_drops_below_the_floor():
+    """ETF rotation was penalized (-5) on Nov 11 but still traded at full score."""
+    from agents.equity_trader.equity_brain import BUY_SCORE_FLOOR
+    penalty = [{"when": {"asset": "equity", "strategy": "etf_rotation"}, "action": "penalize",
+                "points": -5.0, "evidence": "n=10, mean -0.22"}]
+    base = {"symbol": "XLF", "signal": "buy", "strategy": "etf_rotation", "reasoning": "",
+            "price": 50.0, "atr_value": 1.0, "above_200d": True}
+    strong = EquityRecommender().build({**base, "score": BUY_SCORE_FLOOR + 10}, capital=5000,
+                                       learned_adjustments=penalty)
+    assert strong.gate is None and strong.learning_delta == -5.0
+    marginal = EquityRecommender().build({**base, "score": BUY_SCORE_FLOOR + 3}, capital=5000,
+                                         learned_adjustments=penalty)
+    assert marginal.gate == "learned_setup"
