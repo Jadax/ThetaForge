@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "a588aa3e8ce5a72655c0d322eda8d71c176d7655dfab6de3caad3e3e8f264578",
+    "ledger_sha": "1b1e20855f17f728f08e9c05206120e3baa6b51d5ac0c67307311def908b1b68",
     "entries_from_ledger": 74,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-11T18:05:53Z",
+    "generated_at": "2026-11-11T18:08:21Z",
     "window_days": 120,
     "closed_learnable": 34,
     "setups": [
@@ -3290,7 +3290,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-credit loss stop.",
-      "timestamp": "2026-11-11T18:05:51.452596+00:00",
+      "timestamp": "2026-11-11T18:08:14.273344+00:00",
       "live": {
         "price": 0.33,
         "kind": "spread",
@@ -3507,7 +3507,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-11T14:36:10.487796+00:00",
-        "updated_at": "2026-11-11T18:05:51.452596+00:00"
+        "updated_at": "2026-11-11T18:08:14.273344+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -3927,7 +3927,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-02T14:45:23.711242+00:00",
-        "updated_at": "2026-11-09T20:01:14.942389+00:00"
+        "updated_at": "2026-11-11T18:08:18.628152+00:00"
       },
       "symbol": "AYA",
       "asset_class": "equity",
