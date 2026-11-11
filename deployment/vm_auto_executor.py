@@ -60,6 +60,9 @@ BRIDGE_ACCESS_TOKEN = os.environ["BRIDGE_ACCESS_TOKEN"]
 CAPITAL_LIMIT = float(os.getenv("CAPITAL_LIMIT", "5000"))
 POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "60"))
 RECOMMEND_DELAY_SECONDS = float(os.getenv("RECOMMEND_DELAY_SECONDS", "3"))
+# A recommendation fetches chains/quotes on the 1/8-OCPU Advisor; at 60s the
+# $1000 bucket's first look timed out 14 times in a week (Nov 6-11 2026).
+RECOMMEND_TIMEOUT_SECONDS = float(os.getenv("RECOMMEND_TIMEOUT_SECONDS", "120"))
 JOURNAL_SYNC_SCRIPT = os.getenv("JOURNAL_SYNC_SCRIPT", "/opt/thetaforge-bridge/journal_sync_push.sh")
 
 # "$1000 to Infinity": a self-funded $1,000 bucket on the same paper account,
@@ -199,7 +202,7 @@ def fetch_recommendation(
             "max_positions": 3,
             "diversify_underlyings": False,
         },
-        timeout=60,
+        timeout=RECOMMEND_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
     body = response.json()
@@ -453,7 +456,7 @@ def fetch_equity_recommendation(
             "risk_per_trade_pct": risk_per_trade_pct,
             "current_positions": open_symbols,
         },
-        timeout=60,
+        timeout=RECOMMEND_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
     body = response.json()

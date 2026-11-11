@@ -17,6 +17,9 @@ from the order's limit, not the fill.** Found verifying the loop on live data.
   score (also what the $1000 bucket's bar reads), and a setup whose adjusted
   score falls under `BUY_SCORE_FLOOR` is refused (`learned_setup`). Before, only
   vetoes acted on equities.
+- Executor recommendation timeout 60s -> 120s (`RECOMMEND_TIMEOUT_SECONDS`): the
+  $1000 bucket's first look timed out 14 times in a week on the 1/8-OCPU
+  Advisor and fell through to the Algo Trader.
 
 ## v1.17.35 - 2026-11-05
 
