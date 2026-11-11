@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "17c2c3a663c03e27e086bc6933657124b60d0f125e9411b876609ec737cbc005",
+    "ledger_sha": "a588aa3e8ce5a72655c0d322eda8d71c176d7655dfab6de3caad3e3e8f264578",
     "entries_from_ledger": 74,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -22,8 +22,8 @@
       "trades": 49,
       "open": 7,
       "closed": 42,
-      "wins": 17,
-      "realized_pnl": -785.8,
+      "wins": 19,
+      "realized_pnl": -559.8,
       "unrealized_pnl": 91.63,
       "equity": null
     },
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-11T17:31:19Z",
+    "generated_at": "2026-11-11T18:05:53Z",
     "window_days": 120,
     "closed_learnable": 34,
     "setups": [
@@ -181,10 +181,10 @@
           "strategy": "bear_call_credit"
         },
         "n": 3,
-        "mean_units": -1.381,
-        "se": 1.631,
-        "win_rate": 33.3,
-        "win_rate_shrunk": 42.9
+        "mean_units": 0.501,
+        "se": 0.184,
+        "win_rate": 100.0,
+        "win_rate_shrunk": 71.4
       },
       {
         "when": {
@@ -193,10 +193,10 @@
           "ivr_band": "ivr50-70"
         },
         "n": 3,
-        "mean_units": -1.381,
-        "se": 1.631,
-        "win_rate": 33.3,
-        "win_rate_shrunk": 42.9
+        "mean_units": 0.501,
+        "se": 0.184,
+        "win_rate": 100.0,
+        "win_rate_shrunk": 71.4
       },
       {
         "when": {
@@ -205,10 +205,10 @@
           "trend": "neutral"
         },
         "n": 3,
-        "mean_units": -1.381,
-        "se": 1.631,
-        "win_rate": 33.3,
-        "win_rate_shrunk": 42.9
+        "mean_units": 0.501,
+        "se": 0.184,
+        "win_rate": 100.0,
+        "win_rate_shrunk": 71.4
       },
       {
         "when": {
@@ -216,8 +216,8 @@
           "strategy": "cash_secured_put"
         },
         "n": 5,
-        "mean_units": -1.109,
-        "se": 0.848,
+        "mean_units": -1.031,
+        "se": 0.849,
         "win_rate": 40.0,
         "win_rate_shrunk": 44.4
       },
@@ -228,8 +228,8 @@
           "dte_band": "dte<30"
         },
         "n": 4,
-        "mean_units": -1.474,
-        "se": 0.987,
+        "mean_units": -1.377,
+        "se": 1.0,
         "win_rate": 25.0,
         "win_rate_shrunk": 37.5
       },
@@ -240,8 +240,8 @@
           "ivr_band": "ivr50-70"
         },
         "n": 5,
-        "mean_units": -1.109,
-        "se": 0.848,
+        "mean_units": -1.031,
+        "se": 0.849,
         "win_rate": 40.0,
         "win_rate_shrunk": 44.4
       },
@@ -252,8 +252,8 @@
           "trend": "neutral"
         },
         "n": 5,
-        "mean_units": -1.109,
-        "se": 0.848,
+        "mean_units": -1.031,
+        "se": 0.849,
         "win_rate": 40.0,
         "win_rate_shrunk": 44.4
       }
@@ -2206,8 +2206,8 @@
       "target_price": null,
       "capital_at_risk": 70.0,
       "max_profit": 30.0,
-      "net_pnl": -7.0,
-      "net_pnl_pct": -0.1,
+      "net_pnl": 4.0,
+      "net_pnl_pct": 0.0571,
       "conditions": {
         "engine": "options",
         "captured_at": "2026-11-04",
@@ -2319,7 +2319,7 @@
         "limit_price": 0.37,
         "net_credit": -0.37,
         "cost_to_close": 0.37,
-        "realized_pnl": -7.0,
+        "realized_pnl": 4.0,
         "reason": "close_profit",
         "quantity": 1,
         "multiplier": 100,
@@ -2328,13 +2328,13 @@
         "updated_at": "2026-11-06T20:58:40.013331+00:00"
       },
       "review": {
-        "verdict": "loss",
+        "verdict": "win",
         "drivers": [
           "exit: close profit",
-          "outcome -0.23 x credit"
+          "outcome +0.13 x credit"
         ],
         "lesson": "Thesis played out to its target -- repeat this setup.",
-        "units": -0.233
+        "units": 0.133
       }
     },
     {
@@ -3248,8 +3248,8 @@
       "target_price": null,
       "capital_at_risk": 75.0,
       "max_profit": 25.0,
-      "net_pnl": -95.0,
-      "net_pnl_pct": -1.2667,
+      "net_pnl": -25.0,
+      "net_pnl_pct": -0.3333,
       "conditions": {
         "engine": "options",
         "captured_at": "2026-11-02",
@@ -3290,7 +3290,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-credit loss stop.",
-      "timestamp": "2026-11-11T17:30:29.580748+00:00",
+      "timestamp": "2026-11-11T18:05:51.452596+00:00",
       "live": {
         "price": 0.33,
         "kind": "spread",
@@ -3501,22 +3501,22 @@
         "limit_price": 1.2,
         "net_credit": -1.2,
         "cost_to_close": 1.2,
-        "realized_pnl": -95.0,
+        "realized_pnl": -25.0,
         "reason": "close_loss",
         "quantity": 1,
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-11T14:36:10.487796+00:00",
-        "updated_at": "2026-11-11T17:30:29.580748+00:00"
+        "updated_at": "2026-11-11T18:05:51.452596+00:00"
       },
       "review": {
         "verdict": "loss",
         "drivers": [
           "exit: close loss",
-          "outcome -3.80 x credit"
+          "outcome -1.00 x credit"
         ],
         "lesson": "The underlying moved through the short strike; premium did not cover the move.",
-        "units": -3.8
+        "units": -1.0
       }
     },
     {
@@ -3839,8 +3839,8 @@
       "target_price": null,
       "capital_at_risk": 45.0,
       "max_profit": 5.0,
-      "net_pnl": -41.0,
-      "net_pnl_pct": -0.9111,
+      "net_pnl": -34.0,
+      "net_pnl_pct": -0.7556,
       "conditions": {
         "engine": "options",
         "captured_at": "2026-11-02",
@@ -3890,7 +3890,7 @@
         "limit_price": -0.04,
         "net_credit": 0.04,
         "cost_to_close": -0.04,
-        "realized_pnl": -41.0,
+        "realized_pnl": -34.0,
         "reason": "close_loss",
         "quantity": 1,
         "multiplier": 100,
@@ -3902,10 +3902,10 @@
         "verdict": "loss",
         "drivers": [
           "exit: close loss",
-          "outcome -8.20 x credit"
+          "outcome -6.80 x credit"
         ],
         "lesson": "The underlying moved through the short strike; premium did not cover the move.",
-        "units": -8.2
+        "units": -6.8
       }
     },
     {
@@ -5445,8 +5445,8 @@
       "target_price": null,
       "capital_at_risk": 1131.0,
       "max_profit": 19.0,
-      "net_pnl": 5.0,
-      "net_pnl_pct": 0.0044,
+      "net_pnl": 8.0,
+      "net_pnl_pct": 0.0071,
       "conditions": {
         "engine": "options",
         "captured_at": "2026-10-29",
@@ -5682,7 +5682,7 @@
         "limit_price": 0.14,
         "net_credit": -0.14,
         "cost_to_close": 0.14,
-        "realized_pnl": 5.0,
+        "realized_pnl": 8.0,
         "reason": "close_time",
         "quantity": 1,
         "multiplier": 100,
@@ -5694,11 +5694,11 @@
         "verdict": "win",
         "drivers": [
           "exit: close time",
-          "outcome +0.26 x credit",
+          "outcome +0.42 x credit",
           "entered at 22 DTE -- little time before the 21-DTE exit"
         ],
         "lesson": "Time ran out before the trade worked -- enter with more DTE or a stronger edge.",
-        "units": 0.263
+        "units": 0.421
       }
     },
     {
@@ -5748,8 +5748,8 @@
       "target_price": null,
       "capital_at_risk": 537.0,
       "max_profit": 13.0,
-      "net_pnl": -27.0,
-      "net_pnl_pct": -0.0503,
+      "net_pnl": -24.0,
+      "net_pnl_pct": -0.0447,
       "conditions": {
         "engine": "options",
         "captured_at": "2026-10-29",
@@ -5969,7 +5969,7 @@
         "limit_price": 0.4,
         "net_credit": -0.4,
         "cost_to_close": 0.4,
-        "realized_pnl": -27.0,
+        "realized_pnl": -24.0,
         "reason": "close_time",
         "quantity": 1,
         "multiplier": 100,
@@ -5981,11 +5981,11 @@
         "verdict": "loss",
         "drivers": [
           "exit: close time",
-          "outcome -2.08 x credit",
+          "outcome -1.85 x credit",
           "entered at 22 DTE -- little time before the 21-DTE exit"
         ],
         "lesson": "Time ran out before the trade worked -- enter with more DTE or a stronger edge.",
-        "units": -2.077
+        "units": -1.846
       }
     },
     {
@@ -6347,8 +6347,8 @@
       "target_price": null,
       "capital_at_risk": 75.0,
       "max_profit": 25.0,
-      "net_pnl": -115.0,
-      "net_pnl_pct": -1.5333,
+      "net_pnl": 17.0,
+      "net_pnl_pct": 0.2267,
       "conditions": {
         "engine": "options",
         "captured_at": "2026-10-29",
@@ -6568,7 +6568,7 @@
         "limit_price": 1.4,
         "net_credit": -1.4,
         "cost_to_close": 1.4,
-        "realized_pnl": -115.0,
+        "realized_pnl": 17.0,
         "reason": "close_profit",
         "quantity": 1,
         "multiplier": 100,
@@ -6577,13 +6577,13 @@
         "updated_at": "2026-11-06T20:58:40.013352+00:00"
       },
       "review": {
-        "verdict": "loss",
+        "verdict": "win",
         "drivers": [
           "exit: close profit",
-          "outcome -4.60 x credit"
+          "outcome +0.68 x credit"
         ],
         "lesson": "Thesis played out to its target -- repeat this setup.",
-        "units": -4.6
+        "units": 0.68
       }
     },
     {
