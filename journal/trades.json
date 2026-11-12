@@ -9,8 +9,8 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "f4bbe6d8514ca937d7c87acb311f436817692a74c0eb52abe7e38ab2bbe48659",
-    "entries_from_ledger": 75,
+    "ledger_sha": "b86d0942d3432b78fa4d8c2e9d6ad82d94196e3adea5cf1c44170d824874659a",
+    "entries_from_ledger": 76,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
@@ -19,8 +19,8 @@
     "algo_trader": {
       "label": "Algo Trader",
       "starting_capital": null,
-      "trades": 49,
-      "open": 6,
+      "trades": 50,
+      "open": 7,
       "closed": 43,
       "wins": 20,
       "realized_pnl": -543.78,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-12T16:31:02Z",
+    "generated_at": "2026-11-12T16:58:08Z",
     "window_days": 120,
     "closed_learnable": 35,
     "setups": [
@@ -342,6 +342,103 @@
     ]
   },
   "trades": [
+    {
+      "id": "8aa4add6-8bd3-40a3-a962-4a06310ffc57",
+      "source_id": "8aa4add6-8bd3-40a3-a962-4a06310ffc57",
+      "source": "ledger",
+      "ledger_ref": "8aa4add6-8bd3-40a3-a962-4a06310ffc57",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.17,
+        "limit_price": 0.17,
+        "net_credit": 0.17,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-11-12T16:55:17.253650+00:00",
+        "updated_at": "2026-11-12T16:57:54.189946+00:00"
+      },
+      "symbol": "AAL",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-11-12",
+      "closed": null,
+      "status": "open",
+      "strategy": "cash_secured_put",
+      "bucket": "algo_trader",
+      "legs": [
+        {
+          "action": "SELL",
+          "type": "PUT",
+          "strike": 12.0,
+          "expiry": "2026-12-18",
+          "dte": 36
+        }
+      ],
+      "entry_ivr": 57.1,
+      "expected_move_pct": null,
+      "dte_at_entry": 36,
+      "entry_price": 0.17,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 1183.0,
+      "max_profit": 17.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-11-12",
+        "regime": "neutral",
+        "vix": 17.57,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 71.2,
+        "confidence_score": 62.9,
+        "pop": 76.3,
+        "edge_pct": 0.0,
+        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Time decay working in our favor | Strong liquidity ensures clean fills | Composite score: 71.2/100 | Win rate: 76.3%",
+        "entry_rules": {
+          "preferred_dte": "36 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 15 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "assignment": "If assigned, own the shares and sell covered calls against them"
+        },
+        "trend": "neutral",
+        "signal": "weak_sell",
+        "brain_score": -10.8,
+        "eff_iv_rank": 57.1,
+        "iv_hv_ratio": 1.15,
+        "short_strike_otm_pct": 12.7
+      },
+      "management_plan": {
+        "target": "close at 50% of max credit",
+        "stop": "roll or close if short strike is breached decisively",
+        "time": "manage at 21 DTE",
+        "event": "close before earnings"
+      },
+      "reason": "Cash Secured Put on AAL, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-11-12T16:57:54.189946+00:00"
+    },
     {
       "id": "7b1db1dc-c678-4af0-a85f-79e511268b50",
       "source_id": "7b1db1dc-c678-4af0-a85f-79e511268b50",
