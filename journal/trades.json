@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "fea91f53b111566d74471ce6bed444c9aedc11a9e7490bccc21316f375b86f7a",
+    "ledger_sha": "902657c2db8dab2c9af60c0055efb96ffafba3f4e8490332401c0a92d5b74025",
     "entries_from_ledger": 76,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-16T14:31:30Z",
+    "generated_at": "2026-11-16T14:48:13Z",
     "window_days": 120,
     "closed_learnable": 35,
     "setups": [
@@ -728,7 +728,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-09T15:00:17.775933+00:00",
-        "updated_at": "2026-11-12T14:46:36.026692+00:00"
+        "updated_at": "2026-11-16T14:34:57.548823+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -948,7 +948,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T15:02:49.425510+00:00",
-        "updated_at": "2026-11-12T14:35:41.906220+00:00"
+        "updated_at": "2026-11-16T14:48:10.034529+00:00"
       },
       "symbol": "XLP",
       "asset_class": "equity",
@@ -5039,7 +5039,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-02T16:11:20.318454+00:00",
-        "updated_at": "2026-11-02T20:58:48.141584+00:00"
+        "updated_at": "2026-11-16T14:47:47.818712+00:00"
       },
       "symbol": "KHC",
       "asset_class": "options",
@@ -8603,7 +8603,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-10-29T19:50:18.073897+00:00",
-        "updated_at": "2026-10-29T19:59:42.428050+00:00"
+        "updated_at": "2026-11-16T14:47:53.220577+00:00"
       },
       "symbol": "SLV",
       "asset_class": "options",
