@@ -9,8 +9,8 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "952afbf7b2b9cfef535df4f4abf530d389f99c0665ae8778719d0fbb23e132f4",
-    "entries_from_ledger": 77,
+    "ledger_sha": "1be70ebc8cc963dedd210d838e62a4ce7061799e32ba96b281c14fbbbbd6f58c",
+    "entries_from_ledger": 79,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
@@ -20,11 +20,11 @@
       "label": "Algo Trader",
       "starting_capital": null,
       "trades": 50,
-      "open": 6,
-      "closed": 44,
-      "wins": 21,
-      "realized_pnl": -536.78,
-      "unrealized_pnl": 83.05,
+      "open": 4,
+      "closed": 46,
+      "wins": 22,
+      "realized_pnl": -563.78,
+      "unrealized_pnl": 61.08,
       "equity": null
     },
     "infinity_1k": {
@@ -36,14 +36,14 @@
       "closed": 0,
       "wins": 0,
       "realized_pnl": 0,
-      "unrealized_pnl": 17.72,
+      "unrealized_pnl": 14.82,
       "equity": 1000.0
     }
   },
   "learning": {
-    "generated_at": "2026-11-16T15:32:08Z",
+    "generated_at": "2026-11-16T16:31:51Z",
     "window_days": 120,
-    "closed_learnable": 36,
+    "closed_learnable": 38,
     "setups": [
       {
         "when": {
@@ -227,11 +227,11 @@
           "asset": "options",
           "strategy": "cash_secured_put"
         },
-        "n": 5,
-        "mean_units": -1.031,
-        "se": 0.849,
-        "win_rate": 40.0,
-        "win_rate_shrunk": 44.4
+        "n": 6,
+        "mean_units": -0.764,
+        "se": 0.743,
+        "win_rate": 50.0,
+        "win_rate_shrunk": 50.0
       },
       {
         "when": {
@@ -251,11 +251,11 @@
           "strategy": "cash_secured_put",
           "ivr_band": "ivr50-70"
         },
-        "n": 5,
-        "mean_units": -1.031,
-        "se": 0.849,
-        "win_rate": 40.0,
-        "win_rate_shrunk": 44.4
+        "n": 6,
+        "mean_units": -0.764,
+        "se": 0.743,
+        "win_rate": 50.0,
+        "win_rate_shrunk": 50.0
       },
       {
         "when": {
@@ -263,11 +263,11 @@
           "strategy": "cash_secured_put",
           "trend": "neutral"
         },
-        "n": 5,
-        "mean_units": -1.031,
-        "se": 0.849,
-        "win_rate": 40.0,
-        "win_rate_shrunk": 44.4
+        "n": 6,
+        "mean_units": -0.764,
+        "se": 0.743,
+        "win_rate": 50.0,
+        "win_rate_shrunk": 50.0
       }
     ],
     "adjustments": [
@@ -338,6 +338,35 @@
         "action": "penalize",
         "points": -5.0,
         "evidence": "n=10, mean -0.22 (+/-0.39), win 30%"
+      },
+      {
+        "when": {
+          "asset": "options",
+          "strategy": "cash_secured_put"
+        },
+        "action": "veto",
+        "points": null,
+        "evidence": "n=6, mean -0.76 (+/-0.74), win 50%"
+      },
+      {
+        "when": {
+          "asset": "options",
+          "strategy": "cash_secured_put",
+          "ivr_band": "ivr50-70"
+        },
+        "action": "veto",
+        "points": null,
+        "evidence": "n=6, mean -0.76 (+/-0.74), win 50%"
+      },
+      {
+        "when": {
+          "asset": "options",
+          "strategy": "cash_secured_put",
+          "trend": "neutral"
+        },
+        "action": "veto",
+        "points": null,
+        "evidence": "n=6, mean -0.76 (+/-0.74), win 50%"
       }
     ]
   },
@@ -439,12 +468,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-12T16:57:54.189946+00:00",
       "live": {
-        "price": 0.235,
+        "price": 0.25,
         "kind": "spread",
-        "pnl": -6.5,
-        "pnl_pct": -0.5,
-        "r": -0.005,
-        "at": "2026-11-16T15:32:08+00:00"
+        "pnl": -8.0,
+        "pnl_pct": -0.7,
+        "r": -0.007,
+        "at": "2026-11-16T16:31:51+00:00"
       },
       "price_trail": [
         {
@@ -502,6 +531,10 @@
         {
           "at": "2026-11-16T15:31:52+00:00",
           "price": 0.235
+        },
+        {
+          "at": "2026-11-16T16:31:41+00:00",
+          "price": 0.25
         }
       ]
     },
@@ -531,8 +564,8 @@
       "instrument_type": "option",
       "shares": null,
       "opened": "2026-11-09",
-      "closed": null,
-      "status": "open",
+      "closed": "2026-11-16",
+      "status": "closed",
       "strategy": "call_debit_spread",
       "bucket": "algo_trader",
       "legs": [
@@ -559,8 +592,8 @@
       "target_price": null,
       "capital_at_risk": 65.0,
       "max_profit": 35.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
+      "net_pnl": -47.0,
+      "net_pnl_pct": -0.7231,
       "conditions": {
         "engine": "options",
         "captured_at": "2026-11-09",
@@ -606,8 +639,33 @@
       "reason": "Call Debit Spread on CCL, placed on the paper account from the ThetaForge recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-09T18:55:08.635687+00:00"
+      "exit_note": "Auto-closed at the 2x-credit loss stop.",
+      "timestamp": "2026-11-16T16:31:03.832877+00:00",
+      "close_order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": -0.18,
+        "limit_price": -0.17,
+        "net_credit": 0.17,
+        "cost_to_close": -0.17,
+        "realized_pnl": -47.0,
+        "reason": "close_loss",
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": null,
+        "submitted_at": "2026-11-16T15:25:43.526338+00:00",
+        "updated_at": "2026-11-16T16:31:03.832877+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close loss",
+          "outcome -1.34 x credit"
+        ],
+        "lesson": "The underlying moved through the short strike; premium did not cover the move.",
+        "units": -1.343
+      }
     },
     {
       "id": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
@@ -779,12 +837,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-09T15:01:26.311147+00:00",
       "live": {
-        "price": 189.9,
+        "price": 189.21,
         "kind": "stock",
-        "pnl": 3.24,
-        "pnl_pct": 40.7,
-        "r": 0.407,
-        "at": "2026-11-16T15:32:06+00:00"
+        "pnl": 2.55,
+        "pnl_pct": 32.0,
+        "r": 0.32,
+        "at": "2026-11-16T16:31:49+00:00"
       },
       "price_trail": [
         {
@@ -934,6 +992,10 @@
         {
           "at": "2026-11-16T15:31:52+00:00",
           "price": 189.9
+        },
+        {
+          "at": "2026-11-16T16:31:41+00:00",
+          "price": 189.2057
         }
       ]
     },
@@ -1003,12 +1065,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-06T15:03:34.148260+00:00",
       "live": {
-        "price": 93.17,
+        "price": 92.52,
         "kind": "stock",
-        "pnl": 9.38,
-        "pnl_pct": 83.1,
-        "r": 0.831,
-        "at": "2026-11-16T15:32:06+00:00"
+        "pnl": 7.42,
+        "pnl_pct": 65.8,
+        "r": 0.658,
+        "at": "2026-11-16T16:31:49+00:00"
       },
       "price_trail": [
         {
@@ -1186,6 +1248,10 @@
         {
           "at": "2026-11-16T15:31:52+00:00",
           "price": 93.165
+        },
+        {
+          "at": "2026-11-16T16:31:41+00:00",
+          "price": 92.515
         }
       ]
     },
@@ -1255,12 +1321,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-06T14:46:31.669256+00:00",
       "live": {
-        "price": 58.5,
+        "price": 58.45,
         "kind": "stock",
-        "pnl": 5.1,
-        "pnl_pct": 53.7,
-        "r": 0.537,
-        "at": "2026-11-16T15:32:06+00:00"
+        "pnl": 4.85,
+        "pnl_pct": 51.0,
+        "r": 0.51,
+        "at": "2026-11-16T16:31:48+00:00"
       },
       "price_trail": [
         {
@@ -1438,6 +1504,10 @@
         {
           "at": "2026-11-16T15:31:52+00:00",
           "price": 58.5
+        },
+        {
+          "at": "2026-11-16T16:31:41+00:00",
+          "price": 58.4499
         }
       ]
     },
@@ -3403,12 +3473,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-03T14:42:52.158630+00:00",
       "live": {
-        "price": 354.45,
+        "price": 354.76,
         "kind": "stock",
-        "pnl": 73.35,
-        "pnl_pct": 427.4,
-        "r": 4.274,
-        "at": "2026-11-16T15:32:05+00:00"
+        "pnl": 74.28,
+        "pnl_pct": 432.9,
+        "r": 4.329,
+        "at": "2026-11-16T16:31:48+00:00"
       },
       "price_trail": [
         {
@@ -3670,8 +3740,422 @@
         {
           "at": "2026-11-16T15:31:52+00:00",
           "price": 354.4496
+        },
+        {
+          "at": "2026-11-16T16:31:41+00:00",
+          "price": 354.76
         }
       ]
+    },
+    {
+      "id": "0dc5a6c8-87d9-4f81-9f7c-6d7feb214f71",
+      "source_id": "0dc5a6c8-87d9-4f81-9f7c-6d7feb214f71",
+      "source": "ledger",
+      "ledger_ref": "0dc5a6c8-87d9-4f81-9f7c-6d7feb214f71",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.35,
+        "limit_price": 0.35,
+        "net_credit": 0.35,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-11-02T16:11:20.318454+00:00",
+        "updated_at": "2026-11-16T14:47:47.818712+00:00"
+      },
+      "symbol": "KHC",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-11-02",
+      "closed": "2026-11-16",
+      "status": "closed",
+      "strategy": "cash_secured_put",
+      "bucket": "algo_trader",
+      "legs": [
+        {
+          "action": "SELL",
+          "type": "PUT",
+          "strike": 22.5,
+          "expiry": "2026-12-18",
+          "dte": 46
+        }
+      ],
+      "entry_ivr": 50.0,
+      "expected_move_pct": null,
+      "dte_at_entry": 46,
+      "entry_price": 0.35,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 2215.0,
+      "max_profit": 35.0,
+      "net_pnl": 20.0,
+      "net_pnl_pct": 0.009,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-11-02",
+        "regime": "neutral",
+        "vix": 18.44,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 78.6,
+        "confidence_score": 90.0,
+        "pop": 67.2,
+        "edge_pct": 0.0,
+        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Time decay working in our favor | Strong liquidity ensures clean fills | Composite score: 78.6/100 | Win rate: 84.2%",
+        "entry_rules": {
+          "preferred_dte": "46 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 25 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "assignment": "If assigned, own the shares and sell covered calls against them"
+        }
+      },
+      "management_plan": {
+        "target": "close at 50% of max credit",
+        "stop": "roll or close if short strike is breached decisively",
+        "time": "manage at 21 DTE",
+        "event": "close before earnings"
+      },
+      "reason": "Cash Secured Put on KHC, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
+      "timestamp": "2026-11-16T16:31:03.832836+00:00",
+      "live": {
+        "price": 0.135,
+        "kind": "spread",
+        "pnl": 21.5,
+        "pnl_pct": 1.0,
+        "r": 0.01,
+        "at": "2026-11-16T15:32:04+00:00"
+      },
+      "price_trail": [
+        {
+          "at": "2026-11-02",
+          "price": 0.35
+        },
+        {
+          "at": "2026-11-02T16:31:46+00:00",
+          "price": 0.385
+        },
+        {
+          "at": "2026-11-02T17:32:01+00:00",
+          "price": 0.4
+        },
+        {
+          "at": "2026-11-02T18:32:23+00:00",
+          "price": 0.375
+        },
+        {
+          "at": "2026-11-02T19:31:29+00:00",
+          "price": 0.335
+        },
+        {
+          "at": "2026-11-03T13:31:11+00:00",
+          "price": 0.365
+        },
+        {
+          "at": "2026-11-03T14:30:56+00:00",
+          "price": 0.365
+        },
+        {
+          "at": "2026-11-03T15:30:20+00:00",
+          "price": 0.425
+        },
+        {
+          "at": "2026-11-03T16:30:48+00:00",
+          "price": 0.42
+        },
+        {
+          "at": "2026-11-03T17:31:50+00:00",
+          "price": 0.425
+        },
+        {
+          "at": "2026-11-03T18:31:48+00:00",
+          "price": 0.44
+        },
+        {
+          "at": "2026-11-03T19:30:10+00:00",
+          "price": 0.445
+        },
+        {
+          "at": "2026-11-04T13:31:40+00:00",
+          "price": 0.415
+        },
+        {
+          "at": "2026-11-04T14:31:41+00:00",
+          "price": 0.415
+        },
+        {
+          "at": "2026-11-04T15:31:10+00:00",
+          "price": 0.18
+        },
+        {
+          "at": "2026-11-04T16:31:50+00:00",
+          "price": 0.125
+        },
+        {
+          "at": "2026-11-04T17:30:51+00:00",
+          "price": 0.135
+        },
+        {
+          "at": "2026-11-04T18:30:50+00:00",
+          "price": 0.175
+        },
+        {
+          "at": "2026-11-04T19:31:01+00:00",
+          "price": 0.165
+        },
+        {
+          "at": "2026-11-05T13:30:50+00:00",
+          "price": 0.185
+        },
+        {
+          "at": "2026-11-05T14:32:03+00:00",
+          "price": 0.185
+        },
+        {
+          "at": "2026-11-05T15:31:11+00:00",
+          "price": 0.24
+        },
+        {
+          "at": "2026-11-05T16:30:50+00:00",
+          "price": 0.235
+        },
+        {
+          "at": "2026-11-05T17:31:51+00:00",
+          "price": 0.235
+        },
+        {
+          "at": "2026-11-05T18:30:50+00:00",
+          "price": 0.235
+        },
+        {
+          "at": "2026-11-05T19:31:50+00:00",
+          "price": 0.235
+        },
+        {
+          "at": "2026-11-06T13:31:50+00:00",
+          "price": 0.255
+        },
+        {
+          "at": "2026-11-06T14:31:50+00:00",
+          "price": 0.255
+        },
+        {
+          "at": "2026-11-06T15:30:35+00:00",
+          "price": 0.315
+        },
+        {
+          "at": "2026-11-06T16:31:50+00:00",
+          "price": 0.28
+        },
+        {
+          "at": "2026-11-06T17:30:51+00:00",
+          "price": 0.295
+        },
+        {
+          "at": "2026-11-06T18:30:15+00:00",
+          "price": 0.295
+        },
+        {
+          "at": "2026-11-06T19:30:50+00:00",
+          "price": 0.29
+        },
+        {
+          "at": "2026-11-09T13:30:50+00:00",
+          "price": 0.33
+        },
+        {
+          "at": "2026-11-09T14:32:02+00:00",
+          "price": 0.33
+        },
+        {
+          "at": "2026-11-09T15:30:13+00:00",
+          "price": 0.4
+        },
+        {
+          "at": "2026-11-09T16:31:10+00:00",
+          "price": 0.37
+        },
+        {
+          "at": "2026-11-09T17:30:50+00:00",
+          "price": 0.325
+        },
+        {
+          "at": "2026-11-09T18:32:02+00:00",
+          "price": 0.285
+        },
+        {
+          "at": "2026-11-09T19:30:51+00:00",
+          "price": 0.28
+        },
+        {
+          "at": "2026-11-10T13:31:33+00:00",
+          "price": 0.31
+        },
+        {
+          "at": "2026-11-10T14:31:35+00:00",
+          "price": 0.31
+        },
+        {
+          "at": "2026-11-10T15:30:56+00:00",
+          "price": 0.395
+        },
+        {
+          "at": "2026-11-10T16:31:52+00:00",
+          "price": 0.365
+        },
+        {
+          "at": "2026-11-10T17:31:36+00:00",
+          "price": 0.355
+        },
+        {
+          "at": "2026-11-10T18:31:50+00:00",
+          "price": 0.335
+        },
+        {
+          "at": "2026-11-10T19:31:10+00:00",
+          "price": 0.335
+        },
+        {
+          "at": "2026-11-11T13:31:20+00:00",
+          "price": 0.35
+        },
+        {
+          "at": "2026-11-11T14:31:28+00:00",
+          "price": 0.35
+        },
+        {
+          "at": "2026-11-11T15:30:20+00:00",
+          "price": 0.41
+        },
+        {
+          "at": "2026-11-11T16:31:27+00:00",
+          "price": 0.38
+        },
+        {
+          "at": "2026-11-11T17:31:09+00:00",
+          "price": 0.385
+        },
+        {
+          "at": "2026-11-11T18:30:20+00:00",
+          "price": 0.385
+        },
+        {
+          "at": "2026-11-11T19:31:10+00:00",
+          "price": 0.35
+        },
+        {
+          "at": "2026-11-12T13:31:10+00:00",
+          "price": 0.33
+        },
+        {
+          "at": "2026-11-12T14:30:20+00:00",
+          "price": 0.33
+        },
+        {
+          "at": "2026-11-12T15:30:10+00:00",
+          "price": 0.33
+        },
+        {
+          "at": "2026-11-12T16:30:51+00:00",
+          "price": 0.3
+        },
+        {
+          "at": "2026-11-12T17:30:44+00:00",
+          "price": 0.255
+        },
+        {
+          "at": "2026-11-12T18:30:51+00:00",
+          "price": 0.255
+        },
+        {
+          "at": "2026-11-12T19:31:41+00:00",
+          "price": 0.255
+        },
+        {
+          "at": "2026-11-13T13:31:50+00:00",
+          "price": 0.28
+        },
+        {
+          "at": "2026-11-13T14:31:40+00:00",
+          "price": 0.28
+        },
+        {
+          "at": "2026-11-13T15:31:00+00:00",
+          "price": 0.25
+        },
+        {
+          "at": "2026-11-13T16:31:50+00:00",
+          "price": 0.22
+        },
+        {
+          "at": "2026-11-13T17:31:51+00:00",
+          "price": 0.22
+        },
+        {
+          "at": "2026-11-13T18:31:15+00:00",
+          "price": 0.19
+        },
+        {
+          "at": "2026-11-13T19:32:20+00:00",
+          "price": 0.175
+        },
+        {
+          "at": "2026-11-16T13:30:50+00:00",
+          "price": 0.17
+        },
+        {
+          "at": "2026-11-16T14:31:15+00:00",
+          "price": 0.17
+        },
+        {
+          "at": "2026-11-16T15:31:52+00:00",
+          "price": 0.135
+        }
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.15,
+        "limit_price": 0.18,
+        "net_credit": -0.18,
+        "cost_to_close": 0.18,
+        "realized_pnl": 20.0,
+        "reason": "close_profit",
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": null,
+        "submitted_at": "2026-11-16T14:47:47.818712+00:00",
+        "updated_at": "2026-11-16T16:31:03.832836+00:00"
+      },
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close profit",
+          "outcome +0.57 x credit"
+        ],
+        "lesson": "Thesis played out to its target -- repeat this setup.",
+        "units": 0.571
+      }
     },
     {
       "id": "5f65f357-626e-47ae-8e5e-7d6707613ac3",
@@ -4754,12 +5238,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:31:48.565507+00:00",
       "live": {
-        "price": 7.71,
+        "price": 7.72,
         "kind": "stock",
-        "pnl": -5.3,
-        "pnl_pct": -10.8,
-        "r": -0.108,
-        "at": "2026-11-16T15:32:05+00:00"
+        "pnl": -5.2,
+        "pnl_pct": -10.6,
+        "r": -0.106,
+        "at": "2026-11-16T16:31:48+00:00"
       },
       "price_trail": [
         {
@@ -5041,391 +5525,10 @@
         {
           "at": "2026-11-16T15:31:52+00:00",
           "price": 7.715
-        }
-      ]
-    },
-    {
-      "id": "0dc5a6c8-87d9-4f81-9f7c-6d7feb214f71",
-      "source_id": "0dc5a6c8-87d9-4f81-9f7c-6d7feb214f71",
-      "source": "ledger",
-      "ledger_ref": "0dc5a6c8-87d9-4f81-9f7c-6d7feb214f71",
-      "order": {
-        "status": "Filled",
-        "filled": 1.0,
-        "remaining": 0.0,
-        "average_fill_price": 0.35,
-        "limit_price": 0.35,
-        "net_credit": 0.35,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 1,
-        "multiplier": 100,
-        "sec_type": "OPT",
-        "submitted_at": "2026-11-02T16:11:20.318454+00:00",
-        "updated_at": "2026-11-16T14:47:47.818712+00:00"
-      },
-      "symbol": "KHC",
-      "asset_class": "options",
-      "instrument_type": "option",
-      "shares": null,
-      "opened": "2026-11-02",
-      "closed": null,
-      "status": "open",
-      "strategy": "cash_secured_put",
-      "bucket": "algo_trader",
-      "legs": [
-        {
-          "action": "SELL",
-          "type": "PUT",
-          "strike": 22.5,
-          "expiry": "2026-12-18",
-          "dte": 46
-        }
-      ],
-      "entry_ivr": 50.0,
-      "expected_move_pct": null,
-      "dte_at_entry": 46,
-      "entry_price": 0.35,
-      "stop_price": null,
-      "target_price": null,
-      "capital_at_risk": 2215.0,
-      "max_profit": 35.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "options",
-        "captured_at": "2026-11-02",
-        "regime": "neutral",
-        "vix": 18.44,
-        "iv_rank": 50.0,
-        "expected_move_pct": 0.0,
-        "composite_score": 78.6,
-        "confidence_score": 90.0,
-        "pop": 67.2,
-        "edge_pct": 0.0,
-        "reasoning": "IV exceeds realized volatility (positive NVRP) \u2192 edge in selling premium | Time decay working in our favor | Strong liquidity ensures clean fills | Composite score: 78.6/100 | Win rate: 84.2%",
-        "entry_rules": {
-          "preferred_dte": "46 DTE",
-          "entry_time": "Anytime",
-          "limit_order": true,
-          "fill_target": "Mid-price or better",
-          "max_slippage": "5% of credit/debit"
-        },
-        "exit_rules": {
-          "profit_target": "N/A",
-          "stop_loss": "Close at 2x debit paid",
-          "time_exit": "Close at 25 DTE remaining",
-          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
-          "max_loss_exit": "Close immediately if max loss hit",
-          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
-          "roll_rules": "Roll out in time if tested, never roll for a loss",
-          "assignment": "If assigned, own the shares and sell covered calls against them"
-        }
-      },
-      "management_plan": {
-        "target": "close at 50% of max credit",
-        "stop": "roll or close if short strike is breached decisively",
-        "time": "manage at 21 DTE",
-        "event": "close before earnings"
-      },
-      "reason": "Cash Secured Put on KHC, placed on the paper account from the ThetaForge recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-02T16:12:40.771698+00:00",
-      "live": {
-        "price": 0.135,
-        "kind": "spread",
-        "pnl": 21.5,
-        "pnl_pct": 1.0,
-        "r": 0.01,
-        "at": "2026-11-16T15:32:04+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-11-02",
-          "price": 0.35
-        },
-        {
-          "at": "2026-11-02T16:31:46+00:00",
-          "price": 0.385
-        },
-        {
-          "at": "2026-11-02T17:32:01+00:00",
-          "price": 0.4
-        },
-        {
-          "at": "2026-11-02T18:32:23+00:00",
-          "price": 0.375
-        },
-        {
-          "at": "2026-11-02T19:31:29+00:00",
-          "price": 0.335
-        },
-        {
-          "at": "2026-11-03T13:31:11+00:00",
-          "price": 0.365
-        },
-        {
-          "at": "2026-11-03T14:30:56+00:00",
-          "price": 0.365
-        },
-        {
-          "at": "2026-11-03T15:30:20+00:00",
-          "price": 0.425
-        },
-        {
-          "at": "2026-11-03T16:30:48+00:00",
-          "price": 0.42
-        },
-        {
-          "at": "2026-11-03T17:31:50+00:00",
-          "price": 0.425
-        },
-        {
-          "at": "2026-11-03T18:31:48+00:00",
-          "price": 0.44
-        },
-        {
-          "at": "2026-11-03T19:30:10+00:00",
-          "price": 0.445
-        },
-        {
-          "at": "2026-11-04T13:31:40+00:00",
-          "price": 0.415
-        },
-        {
-          "at": "2026-11-04T14:31:41+00:00",
-          "price": 0.415
-        },
-        {
-          "at": "2026-11-04T15:31:10+00:00",
-          "price": 0.18
-        },
-        {
-          "at": "2026-11-04T16:31:50+00:00",
-          "price": 0.125
-        },
-        {
-          "at": "2026-11-04T17:30:51+00:00",
-          "price": 0.135
-        },
-        {
-          "at": "2026-11-04T18:30:50+00:00",
-          "price": 0.175
-        },
-        {
-          "at": "2026-11-04T19:31:01+00:00",
-          "price": 0.165
-        },
-        {
-          "at": "2026-11-05T13:30:50+00:00",
-          "price": 0.185
-        },
-        {
-          "at": "2026-11-05T14:32:03+00:00",
-          "price": 0.185
-        },
-        {
-          "at": "2026-11-05T15:31:11+00:00",
-          "price": 0.24
-        },
-        {
-          "at": "2026-11-05T16:30:50+00:00",
-          "price": 0.235
-        },
-        {
-          "at": "2026-11-05T17:31:51+00:00",
-          "price": 0.235
-        },
-        {
-          "at": "2026-11-05T18:30:50+00:00",
-          "price": 0.235
-        },
-        {
-          "at": "2026-11-05T19:31:50+00:00",
-          "price": 0.235
-        },
-        {
-          "at": "2026-11-06T13:31:50+00:00",
-          "price": 0.255
-        },
-        {
-          "at": "2026-11-06T14:31:50+00:00",
-          "price": 0.255
-        },
-        {
-          "at": "2026-11-06T15:30:35+00:00",
-          "price": 0.315
-        },
-        {
-          "at": "2026-11-06T16:31:50+00:00",
-          "price": 0.28
-        },
-        {
-          "at": "2026-11-06T17:30:51+00:00",
-          "price": 0.295
-        },
-        {
-          "at": "2026-11-06T18:30:15+00:00",
-          "price": 0.295
-        },
-        {
-          "at": "2026-11-06T19:30:50+00:00",
-          "price": 0.29
-        },
-        {
-          "at": "2026-11-09T13:30:50+00:00",
-          "price": 0.33
-        },
-        {
-          "at": "2026-11-09T14:32:02+00:00",
-          "price": 0.33
-        },
-        {
-          "at": "2026-11-09T15:30:13+00:00",
-          "price": 0.4
-        },
-        {
-          "at": "2026-11-09T16:31:10+00:00",
-          "price": 0.37
-        },
-        {
-          "at": "2026-11-09T17:30:50+00:00",
-          "price": 0.325
-        },
-        {
-          "at": "2026-11-09T18:32:02+00:00",
-          "price": 0.285
-        },
-        {
-          "at": "2026-11-09T19:30:51+00:00",
-          "price": 0.28
-        },
-        {
-          "at": "2026-11-10T13:31:33+00:00",
-          "price": 0.31
-        },
-        {
-          "at": "2026-11-10T14:31:35+00:00",
-          "price": 0.31
-        },
-        {
-          "at": "2026-11-10T15:30:56+00:00",
-          "price": 0.395
-        },
-        {
-          "at": "2026-11-10T16:31:52+00:00",
-          "price": 0.365
-        },
-        {
-          "at": "2026-11-10T17:31:36+00:00",
-          "price": 0.355
-        },
-        {
-          "at": "2026-11-10T18:31:50+00:00",
-          "price": 0.335
-        },
-        {
-          "at": "2026-11-10T19:31:10+00:00",
-          "price": 0.335
-        },
-        {
-          "at": "2026-11-11T13:31:20+00:00",
-          "price": 0.35
-        },
-        {
-          "at": "2026-11-11T14:31:28+00:00",
-          "price": 0.35
-        },
-        {
-          "at": "2026-11-11T15:30:20+00:00",
-          "price": 0.41
-        },
-        {
-          "at": "2026-11-11T16:31:27+00:00",
-          "price": 0.38
-        },
-        {
-          "at": "2026-11-11T17:31:09+00:00",
-          "price": 0.385
-        },
-        {
-          "at": "2026-11-11T18:30:20+00:00",
-          "price": 0.385
-        },
-        {
-          "at": "2026-11-11T19:31:10+00:00",
-          "price": 0.35
-        },
-        {
-          "at": "2026-11-12T13:31:10+00:00",
-          "price": 0.33
-        },
-        {
-          "at": "2026-11-12T14:30:20+00:00",
-          "price": 0.33
-        },
-        {
-          "at": "2026-11-12T15:30:10+00:00",
-          "price": 0.33
-        },
-        {
-          "at": "2026-11-12T16:30:51+00:00",
-          "price": 0.3
-        },
-        {
-          "at": "2026-11-12T17:30:44+00:00",
-          "price": 0.255
-        },
-        {
-          "at": "2026-11-12T18:30:51+00:00",
-          "price": 0.255
-        },
-        {
-          "at": "2026-11-12T19:31:41+00:00",
-          "price": 0.255
-        },
-        {
-          "at": "2026-11-13T13:31:50+00:00",
-          "price": 0.28
-        },
-        {
-          "at": "2026-11-13T14:31:40+00:00",
-          "price": 0.28
-        },
-        {
-          "at": "2026-11-13T15:31:00+00:00",
-          "price": 0.25
-        },
-        {
-          "at": "2026-11-13T16:31:50+00:00",
-          "price": 0.22
-        },
-        {
-          "at": "2026-11-13T17:31:51+00:00",
-          "price": 0.22
-        },
-        {
-          "at": "2026-11-13T18:31:15+00:00",
-          "price": 0.19
-        },
-        {
-          "at": "2026-11-13T19:32:20+00:00",
-          "price": 0.175
-        },
-        {
-          "at": "2026-11-16T13:30:50+00:00",
-          "price": 0.17
-        },
-        {
-          "at": "2026-11-16T14:31:15+00:00",
-          "price": 0.17
         },
         {
-          "at": "2026-11-16T15:31:52+00:00",
-          "price": 0.135
+          "at": "2026-11-16T16:31:41+00:00",
+          "price": 7.72
         }
       ]
     },
@@ -5525,7 +5628,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 21-DTE gamma management window.",
-      "timestamp": "2026-11-16T15:31:34.056495+00:00",
+      "timestamp": "2026-11-16T16:31:03.832864+00:00",
       "close_order": {
         "status": "Filled",
         "filled": 1.0,
@@ -5540,7 +5643,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-16T14:47:53.220577+00:00",
-        "updated_at": "2026-11-16T15:31:34.056495+00:00"
+        "updated_at": "2026-11-16T16:31:03.832864+00:00"
       },
       "review": {
         "verdict": "win",
