@@ -9,8 +9,8 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "902657c2db8dab2c9af60c0055efb96ffafba3f4e8490332401c0a92d5b74025",
-    "entries_from_ledger": 76,
+    "ledger_sha": "92054869c6c19660ef17ee64cd8287f064c43a965d428e2603e824256b695172",
+    "entries_from_ledger": 77,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
@@ -20,10 +20,10 @@
       "label": "Algo Trader",
       "starting_capital": null,
       "trades": 50,
-      "open": 7,
-      "closed": 43,
-      "wins": 20,
-      "realized_pnl": -543.78,
+      "open": 6,
+      "closed": 44,
+      "wins": 21,
+      "realized_pnl": -536.78,
       "unrealized_pnl": 77.94,
       "equity": null
     },
@@ -41,9 +41,9 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-16T14:48:13Z",
+    "generated_at": "2026-11-16T15:26:07Z",
     "window_days": 120,
-    "closed_learnable": 35,
+    "closed_learnable": 36,
     "setups": [
       {
         "when": {
@@ -520,7 +520,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-09T18:54:30.609368+00:00",
-        "updated_at": "2026-11-10T14:31:52.909943+00:00"
+        "updated_at": "2026-11-16T15:25:43.526338+00:00"
       },
       "symbol": "CCL",
       "asset_class": "options",
@@ -728,7 +728,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-09T15:00:17.775933+00:00",
-        "updated_at": "2026-11-16T14:34:57.548823+00:00"
+        "updated_at": "2026-11-16T14:50:24.529742+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
@@ -5402,6 +5402,130 @@
       ]
     },
     {
+      "id": "58379bdb-106c-4458-afa5-2db5f8972815",
+      "source_id": "58379bdb-106c-4458-afa5-2db5f8972815",
+      "source": "ledger",
+      "ledger_ref": "58379bdb-106c-4458-afa5-2db5f8972815",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.27,
+        "limit_price": 0.28,
+        "net_credit": -0.28,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-10-29T19:50:18.073897+00:00",
+        "updated_at": "2026-11-16T14:47:53.220577+00:00"
+      },
+      "symbol": "SLV",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-10-29",
+      "closed": "2026-11-16",
+      "status": "closed",
+      "strategy": "put_debit_spread",
+      "bucket": "algo_trader",
+      "legs": [
+        {
+          "action": "BUY",
+          "type": "PUT",
+          "strike": 47.0,
+          "expiry": "2026-11-20",
+          "dte": 22
+        },
+        {
+          "action": "SELL",
+          "type": "PUT",
+          "strike": 46.5,
+          "expiry": "2026-11-20",
+          "dte": 22
+        }
+      ],
+      "entry_ivr": 50.0,
+      "expected_move_pct": null,
+      "dte_at_entry": 22,
+      "entry_price": 0.27,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 28.0,
+      "max_profit": 22.0,
+      "net_pnl": 7.0,
+      "net_pnl_pct": 0.25,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-10-29",
+        "regime": "neutral",
+        "vix": 16.61,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 72.4,
+        "confidence_score": 74.2,
+        "pop": 48.7,
+        "edge_pct": 0.0,
+        "reasoning": "Strong liquidity ensures clean fills | Composite score: 72.4/100 | Win rate: 49.7%",
+        "entry_rules": {
+          "preferred_dte": "22 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 1 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "trailing_stop": "Consider selling at 50-100% profit"
+        }
+      },
+      "management_plan": {
+        "target": "take profit at +50-100% of debit paid",
+        "stop": "exit if the spread breaks break-even",
+        "time": "hold to expiry or 50% of DTE",
+        "event": "exit before earnings"
+      },
+      "reason": "Put Debit Spread on SLV, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Auto-closed at the 21-DTE gamma management window.",
+      "timestamp": "2026-11-16T15:25:43.537700+00:00",
+      "close_order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": -0.35,
+        "limit_price": -0.35,
+        "net_credit": 0.35,
+        "cost_to_close": -0.35,
+        "realized_pnl": 7.0,
+        "reason": "close_time",
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": null,
+        "submitted_at": "2026-11-16T14:47:53.220577+00:00",
+        "updated_at": "2026-11-16T15:25:43.537700+00:00"
+      },
+      "review": {
+        "verdict": "win",
+        "drivers": [
+          "exit: close time",
+          "outcome +0.32 x credit",
+          "entered at 22 DTE -- little time before the 21-DTE exit"
+        ],
+        "lesson": "Time ran out before the trade worked -- enter with more DTE or a stronger edge.",
+        "units": 0.318
+      }
+    },
+    {
       "id": "fe8e6559-9e48-4bbd-95cb-8880e95e0099",
       "source_id": "fe8e6559-9e48-4bbd-95cb-8880e95e0099",
       "source": "ledger",
@@ -8583,104 +8707,6 @@
         "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
         "units": -0.953
       }
-    },
-    {
-      "id": "58379bdb-106c-4458-afa5-2db5f8972815",
-      "source_id": "58379bdb-106c-4458-afa5-2db5f8972815",
-      "source": "ledger",
-      "ledger_ref": "58379bdb-106c-4458-afa5-2db5f8972815",
-      "order": {
-        "status": "Filled",
-        "filled": 1.0,
-        "remaining": 0.0,
-        "average_fill_price": 0.27,
-        "limit_price": 0.28,
-        "net_credit": -0.28,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 1,
-        "multiplier": 100,
-        "sec_type": "OPT",
-        "submitted_at": "2026-10-29T19:50:18.073897+00:00",
-        "updated_at": "2026-11-16T14:47:53.220577+00:00"
-      },
-      "symbol": "SLV",
-      "asset_class": "options",
-      "instrument_type": "option",
-      "shares": null,
-      "opened": "2026-10-29",
-      "closed": null,
-      "status": "open",
-      "strategy": "put_debit_spread",
-      "bucket": "algo_trader",
-      "legs": [
-        {
-          "action": "BUY",
-          "type": "PUT",
-          "strike": 47.0,
-          "expiry": "2026-11-20",
-          "dte": 22
-        },
-        {
-          "action": "SELL",
-          "type": "PUT",
-          "strike": 46.5,
-          "expiry": "2026-11-20",
-          "dte": 22
-        }
-      ],
-      "entry_ivr": 50.0,
-      "expected_move_pct": null,
-      "dte_at_entry": 22,
-      "entry_price": 0.27,
-      "stop_price": null,
-      "target_price": null,
-      "capital_at_risk": 28.0,
-      "max_profit": 22.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "options",
-        "captured_at": "2026-10-29",
-        "regime": "neutral",
-        "vix": 16.61,
-        "iv_rank": 50.0,
-        "expected_move_pct": 0.0,
-        "composite_score": 72.4,
-        "confidence_score": 74.2,
-        "pop": 48.7,
-        "edge_pct": 0.0,
-        "reasoning": "Strong liquidity ensures clean fills | Composite score: 72.4/100 | Win rate: 49.7%",
-        "entry_rules": {
-          "preferred_dte": "22 DTE",
-          "entry_time": "Anytime",
-          "limit_order": true,
-          "fill_target": "Mid-price or better",
-          "max_slippage": "5% of credit/debit"
-        },
-        "exit_rules": {
-          "profit_target": "N/A",
-          "stop_loss": "Close at 2x debit paid",
-          "time_exit": "Close at 1 DTE remaining",
-          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
-          "max_loss_exit": "Close immediately if max loss hit",
-          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
-          "roll_rules": "Roll out in time if tested, never roll for a loss",
-          "trailing_stop": "Consider selling at 50-100% profit"
-        }
-      },
-      "management_plan": {
-        "target": "take profit at +50-100% of debit paid",
-        "stop": "exit if the spread breaks break-even",
-        "time": "hold to expiry or 50% of DTE",
-        "event": "exit before earnings"
-      },
-      "reason": "Put Debit Spread on SLV, placed on the paper account from the ThetaForge recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-10-29T19:59:42.428050+00:00"
     },
     {
       "id": "82676f1c-d8e2-4465-9234-0ce08b5efa43",
