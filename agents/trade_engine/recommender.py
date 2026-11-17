@@ -279,13 +279,25 @@ def _reject(strategy: Optional[str], reason: str,
     miss.update({k: v for k, v in detail.items() if v is not None})
     misses = tally["near_misses"]
     misses.append(miss)
-    if len(misses) > MAX_NEAR_MISSES * 8:
-        misses.sort(key=lambda m: m["composite"], reverse=True)
-        del misses[MAX_NEAR_MISSES:]
+    if len(misses) > MAX_NEAR_MISSES * 40:
+        # Bounded memory: keep the best per (symbol, strategy, reason).
+        best: Dict[Tuple, Dict[str, Any]] = {}
+        for m in misses:
+            k = (m.get("symbol"), m.get("strategy"), m.get("reason"))
+            if k not in best or m["composite"] > best[k]["composite"]:
+                best[k] = m
+        misses[:] = sorted(best.values(), key=lambda m: m["composite"], reverse=True)[:MAX_NEAR_MISSES * 8]
 
 
 def _summarize_tally(tally: Dict[str, Any]) -> Dict[str, Any]:
-    misses = sorted(tally["near_misses"], key=lambda m: m["composite"], reverse=True)
+    # One near-miss per (symbol, strategy, reason): neighbouring strikes that
+    # failed the same gate say nothing new.
+    misses, seen = [], set()
+    for miss in sorted(tally["near_misses"], key=lambda m: m["composite"], reverse=True):
+        key = (miss.get("symbol"), miss.get("strategy"), miss.get("reason"))
+        if key not in seen:
+            seen.add(key)
+            misses.append(miss)
     return {
         "funnel": dict(tally["funnel"]),
         "reasons": [
