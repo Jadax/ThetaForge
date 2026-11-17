@@ -59,6 +59,10 @@ def test_scaling_makes_recommender_dollars_exact_and_legs_restore():
     assert output.recommendations, "expected a defined-risk MES spread"
     rec = output.recommendations[0]
     assert rec.strategy_type.value in ("bull_put_credit", "bear_call_credit", "iron_condor")
+    # The symbol's real IV rank, not the old placeholder 50 (volatility_data is
+    # keyed by symbol), and the funnel accounts for the selection.
+    assert rec.iv_rank == 60
+    assert output.rejections["funnel"]["selected"] >= 1
     legs = [{"action": l.action, "strike": l.contract.strike, "expiry": l.contract.expiry,
              "type": l.contract.option_type} for l in rec.legs]
     real = fo.restore_legs(legs, chain, factor)

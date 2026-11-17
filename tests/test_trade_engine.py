@@ -731,14 +731,15 @@ def test_empirical_gate_fails_open_without_evidence(monkeypatch):
 
     recommender = TradeRecommender()
     recommender_module._EMPIRICAL_CACHE["at"] = 0.0
-    recommender_module._EMPIRICAL_CACHE["stats"] = None
+    recommender_module._EMPIRICAL_CACHE["by_strategy"] = None
     assert recommender._passes_empirical_gate({"type": "bull_put"}) is True
 
 
 def test_empirical_gate_skips_non_sell_structures():
     recommender = TradeRecommender()
     recommender_module._EMPIRICAL_CACHE["at"] = 1000.0
-    recommender_module._EMPIRICAL_CACHE["stats"] = {"win_rate": 10.0, "expectancy": -50.0, "n": 40}
+    recommender_module._EMPIRICAL_CACHE["by_strategy"] = {
+        "call_debit_spread": {"win_rate": 10.0, "expectancy": -50.0, "n": 40}}
     # Debit structures are not judged against the short-premium track record.
     assert recommender._passes_empirical_gate({"type": "call_debit"}) is True
 
@@ -747,7 +748,8 @@ def test_empirical_gate_rejects_persistently_losing_strategy():
     import time
     recommender = TradeRecommender()
     recommender_module._EMPIRICAL_CACHE["at"] = time.time()
-    recommender_module._EMPIRICAL_CACHE["stats"] = {"win_rate": 30.0, "expectancy": -12.0, "n": 40}
+    recommender_module._EMPIRICAL_CACHE["by_strategy"] = {
+        "iron_condor": {"win_rate": 30.0, "expectancy": -12.0, "n": 40}}
     assert recommender._passes_empirical_gate({"type": "iron_condor"}) is False
 
 
@@ -755,8 +757,71 @@ def test_empirical_gate_passes_winning_strategy():
     import time
     recommender = TradeRecommender()
     recommender_module._EMPIRICAL_CACHE["at"] = time.time()
-    recommender_module._EMPIRICAL_CACHE["stats"] = {"win_rate": 75.0, "expectancy": 40.0, "n": 40}
+    recommender_module._EMPIRICAL_CACHE["by_strategy"] = {
+        "bull_put_credit": {"win_rate": 75.0, "expectancy": 40.0, "n": 40}}
     assert recommender._passes_empirical_gate({"type": "bull_put"}) is True
+
+
+def test_empirical_gate_judges_each_strategy_on_its_own_record(monkeypatch):
+    """Losing CSPs must not veto bear-call spreads with their own clean record
+    (the pooled gate did, and then nothing could trade to change the pool)."""
+    trades = (
+        [{"status": "closed", "strategy": "cash_secured_put", "net_pnl": -20}] * 7
+        + [{"status": "closed", "strategy": "cash_secured_put", "net_pnl": 10}] * 4
+        + [{"status": "closed", "strategy": "bear_call_credit", "net_pnl": 14}] * 3
+    )
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"trades": trades}
+
+    monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+    recommender = TradeRecommender()
+    recommender_module._EMPIRICAL_CACHE["at"] = 0.0
+    recommender_module._EMPIRICAL_CACHE["by_strategy"] = None
+    assert recommender._passes_empirical_gate({"type": "csp"}) is False  # 11 trades, losing
+    assert recommender._passes_empirical_gate({"type": "bear_call"}) is True  # 3 < sample floor
+    assert recommender._passes_empirical_gate({"type": "bull_put"}) is True  # no record
+    recommender_module._EMPIRICAL_CACHE["at"] = 0.0
+    recommender_module._EMPIRICAL_CACHE["by_strategy"] = None
+
+
+def test_rejections_explain_an_empty_answer():
+    """A /recommend with no qualifying structure reports why, not a silent zero."""
+    recommender = TradeRecommender()
+    account = AccountInfo(total_equity=1000, buying_power=1000, cash_available=1000)
+    output = recommender.generate_recommendations(
+        account=account,
+        market_data={"XYZ_price": 100.0, "vix": 18},
+        option_chains={"XYZ": [], "ABC": [
+            {"strike": 95, "option_type": "PUT", "expiry": "2026-12-01", "dte": 5,
+             "bid": 1.0, "ask": 1.1}]},
+        technical_data={},
+        volatility_data={},
+    )
+    assert output.recommendations == []
+    skipped = output.rejections["skipped_symbols"]
+    assert skipped["XYZ"] == "empty option chain"
+    assert skipped["ABC"] == "no underlying price"
+    assert "funnel" in output.rejections and "reasons" in output.rejections
+
+
+def test_quality_gate_records_reason_on_active_tally():
+    token = recommender_module._REJECTIONS.set(recommender_module._new_tally())
+    try:
+        ok = TradeRecommender._passes_quality_gate(
+            {"composite_score": 50, "edge_score": 80}, {"probability_of_profit": 70},
+            "bear_call", {"iv_rank": 60, "vix": 18})
+        tally = recommender_module._REJECTIONS.get()
+    finally:
+        recommender_module._REJECTIONS.reset(token)
+    assert ok is False
+    assert tally["counts"]["bear_call: composite below 70"] == 1
+    assert tally["near_misses"][0]["composite"] == 50.0
+    assert tally["funnel"]["scored"] == 1
 
 
 # ============================================================

@@ -1,5 +1,30 @@
 # ThetaForge Changelog
 
+## v1.17.37 - 2026-11-17
+
+**The options engine had gone silent, and could not say why.** Since Nov 13
+every option candidate the scanner flagged came back from `/recommend` as
+`no_qualified_recommendation` with empty warnings.
+
+- Root cause: the empirical outcome gate pooled every short-premium trade into
+  one record (11 closed, 55% win, expectancy -$2.55) and vetoed *all* premium
+  selling on it, including bear-call spreads that were 3/3 winners. Because
+  nothing could trade, the pool could never change: the gate starved the
+  learning loop of the evidence it needed. It now judges each strategy on its
+  own journal record (`CANDIDATE_JOURNAL_STRATEGY`), with the same
+  10-trade floor and fail-open behaviour. No strategy has 10 closes yet, so
+  today the learning loop's per-setup vetoes carry the loss evidence: CSPs stay
+  vetoed there (n=7, mean -0.81R); credit spreads and condors trade again.
+- `/recommend` now returns `rejections`: the candidate funnel
+  (scored -> passed_quality -> touch -> context -> empirical -> learning ->
+  selected), the top gate reasons, the best near-misses and skipped symbols
+  (empty chain, no price, no expiry in the DTE band, snapshot failure). The
+  executor writes a compact summary into its decision trail.
+- Every journaled options trade carried `iv_rank: 50`: `_build_recommendation`
+  read the rank off the symbol-keyed `volatility_data` and always fell back to
+  the default, feeding the learning loop a fake IV bucket. It now records the
+  symbol's real rank. `market_context.iv_rank` is no longer a placeholder 50.
+
 ## v1.17.36 - 2026-11-11
 
 **The learning loop was learning from wrong outcomes: option closes booked P&L

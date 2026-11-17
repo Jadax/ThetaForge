@@ -215,8 +215,34 @@ def fetch_recommendation(
     warnings = "; ".join(str(w) for w in (body.get("warnings") or [])[:3])
     return None, (
         f"no_qualified_recommendation regime={regime} "
-        f"vix={vix} warnings=[{warnings}]"
+        f"vix={vix} warnings=[{warnings}]{_rejection_summary(body.get('rejections'))}"
     )
+
+
+def _rejection_summary(rejections: Any) -> str:
+    """Compact 'why nothing qualified' from the Advisor's rejection tally:
+    the candidate funnel, the top gate reasons and the best near-miss."""
+    if not isinstance(rejections, dict) or not rejections:
+        return ""
+    parts = []
+    funnel = rejections.get("funnel") or {}
+    if funnel:
+        parts.append("funnel=" + ",".join(f"{k}:{v}" for k, v in funnel.items()))
+    reasons = rejections.get("reasons") or []
+    if reasons:
+        parts.append("top=[" + "; ".join(
+            f"{r.get('reason')} x{r.get('count')}" for r in reasons[:3]) + "]")
+    misses = rejections.get("near_misses") or []
+    if misses:
+        m = misses[0]
+        parts.append(
+            f"near_miss={m.get('symbol')} {m.get('strategy')} "
+            f"composite={m.get('composite')} pop={m.get('pop')} ({m.get('reason')})"
+        )
+    skipped = rejections.get("skipped_symbols") or {}
+    if skipped:
+        parts.append("skipped=" + "; ".join(f"{k}: {v}" for k, v in list(skipped.items())[:2]))
+    return (" " + " ".join(parts))[:600]
 
 
 def submit_to_bridge(

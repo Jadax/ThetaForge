@@ -1298,6 +1298,7 @@ async def get_recommendations(request: AdvisoryRequest):
     technical_data = {}
     flow_data: Dict[str, Dict[str, Any]] = {}
     volatility_data: Dict[str, Dict[str, float]] = {}
+    snapshot_failures: Dict[str, str] = {}
 
     for symbol in request.watchlist:
         try:
@@ -1359,7 +1360,8 @@ async def get_recommendations(request: AdvisoryRequest):
                     volatility_data[symbol]["days_to_earnings"] = None
             if snapshot["gex_data"]:
                 market_data[f"{symbol}_gex"] = snapshot["gex_data"]
-        except HTTPException:
+        except HTTPException as exc:
+            snapshot_failures[symbol] = f"market snapshot unavailable: {exc.detail}"[:160]
             continue
 
     try:
@@ -1380,6 +1382,8 @@ async def get_recommendations(request: AdvisoryRequest):
         diversify_underlyings=request.diversify_underlyings,
         mode="earnings" if earnings_mode else "standard",
     )
+    if snapshot_failures:
+        output.rejections.setdefault("skipped_symbols", {}).update(snapshot_failures)
     return _recommendations_response(output)
 
 
@@ -1534,6 +1538,10 @@ def _recommendations_response(output) -> Dict[str, Any]:
             for r in output.recommendations
         ],
         "warnings": output.warnings,
+        # Why nothing (else) qualified: funnel counts, top gate reasons and the
+        # best near-misses. Lets the executor's decision trail -- and the
+        # learning loop -- see a drought's cause instead of a silent zero.
+        "rejections": getattr(output, "rejections", None) or {},
     }
 
 

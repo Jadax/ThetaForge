@@ -185,3 +185,6 @@ class AdvisoryOutput:
     total_capital_deployed: float = 0.0
     remaining_buying_power: float = 0.0
     warnings: List[str] = field(default_factory=list)
+    # Why candidates were refused: funnel counts, top gate reasons and the
+    # best near-misses (TradeRecommender._summarize_tally). Empty by default.
+    rejections: Dict[str, Any] = field(default_factory=dict)

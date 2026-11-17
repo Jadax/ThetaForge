@@ -15,6 +15,8 @@ This is the brain that:
 """
 import uuid
 import math
+from collections import Counter
+from contextvars import ContextVar
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta
 
@@ -218,7 +220,81 @@ EMPIRICAL_JOURNAL_URL = "https://journal.astraiva.app/trades.json"
 MIN_EMPIRICAL_SAMPLES = 10
 MIN_EMPIRICAL_WIN_RATE = 50.0
 EMPIRICAL_CACHE_TTL_SECONDS = 6 * 3600
-_EMPIRICAL_CACHE: Dict[str, Any] = {"at": 0.0, "stats": None}
+_EMPIRICAL_CACHE: Dict[str, Any] = {"at": 0.0, "by_strategy": None}
+
+# Candidate type -> the strategy name the paper ledger / journal records
+# (TradeRecommendation.strategy_type.value). The empirical gate judges each
+# strategy on its OWN record: pooling every short-premium trade let 7 losing
+# CSPs veto bear-call spreads that were 3/3 winners, and once the pool went
+# negative nothing could ever trade again to change it -- the gate starved
+# the learning loop of the very evidence it needs.
+CANDIDATE_JOURNAL_STRATEGY = {
+    "csp": "cash_secured_put",
+    "cc": "covered_call",
+    "bull_put": "bull_put_credit",
+    "bear_call": "bear_call_credit",
+    "iron_condor": "iron_condor",
+    "earnings_iron_condor": "earnings_iron_condor",
+    "call_debit": "call_debit_spread",
+    "put_debit": "put_debit_spread",
+}
+
+# Per-call rejection tally. Every gate that refuses a candidate records WHY,
+# so an empty /recommend answer explains itself (funnel + top reasons + the
+# best near-misses) instead of returning a silent zero. A ContextVar keeps
+# concurrent requests' tallies apart; with no active tally, recording is a
+# no-op, so direct gate calls (tests, other callers) are unaffected.
+_REJECTIONS: ContextVar[Optional[Dict[str, Any]]] = ContextVar("tf_rejections", default=None)
+MAX_NEAR_MISSES = 5
+MAX_REJECTION_REASONS = 12
+
+
+def _new_tally() -> Dict[str, Any]:
+    return {"symbol": None, "counts": Counter(), "near_misses": [],
+            "funnel": Counter(), "skipped_symbols": {}}
+
+
+def _reject(strategy: Optional[str], reason: str,
+            candidate: Optional[Dict[str, Any]] = None, **detail: Any) -> None:
+    """Record one refusal on the active tally (no-op outside a request)."""
+    tally = _REJECTIONS.get()
+    if tally is None:
+        return
+    tally["counts"][f"{strategy or 'any'}: {reason}"] += 1
+    if candidate is None and not detail:
+        return
+    score = (candidate or {}).get("score") or {}
+    roi = (candidate or {}).get("roi") or {}
+    miss = {
+        "symbol": (candidate or {}).get("symbol") or tally.get("symbol"),
+        "strategy": strategy,
+        "reason": reason,
+        "composite": round(float(detail.pop("composite", score.get("composite_score", 0)) or 0), 1),
+        "edge": round(float(detail.pop("edge", score.get("edge_score", 0)) or 0), 1),
+        "pop": round(float(detail.pop("pop", roi.get("probability_of_profit", 0)) or 0), 1),
+    }
+    for key in ("expiry", "dte", "short_strike", "long_strike", "strike"):
+        if candidate and candidate.get(key) not in (None, ""):
+            miss[key] = candidate[key]
+    miss.update({k: v for k, v in detail.items() if v is not None})
+    misses = tally["near_misses"]
+    misses.append(miss)
+    if len(misses) > MAX_NEAR_MISSES * 8:
+        misses.sort(key=lambda m: m["composite"], reverse=True)
+        del misses[MAX_NEAR_MISSES:]
+
+
+def _summarize_tally(tally: Dict[str, Any]) -> Dict[str, Any]:
+    misses = sorted(tally["near_misses"], key=lambda m: m["composite"], reverse=True)
+    return {
+        "funnel": dict(tally["funnel"]),
+        "reasons": [
+            {"reason": reason, "count": count}
+            for reason, count in tally["counts"].most_common(MAX_REJECTION_REASONS)
+        ],
+        "near_misses": misses[:MAX_NEAR_MISSES],
+        "skipped_symbols": tally["skipped_symbols"],
+    }
 
 
 class TradeRecommender:
@@ -261,6 +337,25 @@ class TradeRecommender:
         Returns:
             AdvisoryOutput with ranked recommendations
         """
+        tally = _new_tally()
+        token = _REJECTIONS.set(tally)
+        try:
+            output = self._generate_recommendations(
+                account, market_data, option_chains, technical_data, flow_data,
+                volatility_data, diversify_underlyings, mode, allowed_types,
+                learned_adjustments, risk_per_trade_pct,
+            )
+        finally:
+            _REJECTIONS.reset(token)
+        output.rejections = _summarize_tally(tally)
+        return output
+
+    def _generate_recommendations(
+        self, account, market_data, option_chains, technical_data, flow_data,
+        volatility_data, diversify_underlyings, mode, allowed_types,
+        learned_adjustments, risk_per_trade_pct,
+    ) -> AdvisoryOutput:
+        tally = _REJECTIONS.get() or _new_tally()
         flow_data = flow_data or {}
         volatility_data = volatility_data or {}
         warnings = []
@@ -285,10 +380,13 @@ class TradeRecommender:
         # Step 4: Generate candidates for each symbol
         all_candidates = []
         for symbol, chain in option_chains.items():
+            tally["symbol"] = symbol
             if not chain:
+                tally["skipped_symbols"][symbol] = "empty option chain"
                 continue
             stock_price = market_data.get(f"{symbol}_price", 0)
             if stock_price <= 0:
+                tally["skipped_symbols"][symbol] = "no underlying price"
                 continue
 
             symbol_volatility = volatility_data.get(symbol, volatility_data)
@@ -315,6 +413,8 @@ class TradeRecommender:
             if allowed_types is not None:
                 candidates = [c for c in candidates if c.get("type") in allowed_types]
             all_candidates.extend(candidates)
+        tally["symbol"] = None
+        tally["funnel"]["passed_quality"] = len(all_candidates)
 
         # Step 4b: A tested short strike is where premium sellers lose money.
         # Reject sell structures whose short legs are likely to be touched
@@ -323,6 +423,7 @@ class TradeRecommender:
             candidate for candidate in all_candidates
             if self._passes_touch_gate(candidate)
         ]
+        tally["funnel"]["passed_touch"] = len(all_candidates)
 
         # Step 4c: High-win-rate context gates (trade with the trend, sell
         # premium only outside the 1-SD expected move, only at 21-60 DTE).
@@ -333,6 +434,7 @@ class TradeRecommender:
             candidate for candidate in all_candidates
             if self._passes_high_winrate_gate(candidate)
         ]
+        tally["funnel"]["passed_context"] = len(all_candidates)
 
         # Step 4d: Empirical outcome gate — model POP is a probability, not a
         # track record. A short-premium strategy that is *actually losing* on
@@ -343,6 +445,7 @@ class TradeRecommender:
             candidate for candidate in all_candidates
             if self._passes_empirical_gate(candidate)
         ]
+        tally["funnel"]["passed_empirical"] = len(all_candidates)
 
         # Step 4e: Learned setup adjustments (agents/learning/trade_review.py):
         # setups that reliably lost on the journal are vetoed, weak ones lose a
@@ -350,6 +453,7 @@ class TradeRecommender:
         # and capped, so learning nudges the research-based score.
         if learned_adjustments:
             all_candidates = self._apply_learned_adjustments(all_candidates, learned_adjustments)
+        tally["funnel"]["passed_learning"] = len(all_candidates)
 
         # Step 5: Rank all candidates
         ranked = self.scorer.rank_strategies(all_candidates)
@@ -362,6 +466,7 @@ class TradeRecommender:
             risk_per_trade=risk_per_trade,
             diversify_underlyings=diversify_underlyings,
         )
+        tally["funnel"]["selected"] = len(selected)
 
         # Step 7: Convert to TradeRecommendation objects
         recommendations = []
@@ -381,7 +486,7 @@ class TradeRecommender:
             market_context={
                 "regime": regime.value,
                 "vix": market_data.get("vix", 0),
-                "iv_rank": market_data.get("iv_rank", 50),
+                "iv_rank": market_data.get("iv_rank"),
                 "trend": technical_data.get("overall_trend", "neutral"),
             },
             portfolio_analysis={
@@ -455,6 +560,18 @@ class TradeRecommender:
         days_to_earnings = volatility_data.get("days_to_earnings")
         if earnings_mode and (not implied_move_pct or days_to_earnings is None):
             return candidates  # no implied move or no print date: no earnings play
+
+        in_band = [
+            e for e, o in expiries.items()
+            if o and (earnings_mode or 14 <= int(o[0].get("dte", 30) or 30) <= 60)
+        ]
+        if not in_band:
+            tally = _REJECTIONS.get()
+            if tally is not None:
+                tally["skipped_symbols"][symbol] = (
+                    "no expiry in the 14-60 DTE band" if not earnings_mode
+                    else "no expiry after the earnings print"
+                )
 
         # For each expiry, try all strategies
         for expiry, opts in expiries.items():
@@ -674,18 +791,37 @@ class TradeRecommender:
             if strategy in ("call_debit", "put_debit")
             else MIN_COMPOSITE_SCORE
         )
-        if not (
-            score.get("composite_score", 0) >= min_composite
-            and score.get("edge_score", 0) >= MIN_EDGE_SCORE
-            and roi.get("probability_of_profit", 0) >= min_pop
-        ):
+        tally = _REJECTIONS.get()
+        if tally is not None:
+            tally["funnel"]["scored"] += 1
+        composite = score.get("composite_score", 0)
+        edge = score.get("edge_score", 0)
+        pop = roi.get("probability_of_profit", 0)
+        reason = None
+        if composite < min_composite:
+            reason = f"composite below {min_composite:.0f}"
+        elif edge < MIN_EDGE_SCORE:
+            reason = f"edge below {MIN_EDGE_SCORE:.0f}"
+        elif pop < min_pop:
+            reason = f"POP below {min_pop:.0f}%"
+        else:
+            reason = cls._volatility_gate_failure(strategy, nvrp or {})
+        if reason:
+            _reject(strategy, reason, composite=composite, edge=edge, pop=pop,
+                    iv_rank=(nvrp or {}).get("iv_rank"))
             return False
-        return cls._passes_volatility_gate(strategy, nvrp or {})
+        return True
+
+    @classmethod
+    def _passes_volatility_gate(
+        cls, strategy: Optional[str], nvrp: Dict[str, Any]
+    ) -> bool:
+        return cls._volatility_gate_failure(strategy, nvrp) is None
 
     @staticmethod
-    def _passes_volatility_gate(
+    def _volatility_gate_failure(
         strategy: Optional[str], nvrp: Dict[str, Any]
-    ) -> bool:
+    ) -> Optional[str]:
         """TastyTrade-style volatility regime gates for a scored strategy.
 
         Selling premium is only authorized when IV Rank is elevated, VIX is not
@@ -696,17 +832,17 @@ class TradeRecommender:
         """
         if strategy in ("csp", "cc", "bull_put", "bear_call", "iron_condor"):
             if float(nvrp.get("vix", 0) or 0) > MAX_VIX_SELL:
-                return False
+                return f"VIX above {MAX_VIX_SELL} (no premium selling)"
             if float(nvrp.get("iv_rank", 30) or 0) < MIN_IV_RANK_SELL:
-                return False
+                return f"IV rank below {MIN_IV_RANK_SELL} (premium too cheap to sell)"
             iv = nvrp.get("iv")
             hv_20 = nvrp.get("hv_20")
             if iv is not None and hv_20 is not None and float(iv) <= float(hv_20):
-                return False
+                return "IV at/below 20d realized vol (no premium edge)"
         elif strategy in ("call_debit", "put_debit"):
             if float(nvrp.get("iv_rank", 30) or 0) > MIN_IV_RANK_BUY:
-                return False
-        return True
+                return f"IV rank above {MIN_IV_RANK_BUY} (premium too rich to buy)"
+        return None
 
     def _passes_touch_gate(self, candidate: Dict[str, Any]) -> bool:
         """Reject sell structures whose short legs are likely to be touched.
@@ -735,6 +871,9 @@ class TradeRecommender:
                 stock_price, strike, iv, dte
             )
             if probability_of_touch > MAX_PROBABILITY_OF_TOUCH_SELL:
+                _reject(candidate.get("type"),
+                        f"short strike touch probability above {MAX_PROBABILITY_OF_TOUCH_SELL}%",
+                        candidate)
                 return False
         return True
 
@@ -784,7 +923,7 @@ class TradeRecommender:
             short_strikes = [candidate.get("strike")]
 
         for strike in short_strikes:
-            ok, _ = hw_evaluate_entry(
+            ok, why = hw_evaluate_entry(
                 strategy,
                 trend=trend,
                 short_strike=strike,
@@ -796,6 +935,8 @@ class TradeRecommender:
                 iv_hv_ratio=iv_hv_ratio,
             )
             if not ok:
+                _reject(strategy, "context: " + str(why).split(" (")[0].split(":")[0],
+                        candidate, detail=why)
                 return False
         return True
 
@@ -815,6 +956,8 @@ class TradeRecommender:
             })
             veto, delta, reasons = setup_adjustment(adjustments, features)
             if veto:
+                _reject(candidate.get("type"), "learned veto", candidate,
+                        detail="; ".join(reasons)[:200])
                 continue
             if delta and isinstance(candidate.get("score"), dict):
                 score = dict(candidate["score"])
@@ -834,55 +977,67 @@ class TradeRecommender:
         unverifiable book never gets a fabricated rejection — the gate only
         acts when there is real evidence of a losing strategy.
         """
-        if not is_premium_selling(candidate.get("type")):
+        strategy = candidate.get("type")
+        if not is_premium_selling(strategy):
             return True
-        stats = self._realized_outcome_stats()
+        stats = self._realized_outcome_stats(strategy)
         if stats is None:
             return True
         if stats["win_rate"] < MIN_EMPIRICAL_WIN_RATE or stats["expectancy"] <= 0:
+            _reject(strategy, "empirical: this strategy is losing on the journal", candidate,
+                    detail=f"n={stats.get('n')} win={stats['win_rate']:.0f}% "
+                           f"expectancy={stats['expectancy']:+.2f}")
             return False
         return True
 
-    def _realized_outcome_stats(self) -> Optional[Dict]:
-        """Summarized P&L over closed short-premium trades in the journal.
+    def _realized_outcome_stats(self, strategy: Optional[str]) -> Optional[Dict]:
+        """Summarized P&L over this strategy's closed trades in the journal.
 
-        TTL-cached; None means "insufficient or unavailable evidence" and
-        callers must fail open. The journal is regenerated from the paper
-        ledger by scripts/sync_journal.py, so these are only real outcomes.
+        Judged per strategy (CANDIDATE_JOURNAL_STRATEGY), never pooled across
+        all premium selling. TTL-cached; None means "insufficient or
+        unavailable evidence" and callers must fail open. The journal is
+        regenerated from the paper ledger by scripts/sync_journal.py, so these
+        are only real outcomes.
         """
         import time as _time
 
+        journal_name = CANDIDATE_JOURNAL_STRATEGY.get(strategy or "", strategy or "")
         cached_age = _time.time() - float(_EMPIRICAL_CACHE.get("at", 0.0))
-        if cached_age < EMPIRICAL_CACHE_TTL_SECONDS and _EMPIRICAL_CACHE.get("stats"):
-            return _EMPIRICAL_CACHE["stats"]
+        by_strategy = _EMPIRICAL_CACHE.get("by_strategy")
+        if cached_age < EMPIRICAL_CACHE_TTL_SECONDS and by_strategy is not None:
+            return by_strategy.get(journal_name)
 
-        stats = None
+        by_strategy = {}
         try:
             import httpx
+            from agents.trade_engine.historical_backtest import summarize_outcomes
             response = httpx.get(EMPIRICAL_JOURNAL_URL, timeout=10)
             response.raise_for_status()
             journal = response.json()
             trades = journal.get("trades", []) if isinstance(journal, dict) else []
-            pnls = []
+            pnls: Dict[str, List[float]] = {}
             for trade in trades:
                 if str(trade.get("status", "")) != "closed":
                     continue
-                if not is_premium_selling(str(trade.get("strategy", ""))):
+                name = str(trade.get("strategy", ""))
+                if not is_premium_selling(name):
                     continue
                 try:
                     pnl = float(trade.get("net_pnl", 0) or 0)
                 except (TypeError, ValueError):
                     continue
-                pnls.append(pnl)
-            if len(pnls) >= MIN_EMPIRICAL_SAMPLES:
-                from agents.trade_engine.historical_backtest import summarize_outcomes
-                stats = summarize_outcomes(pnls)
+                pnls.setdefault(name, []).append(pnl)
+            by_strategy = {
+                name: summarize_outcomes(values)
+                for name, values in pnls.items()
+                if len(values) >= MIN_EMPIRICAL_SAMPLES
+            }
         except Exception:
-            stats = None
+            by_strategy = {}
 
         _EMPIRICAL_CACHE["at"] = _time.time()
-        _EMPIRICAL_CACHE["stats"] = stats
-        return stats
+        _EMPIRICAL_CACHE["by_strategy"] = by_strategy
+        return by_strategy.get(journal_name)
 
     def _structure_expected_value(self, candidate: Dict[str, Any], roi_data: Dict[str, Any]) -> float:
         """Option Alpha-style expected value over three outcome zones.
@@ -1491,7 +1646,7 @@ class TradeRecommender:
             # passes the identical capital, score, liquidity, and Greeks
             # requirements below.
             if diversify_underlyings and cand.get("symbol", "").upper() in selected_symbols:
-                continue
+                continue  # a better structure on this symbol was already chosen
 
             # Correlation cap: never concentrate more than
             # MAX_CORRELATED_POSITIONS in one sector bucket. Unknown symbols
@@ -1500,10 +1655,12 @@ class TradeRecommender:
             symbol_upper = cand.get("symbol", "").upper()
             sector = SYMBOL_SECTOR.get(symbol_upper, symbol_upper)
             if selected_sector_counts.get(sector, 0) >= MAX_CORRELATED_POSITIONS:
+                _reject(cand.get("type"), "selection: sector cap", cand)
                 continue
 
             capital_needed = cand.get("capital_required", 0)
             if capital_needed > remaining_capital:
+                _reject(cand.get("type"), "selection: exceeds buying power", cand)
                 continue
 
             # The risk budget binds the maximum amount this position can LOSE,
@@ -1518,6 +1675,8 @@ class TradeRecommender:
                 or capital_needed
             )
             if cand.get("type") not in CASH_SECURED_TYPES and max_loss > risk_per_trade:
+                _reject(cand.get("type"), "selection: max loss above per-trade risk", cand,
+                        detail=f"max_loss={max_loss:.0f} risk_per_trade={risk_per_trade:.0f}")
                 continue
 
             # Check Greeks limits on the NET position: sold legs contribute
@@ -1532,8 +1691,10 @@ class TradeRecommender:
             if est_vega is None:
                 est_vega = self._net_leg_greek(cand.get("legs", []), "vega")
             if abs(current_delta + est_delta) > MAX_PORTFOLIO_DELTA:
+                _reject(cand.get("type"), "selection: portfolio delta limit", cand)
                 continue
             if abs(current_vega + est_vega) > MAX_PORTFOLIO_VEGA:
+                _reject(cand.get("type"), "selection: portfolio vega limit", cand)
                 continue
 
             selected.append(cand)
@@ -1665,7 +1826,11 @@ class TradeRecommender:
             annualized_return_pct=annualized,
             composite_score=score_data.get("composite_score", 0),
             confidence_score=score_data.get("edge_score", 0),
-            iv_rank=volatility_data.get("iv_rank", 50),
+            # volatility_data is keyed by symbol; reading "iv_rank" off it
+            # always fell back to 50, so every journaled options trade carried
+            # a fake rank into the learning loop's IV-bucket feature.
+            iv_rank=(candidate.get("nvrp") or {}).get(
+                "iv_rank", (volatility_data.get(symbol) or {}).get("iv_rank")),
             vix=market_data.get("vix", 0),
             market_regime=regime,
             reasoning=self._generate_reasoning(candidate, score_data, roi_data),
