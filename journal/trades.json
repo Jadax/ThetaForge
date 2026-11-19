@@ -9,8 +9,8 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "c49e9fb201051a28a7e4e3e911a49a735525a743c91939f1bc94cffe265a68e3",
-    "entries_from_ledger": 82,
+    "ledger_sha": "62765e50ef08c2901ebd302ea8c39cb944cf995be4fc8d3c769a650e6b0381d0",
+    "entries_from_ledger": 83,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
@@ -24,7 +24,7 @@
       "closed": 47,
       "wins": 22,
       "realized_pnl": -581.78,
-      "unrealized_pnl": 48.03,
+      "unrealized_pnl": 51.26,
       "equity": null
     },
     "infinity_1k": {
@@ -32,18 +32,18 @@
       "starting_capital": 1000.0,
       "started": "2026-11-05",
       "trades": 3,
-      "open": 2,
-      "closed": 1,
+      "open": 1,
+      "closed": 2,
       "wins": 0,
-      "realized_pnl": -7.74,
-      "unrealized_pnl": -9.91,
-      "equity": 992.26
+      "realized_pnl": -16.04,
+      "unrealized_pnl": -0.69,
+      "equity": 983.96
     }
   },
   "learning": {
-    "generated_at": "2026-11-19T17:03:17Z",
+    "generated_at": "2026-11-19T17:30:25Z",
     "window_days": 120,
-    "closed_learnable": 40,
+    "closed_learnable": 41,
     "setups": [
       {
         "when": {
@@ -121,11 +121,11 @@
           "asset": "equity",
           "strategy": "etf_rotation"
         },
-        "n": 11,
-        "mean_units": -0.291,
-        "se": 0.361,
-        "win_rate": 27.3,
-        "win_rate_shrunk": 33.3
+        "n": 12,
+        "mean_units": -0.34,
+        "se": 0.333,
+        "win_rate": 25.0,
+        "win_rate_shrunk": 31.2
       },
       {
         "when": {
@@ -133,11 +133,11 @@
           "strategy": "etf_rotation",
           "risk_tilt": "mixed"
         },
-        "n": 9,
-        "mean_units": -0.158,
-        "se": 0.432,
-        "win_rate": 33.3,
-        "win_rate_shrunk": 38.5
+        "n": 10,
+        "mean_units": -0.23,
+        "se": 0.393,
+        "win_rate": 30.0,
+        "win_rate_shrunk": 35.7
       },
       {
         "when": {
@@ -145,11 +145,11 @@
           "strategy": "etf_rotation",
           "rsi_band": "rsi50-60"
         },
-        "n": 3,
-        "mean_units": -0.053,
-        "se": 0.865,
-        "win_rate": 33.3,
-        "win_rate_shrunk": 42.9
+        "n": 4,
+        "mean_units": -0.258,
+        "se": 0.645,
+        "win_rate": 25.0,
+        "win_rate_shrunk": 37.5
       },
       {
         "when": {
@@ -181,11 +181,11 @@
           "strategy": "etf_rotation",
           "trend": "bullish"
         },
-        "n": 11,
-        "mean_units": -0.291,
-        "se": 0.361,
-        "win_rate": 27.3,
-        "win_rate_shrunk": 33.3
+        "n": 12,
+        "mean_units": -0.34,
+        "se": 0.333,
+        "win_rate": 25.0,
+        "win_rate_shrunk": 31.2
       },
       {
         "when": {
@@ -315,9 +315,9 @@
           "asset": "equity",
           "strategy": "etf_rotation"
         },
-        "action": "penalize",
-        "points": -5.0,
-        "evidence": "n=11, mean -0.29 (+/-0.36), win 27%"
+        "action": "veto",
+        "points": null,
+        "evidence": "n=12, mean -0.34 (+/-0.33), win 25%"
       },
       {
         "when": {
@@ -327,7 +327,7 @@
         },
         "action": "penalize",
         "points": -5.0,
-        "evidence": "n=9, mean -0.16 (+/-0.43), win 33%"
+        "evidence": "n=10, mean -0.23 (+/-0.39), win 30%"
       },
       {
         "when": {
@@ -335,9 +335,9 @@
           "strategy": "etf_rotation",
           "trend": "bullish"
         },
-        "action": "penalize",
-        "points": -5.0,
-        "evidence": "n=11, mean -0.29 (+/-0.36), win 27%"
+        "action": "veto",
+        "points": null,
+        "evidence": "n=12, mean -0.34 (+/-0.33), win 25%"
       },
       {
         "when": {
@@ -390,7 +390,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-19T15:55:03.409984+00:00",
-        "updated_at": "2026-11-19T17:03:09.347115+00:00"
+        "updated_at": "2026-11-19T17:30:00.571970+00:00"
       },
       "symbol": "NU",
       "asset_class": "options",
@@ -759,7 +759,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-19T17:03:09.347079+00:00",
+      "timestamp": "2026-11-19T17:30:00.571940+00:00",
       "live": {
         "price": 178.78,
         "kind": "stock",
@@ -1016,7 +1016,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-19T15:33:57.263492+00:00",
-        "updated_at": "2026-11-19T17:03:09.347079+00:00"
+        "updated_at": "2026-11-19T17:30:00.571940+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -1263,346 +1263,6 @@
       "timestamp": "2026-11-09T18:31:50.821222+00:00"
     },
     {
-      "id": "86d7b85c-bb77-4b7d-ad67-1d2f2752dc2a",
-      "source_id": "86d7b85c-bb77-4b7d-ad67-1d2f2752dc2a",
-      "source": "ledger",
-      "ledger_ref": "86d7b85c-bb77-4b7d-ad67-1d2f2752dc2a",
-      "order": {
-        "status": "Filled",
-        "filled": 3.0,
-        "remaining": 0.0,
-        "average_fill_price": 89.89,
-        "limit_price": 90.04,
-        "net_credit": 0.0,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 3,
-        "multiplier": null,
-        "sec_type": null,
-        "submitted_at": "2026-11-06T15:02:49.425510+00:00",
-        "updated_at": "2026-11-16T14:48:10.034529+00:00"
-      },
-      "symbol": "XLP",
-      "asset_class": "equity",
-      "instrument_type": "etf",
-      "shares": 3,
-      "opened": "2026-11-06",
-      "closed": null,
-      "status": "open",
-      "strategy": "etf_rotation",
-      "bucket": "infinity_1k",
-      "legs": [],
-      "entry_ivr": null,
-      "expected_move_pct": null,
-      "dte_at_entry": null,
-      "entry_price": 90.04,
-      "stop_price": 86.28,
-      "target_price": 96.03,
-      "capital_at_risk": 11.28,
-      "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "equity",
-        "captured_at": "2026-11-06",
-        "score": 90.0,
-        "signal": "buy",
-        "trend": "above_200d",
-        "rsi_14": 57.3,
-        "adx_14": 25.0,
-        "atr_14": 1.63,
-        "price": 89.53,
-        "risk_tilt": "mixed",
-        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 57; 1m positive; 20d breakout; near 52w high. Position sized for 5% account risk (50.00) at a 2x ATR stop (86.28), 2R target 96.03."
-      },
-      "management_plan": {
-        "target": "take profit at 2R target 96.03",
-        "stop": "hard stop at 86.28",
-        "time": "re-examine after 60 days",
-        "event": "close before earnings or scheduled macro if inside the blackout window"
-      },
-      "reason": "Long XLP, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-06T15:03:34.148260+00:00",
-      "live": {
-        "price": 89.5,
-        "kind": "stock",
-        "pnl": -1.64,
-        "pnl_pct": -14.5,
-        "r": -0.145,
-        "at": "2026-11-19T16:31:53+00:00"
-      },
-      "price_trail": [
-        {
-          "at": "2026-11-06",
-          "price": 90.04
-        },
-        {
-          "at": "2026-11-06T15:30:35+00:00",
-          "price": 90.495
-        },
-        {
-          "at": "2026-11-06T16:31:50+00:00",
-          "price": 90.44
-        },
-        {
-          "at": "2026-11-06T17:30:51+00:00",
-          "price": 90.52
-        },
-        {
-          "at": "2026-11-06T18:30:15+00:00",
-          "price": 90.67
-        },
-        {
-          "at": "2026-11-06T19:30:50+00:00",
-          "price": 90.35
-        },
-        {
-          "at": "2026-11-09T13:30:50+00:00",
-          "price": 90.08
-        },
-        {
-          "at": "2026-11-09T14:32:02+00:00",
-          "price": 90.05
-        },
-        {
-          "at": "2026-11-09T15:30:13+00:00",
-          "price": 90.06
-        },
-        {
-          "at": "2026-11-09T16:31:10+00:00",
-          "price": 90.37
-        },
-        {
-          "at": "2026-11-09T17:30:50+00:00",
-          "price": 90.505
-        },
-        {
-          "at": "2026-11-09T18:32:02+00:00",
-          "price": 90.925
-        },
-        {
-          "at": "2026-11-09T19:30:51+00:00",
-          "price": 90.9233
-        },
-        {
-          "at": "2026-11-10T13:31:33+00:00",
-          "price": 90.89
-        },
-        {
-          "at": "2026-11-10T14:31:35+00:00",
-          "price": 90.82
-        },
-        {
-          "at": "2026-11-10T15:30:56+00:00",
-          "price": 90.535
-        },
-        {
-          "at": "2026-11-10T16:31:52+00:00",
-          "price": 90.76
-        },
-        {
-          "at": "2026-11-10T17:31:36+00:00",
-          "price": 91.21
-        },
-        {
-          "at": "2026-11-10T18:31:50+00:00",
-          "price": 91.22
-        },
-        {
-          "at": "2026-11-10T19:31:10+00:00",
-          "price": 91.1561
-        },
-        {
-          "at": "2026-11-11T13:31:20+00:00",
-          "price": 91.03
-        },
-        {
-          "at": "2026-11-11T14:31:28+00:00",
-          "price": 90.595
-        },
-        {
-          "at": "2026-11-11T15:30:20+00:00",
-          "price": 90.61
-        },
-        {
-          "at": "2026-11-11T16:31:27+00:00",
-          "price": 90.585
-        },
-        {
-          "at": "2026-11-11T17:31:09+00:00",
-          "price": 90.59
-        },
-        {
-          "at": "2026-11-11T18:30:20+00:00",
-          "price": 90.765
-        },
-        {
-          "at": "2026-11-11T19:31:10+00:00",
-          "price": 91.045
-        },
-        {
-          "at": "2026-11-12T13:31:10+00:00",
-          "price": 91.45
-        },
-        {
-          "at": "2026-11-12T14:30:20+00:00",
-          "price": 92.04
-        },
-        {
-          "at": "2026-11-12T15:30:10+00:00",
-          "price": 91.56
-        },
-        {
-          "at": "2026-11-12T16:30:51+00:00",
-          "price": 91.405
-        },
-        {
-          "at": "2026-11-12T17:30:44+00:00",
-          "price": 91.74
-        },
-        {
-          "at": "2026-11-12T18:30:51+00:00",
-          "price": 91.415
-        },
-        {
-          "at": "2026-11-12T19:31:41+00:00",
-          "price": 91.335
-        },
-        {
-          "at": "2026-11-13T13:31:50+00:00",
-          "price": 91.06
-        },
-        {
-          "at": "2026-11-13T14:31:40+00:00",
-          "price": 91.56
-        },
-        {
-          "at": "2026-11-13T15:31:00+00:00",
-          "price": 91.79
-        },
-        {
-          "at": "2026-11-13T16:31:50+00:00",
-          "price": 92.14
-        },
-        {
-          "at": "2026-11-13T17:31:51+00:00",
-          "price": 92.21
-        },
-        {
-          "at": "2026-11-13T18:31:15+00:00",
-          "price": 92.205
-        },
-        {
-          "at": "2026-11-13T19:32:20+00:00",
-          "price": 92.06
-        },
-        {
-          "at": "2026-11-16T13:30:50+00:00",
-          "price": 92.35
-        },
-        {
-          "at": "2026-11-16T14:31:15+00:00",
-          "price": 93.29
-        },
-        {
-          "at": "2026-11-16T15:31:52+00:00",
-          "price": 93.165
-        },
-        {
-          "at": "2026-11-16T16:31:41+00:00",
-          "price": 92.515
-        },
-        {
-          "at": "2026-11-16T17:30:51+00:00",
-          "price": 92.795
-        },
-        {
-          "at": "2026-11-16T18:32:28+00:00",
-          "price": 92.755
-        },
-        {
-          "at": "2026-11-16T19:30:51+00:00",
-          "price": 92.56
-        },
-        {
-          "at": "2026-11-17T13:31:00+00:00",
-          "price": 92.6
-        },
-        {
-          "at": "2026-11-17T14:31:20+00:00",
-          "price": 92.14
-        },
-        {
-          "at": "2026-11-17T15:31:22+00:00",
-          "price": 92.545
-        },
-        {
-          "at": "2026-11-17T16:31:24+00:00",
-          "price": 92.155
-        },
-        {
-          "at": "2026-11-17T17:30:51+00:00",
-          "price": 92.17
-        },
-        {
-          "at": "2026-11-17T18:31:33+00:00",
-          "price": 92.045
-        },
-        {
-          "at": "2026-11-17T19:30:44+00:00",
-          "price": 91.795
-        },
-        {
-          "at": "2026-11-18T13:31:36+00:00",
-          "price": 91.46
-        },
-        {
-          "at": "2026-11-18T14:30:45+00:00",
-          "price": 90.72
-        },
-        {
-          "at": "2026-11-18T15:30:19+00:00",
-          "price": 91.13
-        },
-        {
-          "at": "2026-11-18T16:31:51+00:00",
-          "price": 91.32
-        },
-        {
-          "at": "2026-11-18T17:30:51+00:00",
-          "price": 91.61
-        },
-        {
-          "at": "2026-11-18T18:31:50+00:00",
-          "price": 91.675
-        },
-        {
-          "at": "2026-11-18T19:31:51+00:00",
-          "price": 91.24
-        },
-        {
-          "at": "2026-11-19T13:31:29+00:00",
-          "price": 91.18
-        },
-        {
-          "at": "2026-11-19T14:31:41+00:00",
-          "price": 90.04
-        },
-        {
-          "at": "2026-11-19T15:30:52+00:00",
-          "price": 89.775
-        },
-        {
-          "at": "2026-11-19T16:31:50+00:00",
-          "price": 89.495
-        }
-      ]
-    },
-    {
       "id": "1bdb2c95-01b0-4b7b-9d98-b772a7687532",
       "source_id": "1bdb2c95-01b0-4b7b-9d98-b772a7687532",
       "source": "ledger",
@@ -1628,8 +1288,8 @@
       "instrument_type": "etf",
       "shares": 5,
       "opened": "2026-11-06",
-      "closed": null,
-      "status": "open",
+      "closed": "2026-11-19",
+      "status": "closed",
       "strategy": "etf_rotation",
       "bucket": "infinity_1k",
       "legs": [],
@@ -1641,8 +1301,8 @@
       "target_price": 61.34,
       "capital_at_risk": 9.5,
       "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
+      "net_pnl": -8.3,
+      "net_pnl_pct": -0.8737,
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-11-06",
@@ -1665,8 +1325,8 @@
       "reason": "Long XLF, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-06T14:46:31.669256+00:00",
+      "exit_note": "Auto-closed at the 2x-ATR hard stop.",
+      "timestamp": "2026-11-19T17:30:00.571979+00:00",
       "live": {
         "price": 55.83,
         "kind": "stock",
@@ -1939,6 +1599,376 @@
         {
           "at": "2026-11-19T16:31:50+00:00",
           "price": 55.825
+        }
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 5.0,
+        "remaining": 0.0,
+        "average_fill_price": 55.64,
+        "limit_price": 55.64,
+        "net_credit": null,
+        "cost_to_close": 278.2,
+        "realized_pnl": -8.3,
+        "reason": "close_stop",
+        "quantity": 5,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-19T17:03:14.039793+00:00",
+        "updated_at": "2026-11-19T17:30:00.571979+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -0.87 R",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -0.874
+      }
+    },
+    {
+      "id": "86d7b85c-bb77-4b7d-ad67-1d2f2752dc2a",
+      "source_id": "86d7b85c-bb77-4b7d-ad67-1d2f2752dc2a",
+      "source": "ledger",
+      "ledger_ref": "86d7b85c-bb77-4b7d-ad67-1d2f2752dc2a",
+      "order": {
+        "status": "Filled",
+        "filled": 3.0,
+        "remaining": 0.0,
+        "average_fill_price": 89.89,
+        "limit_price": 90.04,
+        "net_credit": 0.0,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 3,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-06T15:02:49.425510+00:00",
+        "updated_at": "2026-11-16T14:48:10.034529+00:00"
+      },
+      "symbol": "XLP",
+      "asset_class": "equity",
+      "instrument_type": "etf",
+      "shares": 3,
+      "opened": "2026-11-06",
+      "closed": null,
+      "status": "open",
+      "strategy": "etf_rotation",
+      "bucket": "infinity_1k",
+      "legs": [],
+      "entry_ivr": null,
+      "expected_move_pct": null,
+      "dte_at_entry": null,
+      "entry_price": 90.04,
+      "stop_price": 86.28,
+      "target_price": 96.03,
+      "capital_at_risk": 11.28,
+      "max_profit": 0.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "equity",
+        "captured_at": "2026-11-06",
+        "score": 90.0,
+        "signal": "buy",
+        "trend": "above_200d",
+        "rsi_14": 57.3,
+        "adx_14": 25.0,
+        "atr_14": 1.63,
+        "price": 89.53,
+        "risk_tilt": "mixed",
+        "reasoning": "Momentum-trend long: above 200d; 50d > 200d; ADX 25; RSI 57; 1m positive; 20d breakout; near 52w high. Position sized for 5% account risk (50.00) at a 2x ATR stop (86.28), 2R target 96.03."
+      },
+      "management_plan": {
+        "target": "take profit at 2R target 96.03",
+        "stop": "hard stop at 86.28",
+        "time": "re-examine after 60 days",
+        "event": "close before earnings or scheduled macro if inside the blackout window"
+      },
+      "reason": "Long XLP, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-11-06T15:03:34.148260+00:00",
+      "live": {
+        "price": 89.81,
+        "kind": "stock",
+        "pnl": -0.69,
+        "pnl_pct": -6.1,
+        "r": -0.061,
+        "at": "2026-11-19T17:30:23+00:00"
+      },
+      "price_trail": [
+        {
+          "at": "2026-11-06",
+          "price": 90.04
+        },
+        {
+          "at": "2026-11-06T15:30:35+00:00",
+          "price": 90.495
+        },
+        {
+          "at": "2026-11-06T16:31:50+00:00",
+          "price": 90.44
+        },
+        {
+          "at": "2026-11-06T17:30:51+00:00",
+          "price": 90.52
+        },
+        {
+          "at": "2026-11-06T18:30:15+00:00",
+          "price": 90.67
+        },
+        {
+          "at": "2026-11-06T19:30:50+00:00",
+          "price": 90.35
+        },
+        {
+          "at": "2026-11-09T13:30:50+00:00",
+          "price": 90.08
+        },
+        {
+          "at": "2026-11-09T14:32:02+00:00",
+          "price": 90.05
+        },
+        {
+          "at": "2026-11-09T15:30:13+00:00",
+          "price": 90.06
+        },
+        {
+          "at": "2026-11-09T16:31:10+00:00",
+          "price": 90.37
+        },
+        {
+          "at": "2026-11-09T17:30:50+00:00",
+          "price": 90.505
+        },
+        {
+          "at": "2026-11-09T18:32:02+00:00",
+          "price": 90.925
+        },
+        {
+          "at": "2026-11-09T19:30:51+00:00",
+          "price": 90.9233
+        },
+        {
+          "at": "2026-11-10T13:31:33+00:00",
+          "price": 90.89
+        },
+        {
+          "at": "2026-11-10T14:31:35+00:00",
+          "price": 90.82
+        },
+        {
+          "at": "2026-11-10T15:30:56+00:00",
+          "price": 90.535
+        },
+        {
+          "at": "2026-11-10T16:31:52+00:00",
+          "price": 90.76
+        },
+        {
+          "at": "2026-11-10T17:31:36+00:00",
+          "price": 91.21
+        },
+        {
+          "at": "2026-11-10T18:31:50+00:00",
+          "price": 91.22
+        },
+        {
+          "at": "2026-11-10T19:31:10+00:00",
+          "price": 91.1561
+        },
+        {
+          "at": "2026-11-11T13:31:20+00:00",
+          "price": 91.03
+        },
+        {
+          "at": "2026-11-11T14:31:28+00:00",
+          "price": 90.595
+        },
+        {
+          "at": "2026-11-11T15:30:20+00:00",
+          "price": 90.61
+        },
+        {
+          "at": "2026-11-11T16:31:27+00:00",
+          "price": 90.585
+        },
+        {
+          "at": "2026-11-11T17:31:09+00:00",
+          "price": 90.59
+        },
+        {
+          "at": "2026-11-11T18:30:20+00:00",
+          "price": 90.765
+        },
+        {
+          "at": "2026-11-11T19:31:10+00:00",
+          "price": 91.045
+        },
+        {
+          "at": "2026-11-12T13:31:10+00:00",
+          "price": 91.45
+        },
+        {
+          "at": "2026-11-12T14:30:20+00:00",
+          "price": 92.04
+        },
+        {
+          "at": "2026-11-12T15:30:10+00:00",
+          "price": 91.56
+        },
+        {
+          "at": "2026-11-12T16:30:51+00:00",
+          "price": 91.405
+        },
+        {
+          "at": "2026-11-12T17:30:44+00:00",
+          "price": 91.74
+        },
+        {
+          "at": "2026-11-12T18:30:51+00:00",
+          "price": 91.415
+        },
+        {
+          "at": "2026-11-12T19:31:41+00:00",
+          "price": 91.335
+        },
+        {
+          "at": "2026-11-13T13:31:50+00:00",
+          "price": 91.06
+        },
+        {
+          "at": "2026-11-13T14:31:40+00:00",
+          "price": 91.56
+        },
+        {
+          "at": "2026-11-13T15:31:00+00:00",
+          "price": 91.79
+        },
+        {
+          "at": "2026-11-13T16:31:50+00:00",
+          "price": 92.14
+        },
+        {
+          "at": "2026-11-13T17:31:51+00:00",
+          "price": 92.21
+        },
+        {
+          "at": "2026-11-13T18:31:15+00:00",
+          "price": 92.205
+        },
+        {
+          "at": "2026-11-13T19:32:20+00:00",
+          "price": 92.06
+        },
+        {
+          "at": "2026-11-16T13:30:50+00:00",
+          "price": 92.35
+        },
+        {
+          "at": "2026-11-16T14:31:15+00:00",
+          "price": 93.29
+        },
+        {
+          "at": "2026-11-16T15:31:52+00:00",
+          "price": 93.165
+        },
+        {
+          "at": "2026-11-16T16:31:41+00:00",
+          "price": 92.515
+        },
+        {
+          "at": "2026-11-16T17:30:51+00:00",
+          "price": 92.795
+        },
+        {
+          "at": "2026-11-16T18:32:28+00:00",
+          "price": 92.755
+        },
+        {
+          "at": "2026-11-16T19:30:51+00:00",
+          "price": 92.56
+        },
+        {
+          "at": "2026-11-17T13:31:00+00:00",
+          "price": 92.6
+        },
+        {
+          "at": "2026-11-17T14:31:20+00:00",
+          "price": 92.14
+        },
+        {
+          "at": "2026-11-17T15:31:22+00:00",
+          "price": 92.545
+        },
+        {
+          "at": "2026-11-17T16:31:24+00:00",
+          "price": 92.155
+        },
+        {
+          "at": "2026-11-17T17:30:51+00:00",
+          "price": 92.17
+        },
+        {
+          "at": "2026-11-17T18:31:33+00:00",
+          "price": 92.045
+        },
+        {
+          "at": "2026-11-17T19:30:44+00:00",
+          "price": 91.795
+        },
+        {
+          "at": "2026-11-18T13:31:36+00:00",
+          "price": 91.46
+        },
+        {
+          "at": "2026-11-18T14:30:45+00:00",
+          "price": 90.72
+        },
+        {
+          "at": "2026-11-18T15:30:19+00:00",
+          "price": 91.13
+        },
+        {
+          "at": "2026-11-18T16:31:51+00:00",
+          "price": 91.32
+        },
+        {
+          "at": "2026-11-18T17:30:51+00:00",
+          "price": 91.61
+        },
+        {
+          "at": "2026-11-18T18:31:50+00:00",
+          "price": 91.675
+        },
+        {
+          "at": "2026-11-18T19:31:51+00:00",
+          "price": 91.24
+        },
+        {
+          "at": "2026-11-19T13:31:29+00:00",
+          "price": 91.18
+        },
+        {
+          "at": "2026-11-19T14:31:41+00:00",
+          "price": 90.04
+        },
+        {
+          "at": "2026-11-19T15:30:52+00:00",
+          "price": 89.775
+        },
+        {
+          "at": "2026-11-19T16:31:50+00:00",
+          "price": 89.495
+        },
+        {
+          "at": "2026-11-19T17:30:19+00:00",
+          "price": 89.81
         }
       ]
     },
@@ -3904,12 +3934,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-03T14:42:52.158630+00:00",
       "live": {
-        "price": 349.31,
+        "price": 350.19,
         "kind": "stock",
-        "pnl": 57.93,
-        "pnl_pct": 337.6,
-        "r": 3.376,
-        "at": "2026-11-19T16:31:53+00:00"
+        "pnl": 60.56,
+        "pnl_pct": 352.9,
+        "r": 3.529,
+        "at": "2026-11-19T17:30:23+00:00"
       },
       "price_trail": [
         {
@@ -4259,6 +4289,10 @@
         {
           "at": "2026-11-19T16:31:50+00:00",
           "price": 349.31
+        },
+        {
+          "at": "2026-11-19T17:30:19+00:00",
+          "price": 350.185
         }
       ]
     },
@@ -5753,12 +5787,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:31:48.565507+00:00",
       "live": {
-        "price": 7.49,
+        "price": 7.51,
         "kind": "stock",
-        "pnl": -9.9,
-        "pnl_pct": -20.2,
-        "r": -0.202,
-        "at": "2026-11-19T16:31:52+00:00"
+        "pnl": -9.3,
+        "pnl_pct": -19.0,
+        "r": -0.19,
+        "at": "2026-11-19T17:30:22+00:00"
       },
       "price_trail": [
         {
@@ -6128,6 +6162,10 @@
         {
           "at": "2026-11-19T16:31:50+00:00",
           "price": 7.485
+        },
+        {
+          "at": "2026-11-19T17:30:19+00:00",
+          "price": 7.515
         }
       ]
     },
