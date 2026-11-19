@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "f77e7c93a303d70b2006a5b9a15fb61536ed6c41b6db102f6ca420e7c8286d77",
+    "ledger_sha": "c49e9fb201051a28a7e4e3e911a49a735525a743c91939f1bc94cffe265a68e3",
     "entries_from_ledger": 82,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-19T16:31:56Z",
+    "generated_at": "2026-11-19T17:03:17Z",
     "window_days": 120,
     "closed_learnable": 40,
     "setups": [
@@ -390,7 +390,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-19T15:55:03.409984+00:00",
-        "updated_at": "2026-11-19T16:27:16.218342+00:00"
+        "updated_at": "2026-11-19T17:03:09.347115+00:00"
       },
       "symbol": "NU",
       "asset_class": "options",
@@ -759,7 +759,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-ATR hard stop.",
-      "timestamp": "2026-11-19T16:27:16.218310+00:00",
+      "timestamp": "2026-11-19T17:03:09.347079+00:00",
       "live": {
         "price": 178.78,
         "kind": "stock",
@@ -1016,7 +1016,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-19T15:33:57.263492+00:00",
-        "updated_at": "2026-11-19T16:27:16.218310+00:00"
+        "updated_at": "2026-11-19T17:03:09.347079+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -1621,7 +1621,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-06T14:45:05.301946+00:00",
-        "updated_at": "2026-11-12T14:33:37.430922+00:00"
+        "updated_at": "2026-11-19T17:03:14.039793+00:00"
       },
       "symbol": "XLF",
       "asset_class": "equity",
