@@ -9,8 +9,8 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "fe664e96b7ab0ab0173464aee34a74952235200999e0ded6f8d6684f474c1912",
-    "entries_from_ledger": 80,
+    "ledger_sha": "314abe9a18e06efb37ddc4a496eac9a2fccd87ca8caaf4bec0ee970ffbcbbadb",
+    "entries_from_ledger": 82,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
@@ -19,8 +19,8 @@
     "algo_trader": {
       "label": "Algo Trader",
       "starting_capital": null,
-      "trades": 50,
-      "open": 3,
+      "trades": 51,
+      "open": 4,
       "closed": 47,
       "wins": 22,
       "realized_pnl": -581.78,
@@ -32,18 +32,18 @@
       "starting_capital": 1000.0,
       "started": "2026-11-05",
       "trades": 3,
-      "open": 3,
-      "closed": 0,
+      "open": 2,
+      "closed": 1,
       "wins": 0,
-      "realized_pnl": 0,
-      "unrealized_pnl": -15.63,
-      "equity": 1000.0
+      "realized_pnl": -7.74,
+      "unrealized_pnl": -7.75,
+      "equity": 992.26
     }
   },
   "learning": {
-    "generated_at": "2026-11-19T15:34:00Z",
+    "generated_at": "2026-11-19T16:11:41Z",
     "window_days": 120,
-    "closed_learnable": 39,
+    "closed_learnable": 40,
     "setups": [
       {
         "when": {
@@ -121,11 +121,11 @@
           "asset": "equity",
           "strategy": "etf_rotation"
         },
-        "n": 10,
-        "mean_units": -0.223,
-        "se": 0.391,
-        "win_rate": 30.0,
-        "win_rate_shrunk": 35.7
+        "n": 11,
+        "mean_units": -0.291,
+        "se": 0.361,
+        "win_rate": 27.3,
+        "win_rate_shrunk": 33.3
       },
       {
         "when": {
@@ -133,11 +133,11 @@
           "strategy": "etf_rotation",
           "risk_tilt": "mixed"
         },
-        "n": 8,
-        "mean_units": -0.056,
-        "se": 0.476,
-        "win_rate": 37.5,
-        "win_rate_shrunk": 41.7
+        "n": 9,
+        "mean_units": -0.158,
+        "se": 0.432,
+        "win_rate": 33.3,
+        "win_rate_shrunk": 38.5
       },
       {
         "when": {
@@ -157,11 +157,11 @@
           "strategy": "etf_rotation",
           "rsi_band": "rsi60-70"
         },
-        "n": 3,
-        "mean_units": 0.551,
-        "se": 0.945,
-        "win_rate": 66.7,
-        "win_rate_shrunk": 57.1
+        "n": 4,
+        "mean_units": 0.171,
+        "se": 0.769,
+        "win_rate": 50.0,
+        "win_rate_shrunk": 50.0
       },
       {
         "when": {
@@ -181,11 +181,11 @@
           "strategy": "etf_rotation",
           "trend": "bullish"
         },
-        "n": 10,
-        "mean_units": -0.223,
-        "se": 0.391,
-        "win_rate": 30.0,
-        "win_rate_shrunk": 35.7
+        "n": 11,
+        "mean_units": -0.291,
+        "se": 0.361,
+        "win_rate": 27.3,
+        "win_rate_shrunk": 33.3
       },
       {
         "when": {
@@ -317,7 +317,7 @@
         },
         "action": "penalize",
         "points": -5.0,
-        "evidence": "n=10, mean -0.22 (+/-0.39), win 30%"
+        "evidence": "n=11, mean -0.29 (+/-0.36), win 27%"
       },
       {
         "when": {
@@ -327,7 +327,7 @@
         },
         "action": "penalize",
         "points": -5.0,
-        "evidence": "n=8, mean -0.06 (+/-0.48), win 38%"
+        "evidence": "n=9, mean -0.16 (+/-0.43), win 33%"
       },
       {
         "when": {
@@ -337,7 +337,7 @@
         },
         "action": "penalize",
         "points": -5.0,
-        "evidence": "n=10, mean -0.22 (+/-0.39), win 30%"
+        "evidence": "n=11, mean -0.29 (+/-0.36), win 27%"
       },
       {
         "when": {
@@ -371,6 +371,110 @@
     ]
   },
   "trades": [
+    {
+      "id": "27633dde-c343-4112-8104-e1777b61026d",
+      "source_id": "27633dde-c343-4112-8104-e1777b61026d",
+      "source": "ledger",
+      "ledger_ref": "27633dde-c343-4112-8104-e1777b61026d",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.43,
+        "limit_price": 0.43,
+        "net_credit": -0.43,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-11-19T15:55:03.409984+00:00",
+        "updated_at": "2026-11-19T16:11:23.227757+00:00"
+      },
+      "symbol": "NU",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-11-19",
+      "closed": null,
+      "status": "open",
+      "strategy": "put_debit_spread",
+      "bucket": "algo_trader",
+      "legs": [
+        {
+          "action": "BUY",
+          "type": "PUT",
+          "strike": 12.0,
+          "expiry": "2027-01-15",
+          "dte": 57
+        },
+        {
+          "action": "SELL",
+          "type": "PUT",
+          "strike": 11.0,
+          "expiry": "2027-01-15",
+          "dte": 57
+        }
+      ],
+      "entry_ivr": 52.6,
+      "expected_move_pct": null,
+      "dte_at_entry": 57,
+      "entry_price": 0.43,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 43.0,
+      "max_profit": 57.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-11-19",
+        "regime": "neutral",
+        "vix": 26.38,
+        "iv_rank": 40.4,
+        "expected_move_pct": 0.0,
+        "composite_score": 73.9,
+        "confidence_score": 87.9,
+        "pop": 45.8,
+        "edge_pct": 0.0,
+        "reasoning": "Realized volatility exceeds IV (negative NVRP) \u2192 edge in buying options | Strong liquidity ensures clean fills | Composite score: 73.9/100 | Win rate: 50.7%",
+        "entry_rules": {
+          "preferred_dte": "57 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 36 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "trailing_stop": "Consider selling at 50-100% profit"
+        },
+        "trend": "bearish",
+        "signal": "sell",
+        "brain_score": -45.8,
+        "eff_iv_rank": 52.6,
+        "iv_hv_ratio": 0.68,
+        "short_strike_otm_pct": 8.1
+      },
+      "management_plan": {
+        "target": "take profit at +50-100% of debit paid",
+        "stop": "exit if the spread breaks break-even",
+        "time": "hold to expiry or 50% of DTE",
+        "event": "exit before earnings"
+      },
+      "reason": "Put Debit Spread on NU, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-11-19T16:11:23.227757+00:00"
+    },
     {
       "id": "8aa4add6-8bd3-40a3-a962-4a06310ffc57",
       "source_id": "8aa4add6-8bd3-40a3-a962-4a06310ffc57",
@@ -592,239 +696,6 @@
       }
     },
     {
-      "id": "7b1db1dc-c678-4af0-a85f-79e511268b50",
-      "source_id": "7b1db1dc-c678-4af0-a85f-79e511268b50",
-      "source": "ledger",
-      "ledger_ref": "7b1db1dc-c678-4af0-a85f-79e511268b50",
-      "order": {
-        "status": "Filled",
-        "filled": 1.0,
-        "remaining": 0.0,
-        "average_fill_price": 0.61,
-        "limit_price": 0.65,
-        "net_credit": -0.65,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 1,
-        "multiplier": 100,
-        "sec_type": "OPT",
-        "submitted_at": "2026-11-09T18:54:30.609368+00:00",
-        "updated_at": "2026-11-16T15:25:43.526338+00:00"
-      },
-      "symbol": "CCL",
-      "asset_class": "options",
-      "instrument_type": "option",
-      "shares": null,
-      "opened": "2026-11-09",
-      "closed": "2026-11-16",
-      "status": "closed",
-      "strategy": "call_debit_spread",
-      "bucket": "algo_trader",
-      "legs": [
-        {
-          "action": "BUY",
-          "type": "CALL",
-          "strike": 30.0,
-          "expiry": "2026-12-18",
-          "dte": 39
-        },
-        {
-          "action": "SELL",
-          "type": "CALL",
-          "strike": 31.0,
-          "expiry": "2026-12-18",
-          "dte": 39
-        }
-      ],
-      "entry_ivr": 40.0,
-      "expected_move_pct": null,
-      "dte_at_entry": 39,
-      "entry_price": 0.61,
-      "stop_price": null,
-      "target_price": null,
-      "capital_at_risk": 65.0,
-      "max_profit": 35.0,
-      "net_pnl": -47.0,
-      "net_pnl_pct": -0.7231,
-      "conditions": {
-        "engine": "options",
-        "captured_at": "2026-11-09",
-        "regime": "neutral",
-        "vix": 20.27,
-        "iv_rank": 50.0,
-        "expected_move_pct": 0.0,
-        "composite_score": 70.8,
-        "confidence_score": 69.7,
-        "pop": 45.7,
-        "edge_pct": 0.0,
-        "reasoning": "Realized volatility exceeds IV (negative NVRP) \u2192 edge in buying options | Strong liquidity ensures clean fills | Composite score: 70.8/100 | Win rate: 48.6%",
-        "entry_rules": {
-          "preferred_dte": "39 DTE",
-          "entry_time": "Anytime",
-          "limit_order": true,
-          "fill_target": "Mid-price or better",
-          "max_slippage": "5% of credit/debit"
-        },
-        "exit_rules": {
-          "profit_target": "N/A",
-          "stop_loss": "Close at 2x debit paid",
-          "time_exit": "Close at 18 DTE remaining",
-          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
-          "max_loss_exit": "Close immediately if max loss hit",
-          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
-          "roll_rules": "Roll out in time if tested, never roll for a loss",
-          "trailing_stop": "Consider selling at 50-100% profit"
-        },
-        "trend": "bullish",
-        "signal": "buy",
-        "brain_score": 48.0,
-        "eff_iv_rank": 40.0,
-        "iv_hv_ratio": 0.92,
-        "short_strike_otm_pct": 0.78
-      },
-      "management_plan": {
-        "target": "take profit at +50-100% of debit paid",
-        "stop": "exit if the spread breaks break-even",
-        "time": "hold to expiry or 50% of DTE",
-        "event": "exit before earnings"
-      },
-      "reason": "Call Debit Spread on CCL, placed on the paper account from the ThetaForge recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Auto-closed at the 2x-credit loss stop.",
-      "timestamp": "2026-11-16T20:59:22.533107+00:00",
-      "close_order": {
-        "status": "Filled",
-        "filled": 1.0,
-        "remaining": 0.0,
-        "average_fill_price": -0.18,
-        "limit_price": -0.17,
-        "net_credit": 0.17,
-        "cost_to_close": -0.17,
-        "realized_pnl": -47.0,
-        "reason": "close_loss",
-        "quantity": 1,
-        "multiplier": 100,
-        "sec_type": null,
-        "submitted_at": "2026-11-16T15:25:43.526338+00:00",
-        "updated_at": "2026-11-16T20:59:22.533107+00:00"
-      },
-      "review": {
-        "verdict": "loss",
-        "drivers": [
-          "exit: close loss",
-          "outcome -1.34 x credit"
-        ],
-        "lesson": "The underlying moved through the short strike; premium did not cover the move.",
-        "units": -1.343
-      }
-    },
-    {
-      "id": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
-      "source_id": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
-      "source": "ledger",
-      "ledger_ref": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
-      "order": {
-        "status": "Filled",
-        "filled": 1.0,
-        "remaining": 0.0,
-        "average_fill_price": 0.52,
-        "limit_price": 0.52,
-        "net_credit": -0.52,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 1,
-        "multiplier": 100,
-        "sec_type": "OPT",
-        "submitted_at": "2026-11-09T17:53:09.546601+00:00",
-        "updated_at": "2026-11-09T20:59:43.840009+00:00"
-      },
-      "symbol": "NCLH",
-      "asset_class": "options",
-      "instrument_type": "option",
-      "shares": null,
-      "opened": "2026-11-09",
-      "closed": null,
-      "status": "open",
-      "strategy": "call_debit_spread",
-      "bucket": "algo_trader",
-      "legs": [
-        {
-          "action": "BUY",
-          "type": "CALL",
-          "strike": 18.0,
-          "expiry": "2026-12-18",
-          "dte": 39
-        },
-        {
-          "action": "SELL",
-          "type": "CALL",
-          "strike": 19.0,
-          "expiry": "2026-12-18",
-          "dte": 39
-        }
-      ],
-      "entry_ivr": 40.0,
-      "expected_move_pct": null,
-      "dte_at_entry": 39,
-      "entry_price": 0.52,
-      "stop_price": null,
-      "target_price": null,
-      "capital_at_risk": 52.0,
-      "max_profit": 48.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "options",
-        "captured_at": "2026-11-09",
-        "regime": "neutral",
-        "vix": 20.26,
-        "iv_rank": 50.0,
-        "expected_move_pct": 0.0,
-        "composite_score": 73.7,
-        "confidence_score": 86.5,
-        "pop": 48.1,
-        "edge_pct": 0.0,
-        "reasoning": "Realized volatility exceeds IV (negative NVRP) \u2192 edge in buying options | Strong liquidity ensures clean fills | Composite score: 73.7/100 | Win rate: 50.6%",
-        "entry_rules": {
-          "preferred_dte": "39 DTE",
-          "entry_time": "Anytime",
-          "limit_order": true,
-          "fill_target": "Mid-price or better",
-          "max_slippage": "5% of credit/debit"
-        },
-        "exit_rules": {
-          "profit_target": "N/A",
-          "stop_loss": "Close at 2x debit paid",
-          "time_exit": "Close at 18 DTE remaining",
-          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
-          "max_loss_exit": "Close immediately if max loss hit",
-          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
-          "roll_rules": "Roll out in time if tested, never roll for a loss",
-          "trailing_stop": "Consider selling at 50-100% profit"
-        },
-        "trend": "bullish",
-        "signal": "buy",
-        "brain_score": 35.5,
-        "eff_iv_rank": 40.0,
-        "iv_hv_ratio": 0.86,
-        "short_strike_otm_pct": 3.43
-      },
-      "management_plan": {
-        "target": "take profit at +50-100% of debit paid",
-        "stop": "exit if the spread breaks break-even",
-        "time": "hold to expiry or 50% of DTE",
-        "event": "exit before earnings"
-      },
-      "reason": "Call Debit Spread on NCLH, placed on the paper account from the ThetaForge recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-09T18:31:50.821222+00:00"
-    },
-    {
       "id": "8e626ea3-a9c2-42e5-8337-8a3aa150cbf7",
       "source_id": "8e626ea3-a9c2-42e5-8337-8a3aa150cbf7",
       "source": "ledger",
@@ -850,8 +721,8 @@
       "instrument_type": "etf",
       "shares": 1,
       "opened": "2026-11-09",
-      "closed": null,
-      "status": "open",
+      "closed": "2026-11-19",
+      "status": "closed",
       "strategy": "etf_rotation",
       "bucket": "infinity_1k",
       "legs": [],
@@ -863,8 +734,8 @@
       "target_price": 199.53,
       "capital_at_risk": 7.96,
       "max_profit": 0.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
+      "net_pnl": -7.74,
+      "net_pnl_pct": -0.9724,
       "conditions": {
         "engine": "equity",
         "captured_at": "2026-11-09",
@@ -887,8 +758,8 @@
       "reason": "Long XLV, momentum/trend long placed on the paper account from the ThetaForge equity recommendation.",
       "research": [],
       "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-09T15:01:26.311147+00:00",
+      "exit_note": "Auto-closed at the 2x-ATR hard stop.",
+      "timestamp": "2026-11-19T16:11:23.227729+00:00",
       "live": {
         "price": 178.78,
         "kind": "stock",
@@ -1130,7 +1001,266 @@
           "at": "2026-11-19T15:30:52+00:00",
           "price": 178.78
         }
-      ]
+      ],
+      "close_order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 178.55,
+        "limit_price": 178.0,
+        "net_credit": null,
+        "cost_to_close": 178.0,
+        "realized_pnl": -7.74,
+        "reason": "close_stop",
+        "quantity": 1,
+        "multiplier": null,
+        "sec_type": null,
+        "submitted_at": "2026-11-19T15:33:57.263492+00:00",
+        "updated_at": "2026-11-19T16:11:23.227729+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close stop",
+          "outcome -0.97 R",
+          "entered into a mixed tape"
+        ],
+        "lesson": "Price went straight to the stop -- the entry was early or the tape was against it.",
+        "units": -0.972
+      }
+    },
+    {
+      "id": "7b1db1dc-c678-4af0-a85f-79e511268b50",
+      "source_id": "7b1db1dc-c678-4af0-a85f-79e511268b50",
+      "source": "ledger",
+      "ledger_ref": "7b1db1dc-c678-4af0-a85f-79e511268b50",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.61,
+        "limit_price": 0.65,
+        "net_credit": -0.65,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-11-09T18:54:30.609368+00:00",
+        "updated_at": "2026-11-16T15:25:43.526338+00:00"
+      },
+      "symbol": "CCL",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-11-09",
+      "closed": "2026-11-16",
+      "status": "closed",
+      "strategy": "call_debit_spread",
+      "bucket": "algo_trader",
+      "legs": [
+        {
+          "action": "BUY",
+          "type": "CALL",
+          "strike": 30.0,
+          "expiry": "2026-12-18",
+          "dte": 39
+        },
+        {
+          "action": "SELL",
+          "type": "CALL",
+          "strike": 31.0,
+          "expiry": "2026-12-18",
+          "dte": 39
+        }
+      ],
+      "entry_ivr": 40.0,
+      "expected_move_pct": null,
+      "dte_at_entry": 39,
+      "entry_price": 0.61,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 65.0,
+      "max_profit": 35.0,
+      "net_pnl": -47.0,
+      "net_pnl_pct": -0.7231,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-11-09",
+        "regime": "neutral",
+        "vix": 20.27,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 70.8,
+        "confidence_score": 69.7,
+        "pop": 45.7,
+        "edge_pct": 0.0,
+        "reasoning": "Realized volatility exceeds IV (negative NVRP) \u2192 edge in buying options | Strong liquidity ensures clean fills | Composite score: 70.8/100 | Win rate: 48.6%",
+        "entry_rules": {
+          "preferred_dte": "39 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 18 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "trailing_stop": "Consider selling at 50-100% profit"
+        },
+        "trend": "bullish",
+        "signal": "buy",
+        "brain_score": 48.0,
+        "eff_iv_rank": 40.0,
+        "iv_hv_ratio": 0.92,
+        "short_strike_otm_pct": 0.78
+      },
+      "management_plan": {
+        "target": "take profit at +50-100% of debit paid",
+        "stop": "exit if the spread breaks break-even",
+        "time": "hold to expiry or 50% of DTE",
+        "event": "exit before earnings"
+      },
+      "reason": "Call Debit Spread on CCL, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Auto-closed at the 2x-credit loss stop.",
+      "timestamp": "2026-11-16T20:59:22.533107+00:00",
+      "close_order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": -0.18,
+        "limit_price": -0.17,
+        "net_credit": 0.17,
+        "cost_to_close": -0.17,
+        "realized_pnl": -47.0,
+        "reason": "close_loss",
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": null,
+        "submitted_at": "2026-11-16T15:25:43.526338+00:00",
+        "updated_at": "2026-11-16T20:59:22.533107+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close loss",
+          "outcome -1.34 x credit"
+        ],
+        "lesson": "The underlying moved through the short strike; premium did not cover the move.",
+        "units": -1.343
+      }
+    },
+    {
+      "id": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
+      "source_id": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
+      "source": "ledger",
+      "ledger_ref": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.52,
+        "limit_price": 0.52,
+        "net_credit": -0.52,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-11-09T17:53:09.546601+00:00",
+        "updated_at": "2026-11-09T20:59:43.840009+00:00"
+      },
+      "symbol": "NCLH",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-11-09",
+      "closed": null,
+      "status": "open",
+      "strategy": "call_debit_spread",
+      "bucket": "algo_trader",
+      "legs": [
+        {
+          "action": "BUY",
+          "type": "CALL",
+          "strike": 18.0,
+          "expiry": "2026-12-18",
+          "dte": 39
+        },
+        {
+          "action": "SELL",
+          "type": "CALL",
+          "strike": 19.0,
+          "expiry": "2026-12-18",
+          "dte": 39
+        }
+      ],
+      "entry_ivr": 40.0,
+      "expected_move_pct": null,
+      "dte_at_entry": 39,
+      "entry_price": 0.52,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 52.0,
+      "max_profit": 48.0,
+      "net_pnl": 0.0,
+      "net_pnl_pct": 0.0,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-11-09",
+        "regime": "neutral",
+        "vix": 20.26,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 73.7,
+        "confidence_score": 86.5,
+        "pop": 48.1,
+        "edge_pct": 0.0,
+        "reasoning": "Realized volatility exceeds IV (negative NVRP) \u2192 edge in buying options | Strong liquidity ensures clean fills | Composite score: 73.7/100 | Win rate: 50.6%",
+        "entry_rules": {
+          "preferred_dte": "39 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 18 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "trailing_stop": "Consider selling at 50-100% profit"
+        },
+        "trend": "bullish",
+        "signal": "buy",
+        "brain_score": 35.5,
+        "eff_iv_rank": 40.0,
+        "iv_hv_ratio": 0.86,
+        "short_strike_otm_pct": 3.43
+      },
+      "management_plan": {
+        "target": "take profit at +50-100% of debit paid",
+        "stop": "exit if the spread breaks break-even",
+        "time": "hold to expiry or 50% of DTE",
+        "event": "exit before earnings"
+      },
+      "reason": "Call Debit Spread on NCLH, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Open \u00b7 monitoring the position.",
+      "timestamp": "2026-11-09T18:31:50.821222+00:00"
     },
     {
       "id": "86d7b85c-bb77-4b7d-ad67-1d2f2752dc2a",
