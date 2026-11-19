@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "4318f6f72442846ab8b1765a5df403da1778ebed98a92d689cf238486df13027",
+    "ledger_sha": "fe664e96b7ab0ab0173464aee34a74952235200999e0ded6f8d6684f474c1912",
     "entries_from_ledger": 80,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-19T15:31:03Z",
+    "generated_at": "2026-11-19T15:34:00Z",
     "window_days": 120,
     "closed_learnable": 39,
     "setups": [
@@ -843,7 +843,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-09T15:00:17.775933+00:00",
-        "updated_at": "2026-11-16T14:50:24.529742+00:00"
+        "updated_at": "2026-11-19T15:33:57.263492+00:00"
       },
       "symbol": "XLV",
       "asset_class": "equity",
