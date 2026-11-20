@@ -9,8 +9,8 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "03a84f7eeb4d8dca6678b61f12481a4fa54ccd1d46dd9dd69b1466717c8b94d2",
-    "entries_from_ledger": 83,
+    "ledger_sha": "79f95bf39ce4a68aa89e5b72a74ec26dea54b1f697087a6d81336cfb08a31960",
+    "entries_from_ledger": 84,
     "entries_manual": 0,
     "entries_carried": 10,
     "prior_ledger_sha": "8a8d21fa65547ead68f9dddfcbec7674da9055b9f8dcfb891d649163eb910ef8"
@@ -20,11 +20,11 @@
       "label": "Algo Trader",
       "starting_capital": null,
       "trades": 51,
-      "open": 4,
-      "closed": 47,
+      "open": 3,
+      "closed": 48,
       "wins": 22,
-      "realized_pnl": -581.78,
-      "unrealized_pnl": 40.48,
+      "realized_pnl": -619.78,
+      "unrealized_pnl": 32.65,
       "equity": null
     },
     "infinity_1k": {
@@ -36,14 +36,14 @@
       "closed": 2,
       "wins": 0,
       "realized_pnl": -16.04,
-      "unrealized_pnl": 5.13,
+      "unrealized_pnl": 5.43,
       "equity": 983.96
     }
   },
   "learning": {
-    "generated_at": "2026-11-20T16:17:02Z",
+    "generated_at": "2026-11-20T16:30:25Z",
     "window_days": 120,
-    "closed_learnable": 41,
+    "closed_learnable": 42,
     "setups": [
       {
         "when": {
@@ -221,6 +221,17 @@
         "se": 0.184,
         "win_rate": 100.0,
         "win_rate_shrunk": 71.4
+      },
+      {
+        "when": {
+          "asset": "options",
+          "strategy": "call_debit_spread"
+        },
+        "n": 3,
+        "mean_units": -2.978,
+        "se": 1.918,
+        "win_rate": 0.0,
+        "win_rate_shrunk": 28.6
       },
       {
         "when": {
@@ -696,6 +707,135 @@
       }
     },
     {
+      "id": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
+      "source_id": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
+      "source": "ledger",
+      "ledger_ref": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
+      "order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": 0.52,
+        "limit_price": 0.52,
+        "net_credit": -0.52,
+        "cost_to_close": null,
+        "realized_pnl": null,
+        "reason": null,
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": "OPT",
+        "submitted_at": "2026-11-09T17:53:09.546601+00:00",
+        "updated_at": "2026-11-20T16:16:45.856578+00:00"
+      },
+      "symbol": "NCLH",
+      "asset_class": "options",
+      "instrument_type": "option",
+      "shares": null,
+      "opened": "2026-11-09",
+      "closed": "2026-11-20",
+      "status": "closed",
+      "strategy": "call_debit_spread",
+      "bucket": "algo_trader",
+      "legs": [
+        {
+          "action": "BUY",
+          "type": "CALL",
+          "strike": 18.0,
+          "expiry": "2026-12-18",
+          "dte": 39
+        },
+        {
+          "action": "SELL",
+          "type": "CALL",
+          "strike": 19.0,
+          "expiry": "2026-12-18",
+          "dte": 39
+        }
+      ],
+      "entry_ivr": 40.0,
+      "expected_move_pct": null,
+      "dte_at_entry": 39,
+      "entry_price": 0.52,
+      "stop_price": null,
+      "target_price": null,
+      "capital_at_risk": 52.0,
+      "max_profit": 48.0,
+      "net_pnl": -38.0,
+      "net_pnl_pct": -0.7308,
+      "conditions": {
+        "engine": "options",
+        "captured_at": "2026-11-09",
+        "regime": "neutral",
+        "vix": 20.26,
+        "iv_rank": 50.0,
+        "expected_move_pct": 0.0,
+        "composite_score": 73.7,
+        "confidence_score": 86.5,
+        "pop": 48.1,
+        "edge_pct": 0.0,
+        "reasoning": "Realized volatility exceeds IV (negative NVRP) \u2192 edge in buying options | Strong liquidity ensures clean fills | Composite score: 73.7/100 | Win rate: 50.6%",
+        "entry_rules": {
+          "preferred_dte": "39 DTE",
+          "entry_time": "Anytime",
+          "limit_order": true,
+          "fill_target": "Mid-price or better",
+          "max_slippage": "5% of credit/debit"
+        },
+        "exit_rules": {
+          "profit_target": "N/A",
+          "stop_loss": "Close at 2x debit paid",
+          "time_exit": "Close at 18 DTE remaining",
+          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
+          "max_loss_exit": "Close immediately if max loss hit",
+          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
+          "roll_rules": "Roll out in time if tested, never roll for a loss",
+          "trailing_stop": "Consider selling at 50-100% profit"
+        },
+        "trend": "bullish",
+        "signal": "buy",
+        "brain_score": 35.5,
+        "eff_iv_rank": 40.0,
+        "iv_hv_ratio": 0.86,
+        "short_strike_otm_pct": 3.43
+      },
+      "management_plan": {
+        "target": "take profit at +50-100% of debit paid",
+        "stop": "exit if the spread breaks break-even",
+        "time": "hold to expiry or 50% of DTE",
+        "event": "exit before earnings"
+      },
+      "reason": "Call Debit Spread on NCLH, placed on the paper account from the ThetaForge recommendation.",
+      "research": [],
+      "tags": [],
+      "exit_note": "Auto-closed at the 2x-credit loss stop.",
+      "timestamp": "2026-11-20T16:30:18.668541+00:00",
+      "close_order": {
+        "status": "Filled",
+        "filled": 1.0,
+        "remaining": 0.0,
+        "average_fill_price": -0.14,
+        "limit_price": -0.14,
+        "net_credit": 0.14,
+        "cost_to_close": -0.14,
+        "realized_pnl": -38.0,
+        "reason": "close_loss",
+        "quantity": 1,
+        "multiplier": 100,
+        "sec_type": null,
+        "submitted_at": "2026-11-20T16:16:45.856578+00:00",
+        "updated_at": "2026-11-20T16:30:18.668541+00:00"
+      },
+      "review": {
+        "verdict": "loss",
+        "drivers": [
+          "exit: close loss",
+          "outcome -0.79 x credit"
+        ],
+        "lesson": "The underlying moved through the short strike; premium did not cover the move.",
+        "units": -0.792
+      }
+    },
+    {
       "id": "8e626ea3-a9c2-42e5-8337-8a3aa150cbf7",
       "source_id": "8e626ea3-a9c2-42e5-8337-8a3aa150cbf7",
       "source": "ledger",
@@ -1159,110 +1299,6 @@
       }
     },
     {
-      "id": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
-      "source_id": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
-      "source": "ledger",
-      "ledger_ref": "f73619e3-b0d6-4ec3-9402-64231fbc7b56",
-      "order": {
-        "status": "Filled",
-        "filled": 1.0,
-        "remaining": 0.0,
-        "average_fill_price": 0.52,
-        "limit_price": 0.52,
-        "net_credit": -0.52,
-        "cost_to_close": null,
-        "realized_pnl": null,
-        "reason": null,
-        "quantity": 1,
-        "multiplier": 100,
-        "sec_type": "OPT",
-        "submitted_at": "2026-11-09T17:53:09.546601+00:00",
-        "updated_at": "2026-11-20T16:16:45.856578+00:00"
-      },
-      "symbol": "NCLH",
-      "asset_class": "options",
-      "instrument_type": "option",
-      "shares": null,
-      "opened": "2026-11-09",
-      "closed": null,
-      "status": "open",
-      "strategy": "call_debit_spread",
-      "bucket": "algo_trader",
-      "legs": [
-        {
-          "action": "BUY",
-          "type": "CALL",
-          "strike": 18.0,
-          "expiry": "2026-12-18",
-          "dte": 39
-        },
-        {
-          "action": "SELL",
-          "type": "CALL",
-          "strike": 19.0,
-          "expiry": "2026-12-18",
-          "dte": 39
-        }
-      ],
-      "entry_ivr": 40.0,
-      "expected_move_pct": null,
-      "dte_at_entry": 39,
-      "entry_price": 0.52,
-      "stop_price": null,
-      "target_price": null,
-      "capital_at_risk": 52.0,
-      "max_profit": 48.0,
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "conditions": {
-        "engine": "options",
-        "captured_at": "2026-11-09",
-        "regime": "neutral",
-        "vix": 20.26,
-        "iv_rank": 50.0,
-        "expected_move_pct": 0.0,
-        "composite_score": 73.7,
-        "confidence_score": 86.5,
-        "pop": 48.1,
-        "edge_pct": 0.0,
-        "reasoning": "Realized volatility exceeds IV (negative NVRP) \u2192 edge in buying options | Strong liquidity ensures clean fills | Composite score: 73.7/100 | Win rate: 50.6%",
-        "entry_rules": {
-          "preferred_dte": "39 DTE",
-          "entry_time": "Anytime",
-          "limit_order": true,
-          "fill_target": "Mid-price or better",
-          "max_slippage": "5% of credit/debit"
-        },
-        "exit_rules": {
-          "profit_target": "N/A",
-          "stop_loss": "Close at 2x debit paid",
-          "time_exit": "Close at 18 DTE remaining",
-          "close_rule": "Whichever comes first: profit target, 21 DTE, or hard stop",
-          "max_loss_exit": "Close immediately if max loss hit",
-          "hold_to_expiry": "Only if <5 DTE, far OTM, and 80%+ of premium captured",
-          "roll_rules": "Roll out in time if tested, never roll for a loss",
-          "trailing_stop": "Consider selling at 50-100% profit"
-        },
-        "trend": "bullish",
-        "signal": "buy",
-        "brain_score": 35.5,
-        "eff_iv_rank": 40.0,
-        "iv_hv_ratio": 0.86,
-        "short_strike_otm_pct": 3.43
-      },
-      "management_plan": {
-        "target": "take profit at +50-100% of debit paid",
-        "stop": "exit if the spread breaks break-even",
-        "time": "hold to expiry or 50% of DTE",
-        "event": "exit before earnings"
-      },
-      "reason": "Call Debit Spread on NCLH, placed on the paper account from the ThetaForge recommendation.",
-      "research": [],
-      "tags": [],
-      "exit_note": "Open \u00b7 monitoring the position.",
-      "timestamp": "2026-11-09T18:31:50.821222+00:00"
-    },
-    {
       "id": "1bdb2c95-01b0-4b7b-9d98-b772a7687532",
       "source_id": "1bdb2c95-01b0-4b7b-9d98-b772a7687532",
       "source": "ledger",
@@ -1694,12 +1730,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-06T15:03:34.148260+00:00",
       "live": {
-        "price": 91.75,
+        "price": 91.85,
         "kind": "stock",
-        "pnl": 5.13,
-        "pnl_pct": 45.5,
-        "r": 0.455,
-        "at": "2026-11-20T15:30:25+00:00"
+        "pnl": 5.43,
+        "pnl_pct": 48.1,
+        "r": 0.481,
+        "at": "2026-11-20T16:30:24+00:00"
       },
       "price_trail": [
         {
@@ -1989,6 +2025,10 @@
         {
           "at": "2026-11-20T15:30:20+00:00",
           "price": 91.75
+        },
+        {
+          "at": "2026-11-20T16:30:19+00:00",
+          "price": 91.85
         }
       ]
     },
@@ -3954,12 +3994,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-03T14:42:52.158630+00:00",
       "live": {
-        "price": 348.86,
+        "price": 347.38,
         "kind": "stock",
-        "pnl": 56.58,
-        "pnl_pct": 329.7,
-        "r": 3.297,
-        "at": "2026-11-20T15:30:25+00:00"
+        "pnl": 52.15,
+        "pnl_pct": 303.9,
+        "r": 3.039,
+        "at": "2026-11-20T16:30:23+00:00"
       },
       "price_trail": [
         {
@@ -4333,6 +4373,10 @@
         {
           "at": "2026-11-20T15:30:20+00:00",
           "price": 348.86
+        },
+        {
+          "at": "2026-11-20T16:30:19+00:00",
+          "price": 347.385
         }
       ]
     },
@@ -5827,12 +5871,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:31:48.565507+00:00",
       "live": {
-        "price": 7.17,
+        "price": 7.0,
         "kind": "stock",
-        "pnl": -16.1,
-        "pnl_pct": -32.9,
-        "r": -0.329,
-        "at": "2026-11-20T15:30:25+00:00"
+        "pnl": -19.5,
+        "pnl_pct": -39.8,
+        "r": -0.398,
+        "at": "2026-11-20T16:30:23+00:00"
       },
       "price_trail": [
         {
@@ -6226,6 +6270,10 @@
         {
           "at": "2026-11-20T15:30:20+00:00",
           "price": 7.175
+        },
+        {
+          "at": "2026-11-20T16:30:19+00:00",
+          "price": 7.005
         }
       ]
     },
