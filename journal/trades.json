@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "015389b25bce04a6a25c45971f3dc42a58831aeacf864282154c4665980e76c6",
+    "ledger_sha": "03a84f7eeb4d8dca6678b61f12481a4fa54ccd1d46dd9dd69b1466717c8b94d2",
     "entries_from_ledger": 83,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-20T15:30:28Z",
+    "generated_at": "2026-11-20T16:17:02Z",
     "window_days": 120,
     "closed_learnable": 41,
     "setups": [
@@ -1177,7 +1177,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-09T17:53:09.546601+00:00",
-        "updated_at": "2026-11-09T20:59:43.840009+00:00"
+        "updated_at": "2026-11-20T16:16:45.856578+00:00"
       },
       "symbol": "NCLH",
       "asset_class": "options",
