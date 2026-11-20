@@ -24,7 +24,7 @@
       "closed": 47,
       "wins": 22,
       "realized_pnl": -581.78,
-      "unrealized_pnl": 44.23,
+      "unrealized_pnl": 50.14,
       "equity": null
     },
     "infinity_1k": {
@@ -36,12 +36,12 @@
       "closed": 2,
       "wins": 0,
       "realized_pnl": -16.04,
-      "unrealized_pnl": -0.54,
+      "unrealized_pnl": 2.62,
       "equity": 983.96
     }
   },
   "learning": {
-    "generated_at": "2026-11-20T13:32:16Z",
+    "generated_at": "2026-11-20T14:30:24Z",
     "window_days": 120,
     "closed_learnable": 41,
     "setups": [
@@ -1694,12 +1694,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-06T15:03:34.148260+00:00",
       "live": {
-        "price": 89.86,
+        "price": 90.92,
         "kind": "stock",
-        "pnl": -0.54,
-        "pnl_pct": -4.8,
-        "r": -0.048,
-        "at": "2026-11-20T13:32:13+00:00"
+        "pnl": 2.62,
+        "pnl_pct": 23.3,
+        "r": 0.233,
+        "at": "2026-11-20T14:30:22+00:00"
       },
       "price_trail": [
         {
@@ -1981,6 +1981,10 @@
         {
           "at": "2026-11-20T13:32:10+00:00",
           "price": 89.86
+        },
+        {
+          "at": "2026-11-20T14:30:19+00:00",
+          "price": 90.915
         }
       ]
     },
@@ -3946,12 +3950,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-03T14:42:52.158630+00:00",
       "live": {
-        "price": 349.21,
+        "price": 352.58,
         "kind": "stock",
-        "pnl": 57.63,
-        "pnl_pct": 335.8,
-        "r": 3.358,
-        "at": "2026-11-20T13:32:13+00:00"
+        "pnl": 67.74,
+        "pnl_pct": 394.8,
+        "r": 3.948,
+        "at": "2026-11-20T14:30:21+00:00"
       },
       "price_trail": [
         {
@@ -4317,6 +4321,10 @@
         {
           "at": "2026-11-20T13:32:10+00:00",
           "price": 349.21
+        },
+        {
+          "at": "2026-11-20T14:30:19+00:00",
+          "price": 352.58
         }
       ]
     },
@@ -5811,12 +5819,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:31:48.565507+00:00",
       "live": {
-        "price": 7.31,
+        "price": 7.1,
         "kind": "stock",
-        "pnl": -13.4,
-        "pnl_pct": -27.3,
-        "r": -0.273,
-        "at": "2026-11-20T13:32:12+00:00"
+        "pnl": -17.6,
+        "pnl_pct": -35.9,
+        "r": -0.359,
+        "at": "2026-11-20T14:30:21+00:00"
       },
       "price_trail": [
         {
@@ -6202,6 +6210,10 @@
         {
           "at": "2026-11-20T13:32:10+00:00",
           "price": 7.31
+        },
+        {
+          "at": "2026-11-20T14:30:19+00:00",
+          "price": 7.1
         }
       ]
     },
