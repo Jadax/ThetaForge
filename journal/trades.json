@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "a016f08890a6cbdfc06ea530913b4db92700e4c44ad19eded819260cacea3b00",
+    "ledger_sha": "45c9a867fcf86a82e309601fa916a3fcb3da18855bea50cd07d49e5377523dec",
     "entries_from_ledger": 84,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -41,7 +41,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-20T18:30:27Z",
+    "generated_at": "2026-11-20T18:47:52Z",
     "window_days": 120,
     "closed_learnable": 42,
     "setups": [
@@ -808,7 +808,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 2x-credit loss stop.",
-      "timestamp": "2026-11-20T18:29:18.896819+00:00",
+      "timestamp": "2026-11-20T18:47:43.231655+00:00",
       "close_order": {
         "status": "Filled",
         "filled": 1.0,
@@ -823,7 +823,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-20T16:16:45.856578+00:00",
-        "updated_at": "2026-11-20T18:29:18.896819+00:00"
+        "updated_at": "2026-11-20T18:47:43.231655+00:00"
       },
       "review": {
         "verdict": "loss",
@@ -3955,7 +3955,7 @@
         "multiplier": null,
         "sec_type": null,
         "submitted_at": "2026-11-03T14:42:39.257140+00:00",
-        "updated_at": "2026-11-13T14:34:43.279235+00:00"
+        "updated_at": "2026-11-20T18:47:47.561980+00:00"
       },
       "symbol": "AAPL",
       "asset_class": "equity",
