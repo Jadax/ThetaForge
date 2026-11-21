@@ -312,11 +312,12 @@
 
   /* Line chart over evenly spaced points (exit by exit). Colors come from CSS
      classes so the same SVG reads correctly in light and dark mode.
-     pts: [{ y, tip, date }], opts: { base, tail: {y, tip}, label, fmt } */
+     pts: [{ y, tip, date }], opts: { base, tail: {y, tip}, label, fmt, bench: [y per point (+ tail)] } */
   function lineChart(pts, opts) {
     const id = "c" + ++chartSeq;
     const W = 1000, H = 200, T = 16, B = 26;
-    const all = pts.map((p) => p.y).concat(opts.base != null ? [opts.base] : []).concat(opts.tail ? [opts.tail.y] : []);
+    const bench = (opts.bench || []).filter(isNum);
+    const all = pts.map((p) => p.y).concat(opts.base != null ? [opts.base] : []).concat(opts.tail ? [opts.tail.y] : []).concat(bench);
     let lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
     if (hi - lo < 1e-6) { hi += 1; lo -= 1; }
     const padV = (hi - lo) * 0.08;
@@ -342,6 +343,9 @@
     if (coords.length > 1 && baseY != null) {
       svg += "<path class='area " + tone(last.y - (opts.base || 0)) + "' d='M" + f(coords[0][0]) + "," + f(baseY) + " L" +
         line.replace(/ /g, " L") + " L" + f(coords[coords.length - 1][0]) + "," + f(baseY) + "Z'/>";
+    }
+    if (bench.length > 1 && bench.length === (opts.bench || []).length) {
+      svg += "<polyline class='bench' points='" + bench.map((v, i) => f(x(i)) + "," + f(y(v))).join(" ") + "'/>";
     }
     if (coords.length > 1) svg += "<polyline class='line' points='" + line + "'/>";
     const lc = coords[coords.length - 1];
@@ -413,6 +417,40 @@
     return { pts, tail, m };
   }
 
+  /* SPY over the same window (journal `benchmark`): what the same starting
+     money did simply held in the market. */
+  function benchmarkAt(date) {
+    const b = DATA && DATA.benchmark;
+    if (!b || !b.series || !b.series.length) return null;
+    if (!date || date === "now") return b.series[b.series.length - 1][1];
+    let close = null;
+    for (const p of b.series) { if (p[0] <= date) close = p[1]; else break; }
+    return close == null ? b.series[0][1] : close;
+  }
+
+  // Each book is judged from its OWN first trade (the $1000 bucket started
+  // weeks after the Algo Trader), so SPY is rebased to that date.
+  function benchmarkSince(trades) {
+    const b = DATA && DATA.benchmark;
+    const first = trades.reduce((min, t) => (t._opened && (!min || t._opened < min) ? t._opened : min), "");
+    return first && b && first > b.since ? first : b ? b.since : null;
+  }
+
+  function benchmarkReturn(since) {
+    const base = benchmarkAt(since), last = benchmarkAt("now");
+    return base && last ? (last / base - 1) * 100 : null;
+  }
+
+  function benchmarkLine(s, start, since) {
+    const b = DATA && DATA.benchmark;
+    const base = b ? benchmarkAt(since) : null;
+    if (!base) return null;
+    const scale = (close) => (close == null ? null : start * close / base);
+    const pts = s.pts.map((p, i) => scale(benchmarkAt(i === 0 ? since : p.date)));
+    if (s.tail) pts.push(scale(benchmarkAt("now")));
+    return pts;
+  }
+
   function kpi(label, value, sub, cls, extra) {
     return "<div class='kpi" + (extra ? " " + extra : "") + "'><small>" + esc(label) + "</small><b class='" + (cls || "") + "'>" + value + "</b>" +
       (sub ? "<span>" + sub + "</span>" : "") + "</div>";
@@ -430,6 +468,7 @@
       el.innerHTML = head + emptyBucket(b);
       return;
     }
+
     const s = accountSeries(trades, b.start);
     const m = s.m;
     const value = b.start + m.net + m.unrealized;
@@ -447,6 +486,21 @@
         m.avgR != null ? "avg " + esc(rText(m.avgR)) + " per closed trade" : "per closed trade", m.expectancy != null ? tone(m.expectancy) : "") +
       kpi("MAX DRAWDOWN", m.maxDrawdown != null ? esc(m.maxDrawdown > 0 ? "-" + plain(m.maxDrawdown) : "$0") : "n/a",
         "peak-to-trough, realized", m.maxDrawdown ? "loss" : "");
+    const bench = DATA && DATA.benchmark;
+    const bookPct = b.start ? ((value - b.start) / b.start) * 100 : 0;
+    // Judge the book on the capital it actually trades when that is smaller
+    // than its headline equity (the Algo Trader's $25k is mostly idle cash).
+    const cfg = (DATA && DATA.buckets && DATA.buckets[S.bucket]) || {};
+    const traded = isNum(cfg.deployable_capital) && Number(cfg.deployable_capital) < b.start ? Number(cfg.deployable_capital) : null;
+    const tradedPct = traded ? ((m.net + m.unrealized) / traded) * 100 : null;
+    const since = bench ? benchmarkSince(trades) : null;
+    const spyPct = since ? benchmarkReturn(since) : null;
+    const benchTile = spyPct != null
+      ? kpi("SPY, SAME PERIOD", esc(pctText(spyPct, 1)),
+          "holding the market since " + esc(shortDate(since)) + " · this book " + esc(pctText(bookPct, 1)) +
+          (tradedPct != null ? ", or " + esc(pctText(tradedPct, 1)) + " on the " + esc(money(traded, false)) + " it trades" : "") +
+          " (" + esc(pctText((tradedPct != null ? tradedPct : bookPct) - spyPct, 1)) + " vs SPY)", tone(spyPct))
+      : "";
 
     let chart;
     if (s.pts.length < 2 && !s.tail) {
@@ -456,13 +510,15 @@
       chart = lineChart(s.pts, {
         base: b.start,
         tail: s.tail,
+        bench: since ? benchmarkLine(s, b.start, since) : null,
         label: "Account value from " + money(b.start, false) + ", " + plural(m.closed.length, "closed trade") + ", now " + money(value, false),
       });
     }
     el.innerHTML = head +
-      "<div class='book-grid'><div class='kpis'>" + tiles + "</div>" +
+      "<div class='book-grid'><div class='kpis'>" + tiles + benchTile + "</div>" +
       "<figure class='curve card'><figcaption><b>Account value, exit by exit</b><span>Each step is a closed trade; the dashed line is the " +
-      esc(money(b.start, false)) + " start" + (s.tail ? ", and the dotted tail adds today's open marks" : "") + ".</span></figcaption>" +
+      esc(money(b.start, false)) + " start" + (s.tail ? ", and the dotted tail adds today's open marks" : "") +
+      (bench ? "; the grey line is the same " + esc(money(b.start, false)) + " held in SPY" : "") + ".</span></figcaption>" +
       chart + "</figure></div>";
   }
 

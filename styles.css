@@ -283,6 +283,7 @@ figcaption span { display: block; color: var(--muted); font-size: 12.5px; }
 .chart .axis.y { left: 100%; margin-left: 8px; transform: translateY(-50%); }
 .chart .axis.x { bottom: 0; }
 .chart .axis.x.last { right: 0; }
+.chart .bench { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 7 5; opacity: 0.85; vector-effect: non-scaling-stroke; }
 .chart .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .chart .area.gain, .chart .area.flat { fill: var(--gain); opacity: 0.1; }
 .chart .area.loss { fill: var(--loss); opacity: 0.12; }
