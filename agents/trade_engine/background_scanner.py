@@ -30,6 +30,7 @@ from agents.data_ingestion.free_data import FreeDataProvider
 from agents.trade_engine.futures_options import FUTURES_OPTION_ROOTS, futures_strategy_for
 from agents.trade_engine.high_winrate import is_premium_selling
 from agents.trade_engine.macro_calendar import macro_days_until
+from agents.trade_engine.market_regime import get_market_trend, trend_state
 
 logger = logging.getLogger(__name__)
 
@@ -526,7 +527,7 @@ def _enrich_and_analyze(
     expected_move_pct, iv_percentile, iv_skew,
     short_interest, vol_risk_premium,
     relative_strength, symbol,
-    hist_frame=None, past_earnings_dates=None,
+    hist_frame=None, past_earnings_dates=None, market_trend=None,
 ):
     """CPU-bound enrichment + Brain analysis, run in a thread via to_thread.
 
@@ -661,6 +662,7 @@ def _enrich_and_analyze(
         earnings_move=earnings_move_val,
         vol_risk_premium=vrp,
         relative_strength=relative_strength,
+        market_trend=market_trend,
     )
     if flow_data:
         analyze_kwargs["flow_data"] = flow_data
@@ -1094,6 +1096,7 @@ class BackgroundBrainScanner:
                     relative_strength, symbol,
                     hist_frame=hist,
                     past_earnings_dates=past_earnings_dates,
+                    market_trend=trend_state(await get_market_trend(self._provider)),
                 )
             )
             return {

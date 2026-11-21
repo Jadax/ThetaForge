@@ -30,6 +30,7 @@ from agents.trade_engine.high_winrate import (
     strategy_bias as hw_strategy_bias,
 )
 from agents.trade_engine import macro_calendar
+from agents.trade_engine.market_regime import blocks as hw_market_blocks
 
 
 class TimeHorizon(str, Enum):
@@ -349,6 +350,7 @@ class AIBrain:
         vol_risk_premium: Dict = None,
         relative_strength: float = None,
         record_feedback: bool = False,
+        market_trend: Optional[str] = None,
     ) -> BrainOutput:
         """
         MAIN ENTRY POINT: Analyze a symbol and produce comprehensive recommendation.
@@ -779,6 +781,15 @@ class AIBrain:
             trend=trend, relative_strength=relative_strength,
             days_to_macro=days_to_macro,
         )
+        # Market direction: SPY below its 50-day refuses bullish structures
+        # (CSPs, put credit spreads, call debits); bear calls and condors stay.
+        if hw_market_blocks(best_strategy.get("strategy"), market_trend):
+            best_strategy = {
+                "strategy": "no_trade",
+                "reason_code": "market_downtrend",
+                "reasoning": (f"{best_strategy.get('strategy')} is bullish and SPY is below its "
+                              "50-day average -> stand aside until the market recovers"),
+            }
         skew_note = self._skew_reasoning(iv_signal)
         if skew_note:
             best_strategy = dict(best_strategy)

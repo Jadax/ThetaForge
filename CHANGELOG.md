@@ -1,5 +1,32 @@
 # ThetaForge Changelog
 
+## v1.17.38 - 2026-11-21
+
+**Trade with the market: SPY below its 50-day average means no new longs and
+no bullish option structures. Debit spreads are off, and the journal now
+measures every book against simply holding SPY.**
+
+Why: Oct 26 - Nov 20 SPY fell 9.9% (QQQ -14.6%). The engine is built long and
+kept buying momentum stocks and selling puts into the fall: 17 stock longs
+stopped out for -$866, two-thirds of all losses. Profit factor 0.48; -12% on
+the $5k it trades vs SPY -9.6%. The per-symbol trend gates passed those
+entries; a market-direction rule (trend followers, O'Neil's "M") would not.
+
+- `agents/trade_engine/market_regime.py`: SPY close vs its 50-day SMA, one
+  cached read shared by both scanners and the Advisor (fails open; never
+  fabricates a downtrend).
+- Downtrend: the equity Brain refuses new longs (`market_downtrend`); the
+  options Brain and the Recommender (the executor's order path) refuse
+  CSPs, put credit spreads and call debits. Bear calls, condors and covered
+  calls stay. `/recommend`'s rejection tally names the reason.
+- `BUY_DEBIT_SPREADS = False`: bought spreads paid the volatility premium
+  instead of collecting it (1 win in 4, -$112).
+- Journal: `benchmark` (SPY daily closes since the first trade, refreshed with
+  the hourly price marks) drawn as a dashed line on each book's account curve
+  and a "SPY, same period" tile, rebased to each book's own first trade. The
+  Algo Trader is also judged on the $5,000 it actually trades
+  (`deployable_capital`), not just its mostly-idle $25k headline.
+
 ## v1.17.37 - 2026-11-17
 
 **The options engine had gone silent, and could not say why.** Since Nov 13

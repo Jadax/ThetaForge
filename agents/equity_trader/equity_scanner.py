@@ -24,6 +24,7 @@ from agents.equity_trader.equity_brain import EquityBrain, BUY_SCORE_FLOOR
 from agents.equity_trader.equity_universe import build_equity_universe
 from agents.trade_engine.background_scanner import is_market_hours
 from agents.trade_engine.macro_calendar import macro_days_until
+from agents.trade_engine.market_regime import get_market_trend, trend_state
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +175,9 @@ class EquityBackgroundScanner:
         # docstring already claiming per-pass sharing.
         risk_tilt = getattr(self, "_scan_risk_tilt", None)
         benchmark_return_6m = await self._spy_6m_return()
+        # Same once-per-pass sharing; outside a pass (the Advisor's
+        # /equity/recommend re-analysis) the module cache serves it.
+        market = getattr(self, "_scan_market_trend", None) or await get_market_trend(self._provider)
 
         days_to_earnings = None
         try:
@@ -200,6 +204,7 @@ class EquityBackgroundScanner:
                 days_to_earnings=days_to_earnings,
                 days_to_macro=days_to_macro,
                 is_etf=symbol.upper() in ETF_SET,
+                market_trend=trend_state(market),
             )
         except Exception:
             logger.exception("EquityBrain analysis failed for %s", symbol)
@@ -263,6 +268,7 @@ class EquityBackgroundScanner:
         # Market-wide breadth read, once per pass and shared by every symbol's
         # analysis (MarketOverview pulls ~18 full-year histories per call).
         self._scan_risk_tilt = await self._market_risk_tilt()
+        self._scan_market_trend = await get_market_trend(self._provider)
 
         semaphore = asyncio.Semaphore(SCAN_CONCURRENCY)
 

@@ -787,3 +787,21 @@ def test_journal_carries_buckets_reviews_and_learning(tmp_path):
     assert infinity["label"] == "$1000 to Infinity"
     assert infinity["realized_pnl"] == -120.0 and infinity["equity"] == 880.0
     assert data["learning"]["closed_learnable"] >= 0 and "adjustments" in data["learning"]
+
+
+def test_benchmark_tracks_spy_since_the_first_trade():
+    bench = sync_journal._benchmark_from_closes(
+        ["2026-10-23", "2026-10-26", "2026-11-20"], [770.0, 765.37, 689.81], since="2026-10-26")
+    assert bench["since"] == "2026-10-26" and bench["start"] == 765.37
+    assert bench["return_pct"] == -9.87 and len(bench["series"]) == 2
+
+
+def test_plain_rebuild_keeps_the_last_benchmark(tmp_path):
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps([_record("rec-1")]), encoding="utf-8")
+    journal_path = _journal(tmp_path, [])
+    data = json.loads(journal_path.read_text(encoding="utf-8"))
+    data["benchmark"] = {"symbol": "SPY", "return_pct": -9.87}
+    journal_path.write_text(json.dumps(data), encoding="utf-8")
+    sync_journal.main(["--journal", str(journal_path), "--ledger", str(ledger_path)])
+    assert json.loads(journal_path.read_text(encoding="utf-8"))["benchmark"]["return_pct"] == -9.87

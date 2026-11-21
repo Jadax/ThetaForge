@@ -61,6 +61,11 @@ MAX_PORTFOLIO_VEGA = 50.0
 # AAL $1,176) held two-thirds of a $5k book; concentration, not the delta, is
 # what turns one bad name into a bad month. Strikes <= $15 on $5k.
 MAX_CASH_SECURED_ALLOCATION_PCT = 0.30
+# Bought (debit) spreads pay the volatility risk premium instead of
+# collecting it: 1 win in 4 for -$112 (Oct-Nov 2026), and the research this
+# engine follows finds premium BUYING negative-edge on average. Off until a
+# directional signal proves it can pay for the premium it buys.
+BUY_DEBIT_SPREADS = False
 CASH_SECURED_TYPES = ("csp", "cc")
 # Premium-quality floors for a CSP: the cash backing is locked for the whole
 # trade, so a far-OTM put paying pennies (e.g. $0.03 against $1,500 of cash)
@@ -334,6 +339,7 @@ class TradeRecommender:
         allowed_types: Optional[set] = None,
         learned_adjustments: Optional[List[Dict[str, Any]]] = None,
         risk_per_trade_pct: Optional[float] = None,
+        market_trend: Optional[str] = None,
     ) -> AdvisoryOutput:
         """
         MAIN ENTRY POINT: Capital In → Trade Recommendations Out.
@@ -355,7 +361,7 @@ class TradeRecommender:
             output = self._generate_recommendations(
                 account, market_data, option_chains, technical_data, flow_data,
                 volatility_data, diversify_underlyings, mode, allowed_types,
-                learned_adjustments, risk_per_trade_pct,
+                learned_adjustments, risk_per_trade_pct, market_trend,
             )
         finally:
             _REJECTIONS.reset(token)
@@ -365,7 +371,7 @@ class TradeRecommender:
     def _generate_recommendations(
         self, account, market_data, option_chains, technical_data, flow_data,
         volatility_data, diversify_underlyings, mode, allowed_types,
-        learned_adjustments, risk_per_trade_pct,
+        learned_adjustments, risk_per_trade_pct, market_trend=None,
     ) -> AdvisoryOutput:
         tally = _REJECTIONS.get() or _new_tally()
         flow_data = flow_data or {}
@@ -458,6 +464,21 @@ class TradeRecommender:
             if self._passes_empirical_gate(candidate)
         ]
         tally["funnel"]["passed_empirical"] = len(all_candidates)
+
+        # Step 4d2: Market direction (agents/trade_engine/market_regime.py).
+        # The executor orders from this path, not the Brain's pick, so a
+        # notification for a bear call could otherwise return a CSP here.
+        if market_trend:
+            from agents.learning.trade_review import canonical_strategy
+            from agents.trade_engine.market_regime import blocks as market_blocks
+            kept = []
+            for candidate in all_candidates:
+                if market_blocks(canonical_strategy(candidate.get("type")), market_trend)                         or market_blocks(candidate.get("type"), market_trend):
+                    _reject(candidate.get("type"), "SPY below its 50-day (market downtrend)")
+                    continue
+                kept.append(candidate)
+            all_candidates = kept
+            tally["funnel"]["passed_market"] = len(all_candidates)
 
         # Step 4e: Learned setup adjustments (agents/learning/trade_review.py):
         # setups that reliably lost on the journal are vetoed, weak ones lose a
@@ -673,6 +694,9 @@ class TradeRecommender:
                 )
                 if cand:
                     candidates.append(cand)
+
+            if not BUY_DEBIT_SPREADS:
+                continue
 
             # Strategy 6: Call Debit Spreads
             for i, call in enumerate(calls):

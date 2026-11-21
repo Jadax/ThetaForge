@@ -93,6 +93,7 @@ class EquityBrain:
         days_to_earnings: Optional[int] = None,
         days_to_macro: Optional[int] = None,
         is_etf: bool = False,
+        market_trend: Optional[str] = None,
     ) -> EquityRead:
         highs = highs or closes
         lows = lows or closes
@@ -129,6 +130,17 @@ class EquityBrain:
         above_200d = bool(sma_200 and price > sma_200)
 
         # ── hard gates (fail-closed; missing data disables, never passes) ──
+        # Market direction (agents/trade_engine/market_regime.py): SPY below
+        # its 50-day = no new longs. The per-symbol trend gates below passed
+        # 17 longs that the Oct-Nov 2026 correction then stopped out.
+        if market_trend == "downtrend":
+            return self._reject(symbol, "market_downtrend",
+                                "SPY is below its 50-day average; no new equity longs until it recovers.",
+                                read=self._read(symbol, price, rsi_14, adx, sma_50, sma_200,
+                                                above_50d, above_200d, mom_1m, mom_3m, mom_6m,
+                                                relative, vol_ratio, off_52w, atr_value, atr_pct,
+                                                breakout, market_risk_tilt, days_to_earnings,
+                                                days_to_macro))
         if market_risk_tilt == "risk_off":
             return self._reject(symbol, "market_risk_off",
                                 "Broad tape is risk-off; no new equity longs.",

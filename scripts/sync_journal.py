@@ -96,7 +96,10 @@ ETF_TICKERS = {
 
 DEFAULT_BUCKET = "algo_trader"
 BUCKETS = {
-    "algo_trader": {"label": "Algo Trader", "starting_capital": None},
+    # The executor's CAPITAL_LIMIT: the most the Algo Trader puts at risk. The
+    # page's $25k starting figure is mostly idle cash, so benchmark comparisons
+    # also show the return on this capital, the honest denominator.
+    "algo_trader": {"label": "Algo Trader", "starting_capital": None, "deployable_capital": 5000.0},
     "infinity_1k": {"label": "$1000 to Infinity", "starting_capital": 1000.0, "started": "2026-11-05"},
 }
 
@@ -530,6 +533,45 @@ def _refresh_live_marks(entries: list) -> tuple[int, int]:
     return asyncio.run(_refresh_entries(entries))
 
 
+BENCHMARK_SYMBOL = "SPY"
+
+
+def _benchmark_from_closes(dates: list, closes: list, since: str) -> Optional[dict]:
+    """SPY's path since the first journal trade: the do-nothing alternative
+    every result is judged against. Series is [date, close] daily points."""
+    points = [(str(d)[:10], round(float(c), 2)) for d, c in zip(dates, closes)
+              if c and str(d)[:10] >= since]
+    if len(points) < 2:
+        return None
+    start, last = points[0][1], points[-1][1]
+    return {
+        "symbol": BENCHMARK_SYMBOL,
+        "since": points[0][0],
+        "start": start,
+        "last": last,
+        "as_of": points[-1][0],
+        "return_pct": round((last / start - 1) * 100, 2),
+        "series": [list(p) for p in points],
+    }
+
+
+def _refresh_benchmark(since: str) -> Optional[dict]:
+    """Fetch SPY daily closes (same provider as the live marks); None on failure."""
+    import asyncio
+
+    async def fetch():
+        hist = await provider_factory().get_historical_prices(BENCHMARK_SYMBOL, period="1y")
+        if hist is None or not hasattr(hist, "Close"):
+            return None
+        return _benchmark_from_closes(list(hist.index), hist["Close"].tolist(), since)
+
+    try:
+        return asyncio.run(fetch())
+    except Exception as error:
+        print(f"  benchmark refresh failed (kept previous): {error}")
+        return None
+
+
 def _standalone_close_entry(close: dict) -> dict:
     """Emit a close record as its own entry when its parent is absent."""
     symbol = str(close.get("symbol", "")).upper()
@@ -630,6 +672,10 @@ def sync(args: argparse.Namespace) -> int:
     for entry in entries:
         entry.setdefault("bucket", DEFAULT_BUCKET)
     learning = _learning_layer(entries)
+    benchmark = current.get("benchmark") if isinstance(current, dict) else None
+    if args.refresh_prices and entries:
+        since = min(str(e.get("opened") or "9999") for e in entries)
+        benchmark = _refresh_benchmark(since) or benchmark
 
     new_sha = _ledger_sha(consumed)
     carried_entries = [trade for trade in entries if trade.get("carried")]
@@ -661,6 +707,8 @@ def sync(args: argparse.Namespace) -> int:
         "verification": verification,
         "buckets": _bucket_summary(entries),
         "learning": learning,
+        # SPY over the same window: what simply holding the market did.
+        "benchmark": benchmark,
         "trades": entries,
     }
     args.journal.write_text(json.dumps(journal, indent=2) + "\n", encoding="utf-8")
