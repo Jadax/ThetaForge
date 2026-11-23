@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "faa2a560be997daa111ab727177a6bb341341f3f897d8c41d3406020288858f0",
+    "ledger_sha": "c8247f99cbf0bbf7c0b5d4416713a3c9232f5de874f7d56515893c0c06d9ecfd",
     "entries_from_ledger": 85,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -42,7 +42,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-23T14:32:02Z",
+    "generated_at": "2026-11-23T14:52:25Z",
     "window_days": 120,
     "closed_learnable": 43,
     "setups": [
@@ -520,7 +520,7 @@
         "multiplier": 100,
         "sec_type": "OPT",
         "submitted_at": "2026-11-19T15:55:03.409984+00:00",
-        "updated_at": "2026-11-19T21:00:26.495696+00:00"
+        "updated_at": "2026-11-23T14:52:12.620072+00:00"
       },
       "symbol": "NU",
       "asset_class": "options",
