@@ -9,7 +9,7 @@
   "verification": {
     "generator": "scripts/sync_journal.py",
     "ledger_source": "/opt/thetaforge-bridge/data/paper_order_ledger.json",
-    "ledger_sha": "e24671c94f4a633cd80fca8979439ac3599983cca3f1f6f5a1184b9884170f61",
+    "ledger_sha": "23192243a3426755d3cec9cd62eb00c0bd914e25392c4fb5eb3a3a45d60048d3",
     "entries_from_ledger": 86,
     "entries_manual": 0,
     "entries_carried": 10,
@@ -37,12 +37,12 @@
       "closed": 2,
       "wins": 0,
       "realized_pnl": -16.04,
-      "unrealized_pnl": 0.63,
+      "unrealized_pnl": 1.65,
       "equity": 983.96
     }
   },
   "learning": {
-    "generated_at": "2026-11-23T17:30:54Z",
+    "generated_at": "2026-11-23T18:31:54Z",
     "window_days": 120,
     "closed_learnable": 44,
     "setups": [
@@ -386,9 +386,9 @@
     "symbol": "SPY",
     "since": "2026-10-16",
     "start": 763.25,
-    "last": 723.33,
+    "last": 724.13,
     "as_of": "2026-11-23",
-    "return_pct": -5.23,
+    "return_pct": -5.13,
     "series": [
       [
         "2026-10-16",
@@ -496,7 +496,7 @@
       ],
       [
         "2026-11-23",
-        723.33
+        724.13
       ]
     ]
   },
@@ -603,7 +603,7 @@
       "research": [],
       "tags": [],
       "exit_note": "Auto-closed at the 50% of max-credit take-profit target.",
-      "timestamp": "2026-11-23T17:30:15.783768+00:00",
+      "timestamp": "2026-11-23T18:31:37.620545+00:00",
       "close_order": {
         "status": "Filled",
         "filled": 1.0,
@@ -618,7 +618,7 @@
         "multiplier": 100,
         "sec_type": null,
         "submitted_at": "2026-11-23T14:52:12.620072+00:00",
-        "updated_at": "2026-11-23T17:30:15.783768+00:00"
+        "updated_at": "2026-11-23T18:31:37.620545+00:00"
       },
       "review": {
         "verdict": "scratch",
@@ -1874,12 +1874,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-06T15:03:34.148260+00:00",
       "live": {
-        "price": 90.25,
+        "price": 90.59,
         "kind": "stock",
-        "pnl": 0.63,
-        "pnl_pct": 5.6,
-        "r": 0.056,
-        "at": "2026-11-23T17:30:54+00:00"
+        "pnl": 1.65,
+        "pnl_pct": 14.6,
+        "r": 0.146,
+        "at": "2026-11-23T18:31:54+00:00"
       },
       "price_trail": [
         {
@@ -2209,6 +2209,10 @@
         {
           "at": "2026-11-23T17:30:50+00:00",
           "price": 90.25
+        },
+        {
+          "at": "2026-11-23T18:31:50+00:00",
+          "price": 90.5899
         }
       ]
     },
@@ -6089,7 +6093,7 @@
         "pnl": -27.9,
         "pnl_pct": -56.9,
         "r": -0.569,
-        "at": "2026-11-23T17:30:54+00:00"
+        "at": "2026-11-23T18:31:54+00:00"
       },
       "price_trail": [
         {
@@ -6522,6 +6526,10 @@
         },
         {
           "at": "2026-11-23T17:30:50+00:00",
+          "price": 6.585
+        },
+        {
+          "at": "2026-11-23T18:31:50+00:00",
           "price": 6.585
         }
       ]
