@@ -4,7 +4,7 @@
     "handle": "@thetaforge",
     "tagline": "Defined-risk option seller. Recommendations placed, receipts always."
   },
-  "as_of": "2026-11-21",
+  "as_of": "2026-11-23",
   "account_equity": 25000,
   "verification": {
     "generator": "scripts/sync_journal.py",
@@ -42,7 +42,7 @@
     }
   },
   "learning": {
-    "generated_at": "2026-11-21T21:22:35Z",
+    "generated_at": "2026-11-23T13:32:07Z",
     "window_days": 120,
     "closed_learnable": 43,
     "setups": [
@@ -1850,7 +1850,7 @@
         "pnl": 1.26,
         "pnl_pct": 11.2,
         "r": 0.112,
-        "at": "2026-11-21T21:22:34+00:00"
+        "at": "2026-11-23T13:32:06+00:00"
       },
       "price_trail": [
         {
@@ -2159,6 +2159,10 @@
         },
         {
           "at": "2026-11-21T21:22:31+00:00",
+          "price": 90.46
+        },
+        {
+          "at": "2026-11-23T13:32:03+00:00",
           "price": 90.46
         }
       ]
@@ -6040,7 +6044,7 @@
         "pnl": -21.6,
         "pnl_pct": -44.1,
         "r": -0.441,
-        "at": "2026-11-21T21:22:33+00:00"
+        "at": "2026-11-23T13:32:06+00:00"
       },
       "price_trail": [
         {
@@ -6453,6 +6457,10 @@
         },
         {
           "at": "2026-11-21T21:22:31+00:00",
+          "price": 6.9
+        },
+        {
+          "at": "2026-11-23T13:32:03+00:00",
           "price": 6.9
         }
       ]
