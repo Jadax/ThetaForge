@@ -25,7 +25,7 @@
       "closed": 50,
       "wins": 23,
       "realized_pnl": -576.11,
-      "unrealized_pnl": -13.0,
+      "unrealized_pnl": -20.2,
       "equity": null
     },
     "infinity_1k": {
@@ -37,12 +37,12 @@
       "closed": 2,
       "wins": 0,
       "realized_pnl": -16.04,
-      "unrealized_pnl": 5.52,
+      "unrealized_pnl": 6.78,
       "equity": 983.96
     }
   },
   "learning": {
-    "generated_at": "2026-11-25T13:30:53Z",
+    "generated_at": "2026-11-25T14:31:33Z",
     "window_days": 120,
     "closed_learnable": 44,
     "setups": [
@@ -386,9 +386,9 @@
     "symbol": "SPY",
     "since": "2026-10-16",
     "start": 763.25,
-    "last": 718.78,
-    "as_of": "2026-11-24",
-    "return_pct": -5.83,
+    "last": 700.77,
+    "as_of": "2026-11-25",
+    "return_pct": -8.19,
     "series": [
       [
         "2026-10-16",
@@ -501,6 +501,10 @@
       [
         "2026-11-24",
         718.78
+      ],
+      [
+        "2026-11-25",
+        700.77
       ]
     ]
   },
@@ -1878,12 +1882,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-06T15:03:34.148260+00:00",
       "live": {
-        "price": 91.88,
+        "price": 92.3,
         "kind": "stock",
-        "pnl": 5.52,
-        "pnl_pct": 48.9,
-        "r": 0.489,
-        "at": "2026-11-25T13:30:53+00:00"
+        "pnl": 6.78,
+        "pnl_pct": 60.1,
+        "r": 0.601,
+        "at": "2026-11-25T14:31:33+00:00"
       },
       "price_trail": [
         {
@@ -2253,6 +2257,10 @@
         {
           "at": "2026-11-25T13:30:50+00:00",
           "price": 91.88
+        },
+        {
+          "at": "2026-11-25T14:31:30+00:00",
+          "price": 92.3
         }
       ]
     },
@@ -6128,12 +6136,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:31:48.565507+00:00",
       "live": {
-        "price": 7.33,
+        "price": 6.97,
         "kind": "stock",
-        "pnl": -13.0,
-        "pnl_pct": -26.5,
-        "r": -0.265,
-        "at": "2026-11-25T13:30:53+00:00"
+        "pnl": -20.2,
+        "pnl_pct": -41.2,
+        "r": -0.412,
+        "at": "2026-11-25T14:31:32+00:00"
       },
       "price_trail": [
         {
@@ -6607,6 +6615,10 @@
         {
           "at": "2026-11-25T13:30:50+00:00",
           "price": 7.33
+        },
+        {
+          "at": "2026-11-25T14:31:30+00:00",
+          "price": 6.97
         }
       ]
     },
