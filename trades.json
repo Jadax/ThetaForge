@@ -4,7 +4,7 @@
     "handle": "@thetaforge",
     "tagline": "Defined-risk option seller. Recommendations placed, receipts always."
   },
-  "as_of": "2026-11-25",
+  "as_of": "2026-11-26",
   "account_equity": 25000,
   "verification": {
     "generator": "scripts/sync_journal.py",
@@ -25,7 +25,7 @@
       "closed": 50,
       "wins": 23,
       "realized_pnl": -576.11,
-      "unrealized_pnl": -17.1,
+      "unrealized_pnl": -17.0,
       "equity": null
     },
     "infinity_1k": {
@@ -37,12 +37,12 @@
       "closed": 2,
       "wins": 0,
       "realized_pnl": -16.04,
-      "unrealized_pnl": 7.59,
+      "unrealized_pnl": 6.78,
       "equity": 983.96
     }
   },
   "learning": {
-    "generated_at": "2026-11-25T19:30:25Z",
+    "generated_at": "2026-11-26T13:31:18Z",
     "window_days": 120,
     "closed_learnable": 44,
     "setups": [
@@ -386,9 +386,9 @@
     "symbol": "SPY",
     "since": "2026-10-16",
     "start": 763.25,
-    "last": 717.61,
+    "last": 716.7,
     "as_of": "2026-11-25",
-    "return_pct": -5.98,
+    "return_pct": -6.1,
     "series": [
       [
         "2026-10-16",
@@ -504,7 +504,7 @@
       ],
       [
         "2026-11-25",
-        717.61
+        716.7
       ]
     ]
   },
@@ -1882,12 +1882,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-06T15:03:34.148260+00:00",
       "live": {
-        "price": 92.57,
+        "price": 92.3,
         "kind": "stock",
-        "pnl": 7.59,
-        "pnl_pct": 67.3,
-        "r": 0.673,
-        "at": "2026-11-25T19:30:24+00:00"
+        "pnl": 6.78,
+        "pnl_pct": 60.1,
+        "r": 0.601,
+        "at": "2026-11-26T13:31:18+00:00"
       },
       "price_trail": [
         {
@@ -2281,6 +2281,10 @@
         {
           "at": "2026-11-25T19:30:20+00:00",
           "price": 92.57
+        },
+        {
+          "at": "2026-11-26T13:31:13+00:00",
+          "price": 92.3
         }
       ]
     },
@@ -6156,12 +6160,12 @@
       "exit_note": "Open \u00b7 monitoring the position.",
       "timestamp": "2026-11-02T17:31:48.565507+00:00",
       "live": {
-        "price": 7.12,
+        "price": 7.13,
         "kind": "stock",
-        "pnl": -17.1,
-        "pnl_pct": -34.9,
-        "r": -0.349,
-        "at": "2026-11-25T19:30:24+00:00"
+        "pnl": -17.0,
+        "pnl_pct": -34.7,
+        "r": -0.347,
+        "at": "2026-11-26T13:31:17+00:00"
       },
       "price_trail": [
         {
@@ -6659,6 +6663,10 @@
         {
           "at": "2026-11-25T19:30:20+00:00",
           "price": 7.125
+        },
+        {
+          "at": "2026-11-26T13:31:13+00:00",
+          "price": 7.13
         }
       ]
     },
